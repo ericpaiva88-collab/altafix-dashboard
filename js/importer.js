@@ -138,10 +138,11 @@ function importar324Multi(files, filialId) {
 
     const cliMap = {};
 validos.forEach(res => {
-  const mesFile = (res.dataFim || res.dataInicio || '').slice(0, 7);
+  const pIni = res.dataInicio || res.dataFim || '';
+  const pFim = res.dataFim || res.dataInicio || '';
   (res.clientes || []).forEach(c => {
-    const k = normalizarNomeCliente(c.nome) + '|' + mesFile;
-    if (!cliMap[k]) cliMap[k] = Object.assign({}, c, { mes: mesFile });
+    const k = normalizarNomeCliente(c.nome) + '|' + pIni + '|' + pFim;
+    if (!cliMap[k]) cliMap[k] = Object.assign({}, c, { periodoIni: pIni, periodoFim: pFim });
     else cliMap[k] = mesclarCliente(cliMap[k], c);
   });
 });
@@ -233,7 +234,8 @@ export function processar324(wb, filialId) {
   }
 
   const dRef = dataFim || dataInicio || isoDate(new Date());
-  const mesRef = dRef.slice(0, 7);
+  const periodoIni = dataInicio || dRef;
+  const periodoFim = dataFim || dRef;
 
   let eh324 = false;
   for (let i = 0; i < Math.min(rows.length, 60); i++) {
@@ -316,7 +318,7 @@ export function processar324(wb, filialId) {
     id: cliId, nome: ncStr, codigo: cs,
     vendedor: vend ? vend.id : null,
     filialId: filialId,
-    mes: mesRef,
+    periodoIni, periodoFim,
     valorTotal: 0, numCompras: 0,
     ultimaCompra: null, primeiraCompra: null,
     linhas: 0, _datas: []
@@ -370,10 +372,10 @@ export function processar324(wb, filialId) {
 
     // VendasItens: par cliente × produto
     const cliNorm = normalizarNomeCliente(ncStr);
-const keyVI = mesRef + '|' + cliNorm + '|' + cs;
+const keyVI = periodoIni + '|' + periodoFim + '|' + cliNorm + '|' + cs;
 if (!vendasItensMap[keyVI]) {
   vendasItensMap[keyVI] = {
-    mes: mesRef,
+    periodoIni, periodoFim,
     clienteNorm: cliNorm, produtoCodigo: cs,
     produtoDescricao: descStr, valor: 0, qtd: 0
   };

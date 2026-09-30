@@ -110,7 +110,8 @@ export async function sbCarregarTudo() {
   const out = {
     filiais: [], grupos: [], vendedores: [], clientes: [], produtos: [],
     lancamentos: [], comparativo: [], cidades: [], metas: [],
-    produtosMes: [], vendasItens: [], acoesTratadas: {}, config: {}
+    produtosMes: [], vendasItens: [], clientesImportacoes: [],
+    acoesTratadas: {}, config: {}
   };
 
   const q = await Promise.all([
@@ -126,7 +127,8 @@ export async function sbCarregarTudo() {
     sbFetchAll('config'),
     sbFetchAll('metas'),
     sbFetchAll('produtos_mes'),
-    sbFetchAll('vendas_itens')
+    sbFetchAll('vendas_itens'),
+    sbFetchAll('clientes_importacoes')
   ]);
 
   if (q[0].data) out.filiais = q[0].data;
@@ -142,6 +144,7 @@ export async function sbCarregarTudo() {
   if (q[10].data) out.metas = q[10].data;
   if (q[11].data) out.produtosMes = q[11].data;
   if (q[12].data) out.vendasItens = q[12].data;
+  if (q[13].data) out.clientesImportacoes = q[13].data;
 
   return out;
 }
@@ -216,9 +219,22 @@ export function aplicarDadosDoBanco(d) {
   }));
 
   state.vendasItens = (d.vendasItens || []).map(v => ({
-    filialId: v.filial_id, mes: v.mes, clienteNorm: v.cliente_norm,
+    filialId: v.filial_id,
+    periodoIni: v.periodo_ini, periodoFim: v.periodo_fim,
+    clienteNorm: v.cliente_norm,
     produtoCodigo: v.produto_codigo, produtoDescricao: v.produto_descricao,
     valor: Number(v.valor) || 0, qtd: Number(v.qtd) || 0
+  }));
+
+  state.clientesImportacoes = (d.clientesImportacoes || []).map(r => ({
+    filialId: r.filial_id,
+    periodoIni: r.periodo_ini, periodoFim: r.periodo_fim,
+    clienteNorm: r.cliente_norm,
+    nome: r.nome, codigo: r.codigo, cidade: r.cidade, uf: r.uf,
+    vendedor: r.vendedor_id,
+    valor: Number(r.valor) || 0,
+    numCompras: r.num_compras || 0,
+    ultimaCompra: r.ultima_compra
   }));
 
   state.acoesTratadas = d.acoesTratadas || {};
@@ -244,27 +260,31 @@ export function construirMapaVendedores() {
 }
 
 // ------------------------------------------------------------
-// CLIENTES — CORREÇÃO BUG A
+// CLIENTES — por período de importação
 // ------------------------------------------------------------
 
 export async function sbUpsertClientes(lista, filialId, vendedoresMap) {
   if (!lista || lista.length === 0) return 0;
 
-  const porMes = {};
+  // Agrupa por (periodo_ini, periodo_fim)
+  const porPeriodo = {};
   lista.forEach(c => {
-    const mes = c.mes || '';
-    if (!mes) return;
-    if (!porMes[mes]) porMes[mes] = [];
-    porMes[mes].push(c);
+    const pIni = c.periodoIni || '';
+    const pFim = c.periodoFim || pIni;
+    if (!pIni) return;
+    const k = pIni + '|' + pFim;
+    if (!porPeriodo[k]) porPeriodo[k] = { pIni, pFim, clientes: [] };
+    porPeriodo[k].clientes.push(c);
   });
 
-  const meses = Object.keys(porMes);
-  for (let mIdx = 0; mIdx < meses.length; mIdx++) {
-    const mes = meses[mIdx];
-    const clientesDoMes = porMes[mes];
+  const periodos = Object.keys(porPeriodo);
+  for (let pIdx = 0; pIdx < periodos.length; pIdx++) {
+    const p = porPeriodo[periodos[pIdx]];
+    const clientesDoPeriodo = p.clientes;
 
+    // Deduplica por cliente dentro do período
     const dedup = {};
-    clientesDoMes.forEach(c => {
+    clientesDoPeriodo.forEach(c => {
       const k = normalizarNomeCliente(c.nome);
       if (!dedup[k]) {
         dedup[k] = Object.assign({}, c);
@@ -282,7 +302,8 @@ export async function sbUpsertClientes(lista, filialId, vendedoresMap) {
 
     const payload = Object.values(dedup).map(c => ({
       filial_id: filialId,
-      mes,
+      periodo_ini: p.pIni,
+      periodo_fim: p.pFim,
       cliente_norm: normalizarNomeCliente(c.nome),
       nome: c.nome,
       codigo: c.codigo || null,
@@ -291,22 +312,25 @@ export async function sbUpsertClientes(lista, filialId, vendedoresMap) {
       vendedor_id: c.vendedor && vendedoresMap[c.vendedor] ? vendedoresMap[c.vendedor] : null,
       valor: c.valorTotal || 0,
       num_compras: c.numCompras || 0,
-      ultima_compra: c.ultimaCompra || null,
-      primeira_compra_no_mes: c.primeiraCompra || null
+      ultima_compra: c.ultimaCompra || null
     }));
 
-    const del = await session.sb.from('clientes_mes')
-      .delete().eq('filial_id', filialId).eq('mes', mes);
-    if (del.error) throw new Error('clientes_mes delete: ' + del.error.message);
+    const del = await session.sb.from('clientes_importacoes')
+      .delete()
+      .eq('filial_id', filialId)
+      .eq('periodo_ini', p.pIni)
+      .eq('periodo_fim', p.pFim);
+    if (del.error) throw new Error('clientes_importacoes delete: ' + del.error.message);
 
     for (let i = 0; i < payload.length; i += 500) {
       const chunk = payload.slice(i, i + 500);
-      const r = await session.sb.from('clientes_mes').insert(chunk);
-      if (r.error) throw new Error('clientes_mes insert: ' + r.error.message);
+      const r = await session.sb.from('clientes_importacoes').insert(chunk);
+      if (r.error) throw new Error('clientes_importacoes insert: ' + r.error.message);
     }
   }
 
-  const todas = await sbFetchAll('clientes_mes', { eq: { filial_id: filialId } });
+  // Rebuild clientes agregado
+  const todas = await sbFetchAll('clientes_importacoes', { eq: { filial_id: filialId } });
 
   const agregado = {};
   (todas.data || []).forEach(row => {
@@ -330,16 +354,16 @@ export async function sbUpsertClientes(lista, filialId, vendedoresMap) {
     a.valor_total += Number(row.valor) || 0;
     a.num_compras += Number(row.num_compras) || 0;
 
+    if (row.periodo_ini) {
+      if (!a.primeira_compra || row.periodo_ini < a.primeira_compra) {
+        a.primeira_compra = row.periodo_ini;
+      }
+    }
     if (row.ultima_compra) {
       if (!a.ultima_compra || row.ultima_compra > a.ultima_compra) {
         a.ultima_compra = row.ultima_compra;
       }
       if (a._datas.indexOf(row.ultima_compra) < 0) a._datas.push(row.ultima_compra);
-    }
-    if (row.primeira_compra_no_mes) {
-      if (!a.primeira_compra || row.primeira_compra_no_mes < a.primeira_compra) {
-        a.primeira_compra = row.primeira_compra_no_mes;
-      }
     }
     if (row.vendedor_id && !a.vendedor_id) a.vendedor_id = row.vendedor_id;
     if (row.cidade && !a.cidade) { a.cidade = row.cidade; a.uf = row.uf; }
@@ -493,7 +517,7 @@ export async function sbUpsertLancamentos(lista, filialId, vendedoresMap) {
 }
 
 // ------------------------------------------------------------
-// CIDADES
+// CIDADES (mensal)
 // ------------------------------------------------------------
 
 export async function sbUpsertCidades(lista, filialId, mesKey) {
@@ -543,7 +567,7 @@ export async function sbUpsertComparativo(lista, filialId) {
 }
 
 // ------------------------------------------------------------
-// PRODUTOS_MES
+// PRODUTOS_MES (mensal)
 // ------------------------------------------------------------
 
 export async function sbUpsertProdutosMes(lista, filialId, mes) {
@@ -581,33 +605,39 @@ export async function sbUpsertProdutosMes(lista, filialId, mes) {
 }
 
 // ------------------------------------------------------------
-// VENDAS_ITENS — CORREÇÃO BUG B
+// VENDAS_ITENS — por período de importação
 // ------------------------------------------------------------
 
 export async function sbUpsertVendasItens(lista, filialId) {
   if (!lista || lista.length === 0) return 0;
 
-  const porMes = {};
+  const porPeriodo = {};
   lista.forEach(v => {
-    const mes = v.mes;
-    if (!mes) return;
-    if (!porMes[mes]) porMes[mes] = [];
-    porMes[mes].push(v);
+    const pIni = v.periodoIni || '';
+    const pFim = v.periodoFim || pIni;
+    if (!pIni) return;
+    const k = pIni + '|' + pFim;
+    if (!porPeriodo[k]) porPeriodo[k] = { pIni, pFim, itens: [] };
+    porPeriodo[k].itens.push(v);
   });
 
-  const meses = Object.keys(porMes);
+  const periodos = Object.keys(porPeriodo);
   let total = 0;
 
-  for (let mIdx = 0; mIdx < meses.length; mIdx++) {
-    const mes = meses[mIdx];
-    const itensDoMes = porMes[mes];
+  for (let pIdx = 0; pIdx < periodos.length; pIdx++) {
+    const p = porPeriodo[periodos[pIdx]];
+    const itensDoPeriodo = p.itens;
 
     const del = await session.sb.from('vendas_itens')
-      .delete().eq('filial_id', filialId).eq('mes', mes);
+      .delete()
+      .eq('filial_id', filialId)
+      .eq('periodo_ini', p.pIni)
+      .eq('periodo_fim', p.pFim);
     if (del.error) throw new Error('vendas_itens delete: ' + del.error.message);
 
-    const payload = itensDoMes.map(v => ({
-      filial_id: filialId, mes,
+    const payload = itensDoPeriodo.map(v => ({
+      filial_id: filialId,
+      periodo_ini: p.pIni, periodo_fim: p.pFim,
       cliente_norm: v.clienteNorm, produto_codigo: v.produtoCodigo,
       produto_descricao: v.produtoDescricao,
       valor: v.valor || 0, qtd: v.qtd || 0
@@ -616,7 +646,7 @@ export async function sbUpsertVendasItens(lista, filialId) {
     for (let i = 0; i < payload.length; i += 500) {
       const chunk = payload.slice(i, i + 500);
       const r = await session.sb.from('vendas_itens').upsert(chunk, {
-        onConflict: 'filial_id,mes,cliente_norm,produto_codigo'
+        onConflict: 'filial_id,periodo_ini,periodo_fim,cliente_norm,produto_codigo'
       });
       if (r.error) throw new Error('vendas_itens: ' + r.error.message);
       total += chunk.length;

@@ -1,5 +1,5 @@
 // ============================================================
-// views/clientes.js — Tela de Clientes + Clientes Novos
+// views/clientes.js — Clientes + Novos & Reativados
 // ============================================================
 
 import { state, ui } from '../state.js';
@@ -36,7 +36,7 @@ export function renderClientes() {
       'Nenhum cliente. Importe o 324.</td></tr>';
     ce.textContent = '';
     if (suspeitoEl) suspeitoEl.innerHTML = '';
-    renderClientesNovos();
+    renderClientesNovosReativados();
     return;
   }
 
@@ -78,7 +78,7 @@ export function renderClientes() {
   renderTabela(filtrados);
   window._clientesFiltrados = filtrados;
 
-  renderClientesNovos();
+  renderClientesNovosReativados();
 }
 
 // ============================================================
@@ -239,14 +239,49 @@ function renderTabela(filtrados) {
 }
 
 // ============================================================
-// CLIENTES NOVOS
+// NOVOS & REATIVADOS
 // ============================================================
 
-export function renderClientesNovos() {
+/**
+ * Classifica um cliente com base no histórico de importações.
+ * Retorna 'novo', 'reativado' ou null.
+ */
+function classificarCliente(clienteNorm, filialId, hj, diasJanela) {
+  const rows = (state.clientesImportacoes || []).filter(r =>
+    r.clienteNorm === clienteNorm && r.filialId === filialId
+  );
+  if (rows.length === 0) return null;
+
+  // Ordena por periodoIni
+  rows.sort((a, b) => (a.periodoIni || '').localeCompare(b.periodoIni || ''));
+
+  const primeiraCompra = rows[0].periodoIni;
+  const ultimaCompra = rows[rows.length - 1].ultimaCompra || rows[rows.length - 1].periodoIni;
+
+  // Novo: primeira compra dentro da janela
+  const diasDesdePrimeira = diffDias(primeiraCompra, hj);
+  if (diasDesdePrimeira <= diasJanela) return 'novo';
+
+  // Reativado: última compra dentro da janela, com gap >= 90 dias antes
+  const diasDesdeUltima = diffDias(ultimaCompra, hj);
+  if (diasDesdeUltima > diasJanela) return null;
+
+  for (let i = rows.length - 1; i > 0; i--) {
+    const atual = rows[i];
+    const anterior = rows[i - 1];
+    const gap = diffDias(anterior.ultimaCompra, atual.periodoIni);
+    if (gap >= 90) return 'reativado';
+  }
+
+  return null;
+}
+
+export function renderClientesNovosReativados() {
   const kEl = document.getElementById('novos-kpis');
   const tb = document.getElementById('tbody-novos');
   const selPeriodo = document.getElementById('novos-periodo');
   const selVendedor = document.getElementById('novos-vendedor');
+  const selTipo = document.getElementById('novos-tipo');
   const countEl = document.getElementById('novos-count');
 
   if (!tb) return;
@@ -256,8 +291,10 @@ export function renderClientesNovos() {
 
   const periodo = selPeriodo ? (parseInt(selPeriodo.value, 10) || 30) : 30;
   const filtroVend = selVendedor ? selVendedor.value : '';
+  const filtroTipo = selTipo ? selTipo.value : '';
   const hj = isoDate(new Date());
 
+  // Popular selects
   if (selVendedor && selVendedor.options.length <= 1) {
     const vistos = {};
     base.forEach(c => { if (c.vendedor) vistos[c.vendedor] = true; });
@@ -269,84 +306,88 @@ export function renderClientesNovos() {
     selVendedor.innerHTML = opts;
   }
 
-  const novos = base.filter(c => {
-    if (!c.primeiraCompra) return false;
-    const dias = diffDias(c.primeiraCompra, hj);
-    if (dias > periodo) return false;
+  // Classifica cada cliente
+  const classificados = base.map(c => {
+    const tipo = classificarCliente(
+      c.nome.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/[.,;:\-()\/\\'`"]/g, '').replace(/\s+/g, ' ').trim(),
+      c.filialId, hj, periodo
+    );
+    return tipo ? { ...c, _tipo: tipo } : null;
+  }).filter(Boolean);
+
+  // Aplica filtros
+  const filtrados = classificados.filter(c => {
     if (filtroVend && c.vendedor !== filtroVend) return false;
+    if (filtroTipo && c._tipo !== filtroTipo) return false;
     return true;
-  }).sort((a, b) => (b.primeiraCompra || '').localeCompare(a.primeiraCompra || ''));
+  }).sort((a, b) => {
+    // Reativados primeiro, depois novos, e dentro de cada grupo mais recente primeiro
+    if (a._tipo !== b._tipo) return a._tipo === 'reativado' ? -1 : 1;
+    return (b.primeiraCompra || '').localeCompare(a.primeiraCompra || '');
+  });
 
-  const totalValor = novos.reduce((s, c) => s + (c.valorTotal || 0), 0);
-  const totalCompras = novos.reduce((s, c) => s + (c.numCompras || 0), 0);
+  // KPIs
+  const novosCount = filtrados.filter(c => c._tipo === 'novo').length;
+  const reatCount = filtrados.filter(c => c._tipo === 'reativado').length;
+  const totalValor = filtrados.reduce((s, c) => s + (c.valorTotal || 0), 0);
+  const totalCompras = filtrados.reduce((s, c) => s + (c.numCompras || 0), 0);
   const ticketMedio = totalCompras > 0 ? totalValor / totalCompras : 0;
-
-  const porVend = {};
-  novos.forEach(c => {
-    const k = c.vendedor || '__sem__';
-    if (!porVend[k]) porVend[k] = { qtd: 0, valor: 0 };
-    porVend[k].qtd++;
-    porVend[k].valor += (c.valorTotal || 0);
-  });
-
-  let topVendId = null, topQtd = 0;
-  Object.keys(porVend).forEach(v => {
-    if (porVend[v].qtd > topQtd) { topQtd = porVend[v].qtd; topVendId = v; }
-  });
-  const topVendNome = topVendId === '__sem__'
-    ? 'sem vendedor'
-    : (topVendId ? (state.vendedores.find(x => x.id === topVendId) || {}).nome || '—' : '—');
 
   if (kEl) {
     kEl.innerHTML =
-      '<div class="kpi"><div class="label">Novos clientes</div>' +
-      '<div class="value">' + novos.length + '</div>' +
-      '<div class="hint">últimos ' + periodo + ' dias</div></div>' +
-      '<div class="kpi positivo"><div class="label">Valor total</div>' +
+      '<div class="kpi positivo"><div class="label">🆕 Novos</div>' +
+      '<div class="value">' + novosCount + '</div>' +
+      '<div class="hint">primeira compra em ' + periodo + 'd</div></div>' +
+      '<div class="kpi" style="border-left:4px solid #0ea5e9;">' +
+      '<div class="label">♻️ Reativados</div>' +
+      '<div class="value">' + reatCount + '</div>' +
+      '<div class="hint">90+ dias sem comprar</div></div>' +
+      '<div class="kpi"><div class="label">Valor total</div>' +
       '<div class="value">' + fmtBRL(totalValor) + '</div></div>' +
       '<div class="kpi"><div class="label">Ticket médio</div>' +
-      '<div class="value">' + fmtBRL(ticketMedio) + '</div></div>' +
-      '<div class="kpi"><div class="label">Top vendedor</div>' +
-      '<div class="value" style="font-size:16px;">' + escapeHtml(topVendNome) + '</div>' +
-      '<div class="hint">' + topQtd + ' cliente(s)</div></div>';
+      '<div class="value">' + fmtBRL(ticketMedio) + '</div></div>';
   }
 
-  if (countEl) countEl.textContent = novos.length + ' cliente(s) novos';
+  if (countEl) countEl.textContent = filtrados.length + ' cliente(s)';
 
-  if (novos.length === 0) {
+  if (filtrados.length === 0) {
     tb.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;color:#64748b;">' +
-      'Nenhum cliente novo nos últimos ' + periodo + ' dias.</td></tr>';
+      'Nenhum cliente novo ou reativado nos últimos ' + periodo + ' dias.</td></tr>';
     return;
   }
 
-  tb.innerHTML = novos.slice(0, 300).map(c => {
+  tb.innerHTML = filtrados.slice(0, 300).map(c => {
     const v = state.vendedores.find(x => x.id === c.vendedor);
-    const dias = diffDias(c.primeiraCompra, hj);
-    const badge = dias <= 7
-      ? '<span class="badge badge-risco" style="background:#16a34a;">🆕 ' + dias + 'd</span>'
-      : '<span class="badge" style="background:#0ea5e9;color:#fff;">' + dias + 'd</span>';
+    const ehNovo = c._tipo === 'novo';
+    const badge = ehNovo
+      ? '<span class="badge" style="background:#16a34a;color:#fff;">🆕 Novo</span>'
+      : '<span class="badge" style="background:#0ea5e9;color:#fff;">♻️ Reativado</span>';
 
     return '<tr>' +
       '<td>' + escapeHtml(c.nome) + '</td>' +
       '<td>' + escapeHtml(c.cidade || '—') + '</td>' +
       '<td>' + (v ? escapeHtml(v.nome) : '<span style="color:#dc2626;">⚠ sem</span>') + '</td>' +
+      '<td>' + badge + '</td>' +
       '<td>' + fmtDataBR(c.primeiraCompra) + '</td>' +
       '<td class="num">' + fmtBRL(c.valorTotal) + '</td>' +
-      '<td class="num">' + (c.numCompras || 0) + '</td>' +
-      '<td>' + badge + '</td></tr>';
+      '<td class="num">' + (c.numCompras || 0) + '</td></tr>';
   }).join('');
 }
 
 export function setupClientesNovos() {
   const selPeriodo = document.getElementById('novos-periodo');
-  if (selPeriodo) selPeriodo.onchange = renderClientesNovos;
+  if (selPeriodo) selPeriodo.onchange = renderClientesNovosReativados;
 
   const selVendedor = document.getElementById('novos-vendedor');
-  if (selVendedor) selVendedor.onchange = renderClientesNovos;
+  if (selVendedor) selVendedor.onchange = renderClientesNovosReativados;
+
+  const selTipo = document.getElementById('novos-tipo');
+  if (selTipo) selTipo.onchange = renderClientesNovosReativados;
 }
 
 // ============================================================
-// COPIAR LISTAS
+// COPIAR
 // ============================================================
 
 export function copiarInativos() {

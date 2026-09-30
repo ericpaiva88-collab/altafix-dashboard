@@ -36,6 +36,7 @@ export const state = {
   cidades: [],
   metas: [],
   produtosMes: [],
+  clientesImportacoes: [],
   vendasItens: [],
   acoesTratadas: {},
   _historico: {},
