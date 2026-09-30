@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alta Fix — Gestão Comercial</title>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div id="erro-banner"></div>
+
+<header>
+  <div class="header-top">
+    <div class="brand">
+      <h1>Alta Fix</h1>
+      <small id="brand-sub">Gestão Comercial</small>
+    </div>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+      <select id="escopo-select" class="escopo-select"></select>
+      <select id="modo-vendedor" class="escopo-select" style="max-width:170px;"></select>
+      <div id="user-box" style="display:none;align-items:center;gap:8px;padding:6px 10px;background:#f1f5f9;border-radius:6px;font-size:12px;">
+        <strong id="user-nome">—</strong>
+        <span id="user-papel" style="color:#64748b;"></span>
+        <button class="btn btn-sm" id="btn-logout" style="min-height:26px;padding:2px 8px;font-size:11px;">Sair</button>
+      </div>
+      <button class="btn btn-sm" id="btn-export-excel">📥 Excel</button>
+      <button class="btn btn-sm" id="help-btn" style="font-weight:700;">?</button>
+      <button class="btn btn-sm" id="btn-backup">💾</button>
+    </div>
+  </div>
+  <nav class="tabs" id="main-tabs">
+    <button data-tab="painel" class="active">🎯 Painel</button>
+    <button data-tab="clientes">👥 Clientes</button>
+    <button data-tab="produtos">📦 Produtos</button>
+    <button data-tab="analise">📊 Análise</button>
+    <button data-tab="config">⚙️ Config</button>
+  </nav>
+</header>
+
+<div id="escopo-banner"></div>
+<div id="banner-modo-vendedor">
+  👁️ Vendo painel de <strong id="banner-modo-nome">—</strong>.
+  <button class="btn btn-sm" id="btn-sair-modo" style="margin-left:10px;">← Voltar</button>
+</div>
+
+<main>
+  <section id="tab-painel" class="active">
+    <div class="card">
+      <h2 id="painel-titulo">Carregando...</h2>
+      <div id="painel-status"></div>
+      <div id="painel-dias-info" style="font-size:12px;color:#64748b;margin-top:6px;"></div>
+      <div style="margin-top:12px;display:flex;gap:6px;flex-wrap:wrap;">
+        <button class="btn btn-primary btn-sm" id="btn-relatorio-matinal">📱 Relatório matinal</button>
+        <button class="btn btn-sm" id="btn-relatorio-fechamento">📊 Relatório fechamento</button>
+        <button class="btn btn-sm" id="btn-min-todos">▾ Minimizar tudo</button>
+        <button class="btn btn-sm" id="btn-max-todos">▸ Expandir tudo</button>
+      </div>
+    </div>
+    <div class="kpi-grid" id="painel-kpis"></div>
+    <div class="frase-resumo" id="painel-frase" style="display:none;"></div>
+
+    <div class="card minimizavel" id="card-vend-novidade" style="display:none;">
+      <h2>🎉 Suas conquistas do mês</h2>
+      <div class="min-conteudo"><div id="vend-novidade-container"></div></div>
+    </div>
+
+    <div class="card minimizavel" id="card-vend-evolucao" style="display:none;">
+      <h2>📈 Evolução do mês <span class="sub" id="vend-evolucao-sub"></span></h2>
+      <div class="min-conteudo">
+        <div class="chart-wrap" style="height:260px;"><canvas id="chart-vend-evolucao"></canvas></div>
+      </div>
+    </div>
+
+    <div class="card minimizavel" id="card-vend-historico" style="display:none;">
+      <h2>📊 Últimos 6 meses <span class="sub" id="vend-historico-sub"></span></h2>
+      <div class="min-conteudo">
+        <div class="chart-wrap" style="height:220px;"><canvas id="chart-vend-historico"></canvas></div>
+      </div>
+    </div>
+
+    <div class="card minimizavel" id="card-vend-top-produtos" style="display:none;">
+      <h2>🏆 Meus top produtos <span class="sub" id="vend-top-prod-sub"></span></h2>
+      <div class="min-conteudo"><div id="vend-top-prod-container"></div></div>
+    </div>
+
+    <div class="card minimizavel" id="card-vend-clientes" style="display:none;">
+      <h2>🏆 Meus melhores clientes <span class="sub" id="vend-clientes-sub"></span></h2>
+      <div class="min-conteudo"><div id="vend-clientes-container"></div></div>
+    </div>
+
+    <div class="card minimizavel" id="card-vend-em-risco" style="display:none;">
+      <h2>⚠️ Clientes que preciso reativar <span class="sub" id="vend-em-risco-sub"></span></h2>
+      <div class="min-conteudo"><div id="vend-em-risco-container"></div></div>
+    </div>
+
+    <div class="card minimizavel" id="card-vend-rank" style="display:none;">
+      <h2>🏅 Minha posição <span class="sub" id="vend-rank-sub"></span></h2>
+      <div class="min-conteudo"><div id="vend-rank-container"></div></div>
+    </div>
+
+    <div class="card minimizavel" id="card-painel-acoes" style="border-left:4px solid #dc2626;padding:0;">
+      <h2 style="padding:14px 14px 10px 14px;border-bottom:1px solid #e2e8f0;margin-bottom:0;">🎯 Ações de hoje <span class="sub" id="acoes-sub"></span></h2>
+      <div class="min-conteudo"><div id="acoes-container"></div></div>
+    </div>
+
+    <div class="card minimizavel" id="card-painel-graficos">
+      <h2>📊 Gráficos <span class="sub">últimos 30 dias e acumulado do mês</span></h2>
+      <div class="min-conteudo">
+        <div class="chart-grid" style="margin-bottom:0;">
+          <div class="chart-card"><h3>📈 Faturamento diário</h3><div class="chart-wrap"><canvas id="chart-diario"></canvas></div></div>
+          <div class="chart-card"><h3>🎯 Acumulado vs Meta</h3><div class="chart-wrap"><canvas id="chart-meta"></canvas></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card minimizavel" id="card-painel-simulador" style="display:none;border-left:4px solid #0ea5e9;">
+      <h2>🎯 Simulador de metas <span class="sub">arraste os sliders pra simular cenários</span></h2>
+      <div class="min-conteudo">
+        <div id="simulador-container"></div>
+        <div id="simulador-resultado" style="margin-top:14px;"></div>
+        <div style="margin-top:10px;display:flex;gap:6px;">
+          <button class="btn btn-sm" id="btn-sim-reset">Resetar</button>
+          <button class="btn btn-sm btn-primary" id="btn-sim-relatorio">📱 Copiar</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card minimizavel" id="card-painel-rank">
+      <h2>🏆 Ranking de Vendedores <span class="sub" id="rank-sub"></span></h2>
+      <div class="min-conteudo">
+        <div style="margin-bottom:8px;"><button class="btn btn-sm" id="btn-imprimir-ranking">🖨️ Imprimir ranking</button></div>
+        <div id="rank-container"></div>
+      </div>
+    </div>
+
+    <div class="card minimizavel" id="card-painel-semana">
+      <h2>📅 Semana corrente</h2>
+      <div class="min-conteudo">
+        <div class="semana-nav">
+          <button class="btn btn-sm" id="sem-prev">◀</button>
+          <div id="sem-titulo">—</div>
+          <button class="btn btn-sm" id="sem-next">▶</button>
+        </div>
+        <div class="kpi-grid" id="semana-kpis"></div>
+        <div class="semana-tabs" id="sem-tabs">
+          <button data-dia="1">SEG</button><button data-dia="2">TER</button>
+          <button data-dia="3">QUA</button><button data-dia="4">QUI</button>
+          <button data-dia="5">SEX</button><button data-dia="6">SÁB</button>
+        </div>
+        <div class="semana-desktop" id="sem-desktop"></div>
+        <div class="semana-mobile" id="sem-mobile"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="secao-header" id="hdr-historico">
+        <h3>📋 Histórico <span class="sub" id="historico-count"></span></h3>
+        <span class="chev">▼</span>
+      </div>
+      <div class="secao-body" id="body-historico"><div id="historico-container"></div></div>
+    </div>
+  </section>
+
+  <section id="tab-clientes">
+    <div class="kpi-grid" id="clientes-kpis"></div>
+    <div class="card minimizavel" id="card-clientes-segmento">
+      <h2>🏷️ Análise por segmento <span class="sub">clique para filtrar</span></h2>
+      <div class="min-conteudo"><div class="kpi-grid" id="segmento-kpis" style="margin-bottom:0;"></div></div>
+    </div>
+    <div class="card minimizavel" id="card-clientes-lista">
+      <h2>👥 Clientes <span class="sub" id="clientes-count"></span> <span id="clientes-suspeito"></span></h2>
+      <div class="min-conteudo">
+        <div class="filtros-bar">
+          <input type="text" id="filtro-cliente-busca" placeholder="Buscar..." style="flex:1;min-width:180px;">
+          <select id="filtro-cliente-vend"><option value="">Todos vendedores</option></select>
+          <select id="filtro-cliente-cidade"><option value="">Todas cidades</option></select>
+          <select id="filtro-cliente-status">
+            <option value="todos">Status: todos</option>
+            <option value="inativos">Inativos (30+)</option>
+            <option value="criticos">Críticos (90+)</option>
+            <option value="sem-vendedor">Sem vendedor</option>
+          </select>
+          <select id="filtro-cliente-rfm">
+            <option value="">RFM: todos</option>
+            <option value="campeao">🏆 Campeões</option>
+            <option value="leal">💙 Leais</option>
+            <option value="promissor">🌱 Promissores</option>
+            <option value="risco">🚨 Em risco</option>
+            <option value="hibernando">💤 Hibernando</option>
+          </select>
+          <select id="filtro-cliente-abc">
+            <option value="">ABC: todas</option>
+            <option value="A">A</option><option value="B">B</option><option value="C">C</option>
+          </select>
+        </div>
+        <div style="overflow-x:auto;">
+          <table class="tabela">
+            <thead><tr>
+              <th>Cliente</th><th>Cidade</th><th>Vendedor</th><th>Segmento</th><th>ABC</th>
+              <th class="num">Valor</th><th class="num">Compras</th><th class="num">Ticket</th>
+              <th class="num">Dias</th><th>Risco</th>
+            </tr></thead>
+            <tbody id="tbody-clientes"></tbody>
+          </table>
+        </div>
+        <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-primary" id="btn-copiar-inativos">📱 Copiar inativos</button>
+          <button class="btn" id="btn-copiar-segmento">📱 Copiar segmento</button>
+          <button class="btn" id="btn-imprimir-clientes">🖨️ Imprimir lista filtrada</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="tab-produtos">
+    <div class="kpi-grid" id="produtos-kpis"></div>
+    <div class="card">
+      <div class="secao-header" id="hdr-abc">
+        <h3>📊 Curva ABC <span class="sub" id="abc-count"></span></h3>
+        <span class="chev">▼</span>
+      </div>
+      <div class="secao-body" id="body-abc">
+        <div class="filtros-bar">
+          <div class="chips">
+            <button class="chip chip-A active" data-curva="TODAS">Todas</button>
+            <button class="chip chip-A" data-curva="A">A</button>
+            <button class="chip chip-B" data-curva="B">B</button>
+            <button class="chip chip-C" data-curva="C">C</button>
+          </div>
+          <select id="filtro-delta-produto">
+            <option value="">Δ%: todas</option>
+            <option value="up">Subindo</option>
+            <option value="down">Caindo</option>
+            <option value="strong_down">Queda -20%+</option>
+            <option value="new">Novos</option>
+          </select>
+          <input type="text" id="filtro-produto" placeholder="Buscar..." style="flex:1;min-width:200px;">
+          <select id="filtro-fabricante"><option value="">Todos fabricantes</option></select>
+        </div>
+        <div style="font-size:12px;color:#64748b;margin-bottom:6px;" id="abc-info"></div>
+        <div style="overflow-x:auto;">
+          <table class="tabela" id="tabela-produtos">
+            <thead><tr>
+              <th data-sort="curva">Curva</th>
+              <th data-sort="codigo">Código</th>
+              <th data-sort="descricao">Descrição</th>
+              <th data-sort="fabricante">Fab.</th>
+              <th class="num" data-sort="qtdVendida">Qtd</th>
+              <th class="num" data-sort="valorVendido">Valor</th>
+              <th class="num" data-sort="deltaPct">Δ%</th>
+              <th class="num" data-sort="pctIndividual">%</th>
+              <th class="num">Cidades</th>
+            </tr></thead>
+            <tbody id="tbody-produtos"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="tab-analise">
+    <div class="subtabs" data-parent="analise">
+      <button data-subtab="comparativo" class="active">📅 Comparativo YoY</button>
+      <button data-subtab="cidades">🗺️ Cidades</button>
+      <button data-subtab="fabricantes">🏭 Fabricantes</button>
+    </div>
+
+    <div id="subtab-analise-comparativo" class="subtab-content active">
+      <div class="card" style="border-left:4px solid #0f172a;">
+        <h2>Filtro</h2>
+        <div class="filtros-bar">
+          <label style="font-size:13px;font-weight:600;color:#475569;">Vendedor:</label>
+          <select id="comp-filtro-vendedor" style="min-width:240px;"><option value="">📊 Todos</option></select>
+          <span id="comp-filtro-info" style="font-size:12px;color:#64748b;margin-left:auto;"></span>
+        </div>
+      </div>
+      <div class="kpi-grid" id="comparativo-kpis"></div>
+      <div class="card">
+        <div class="secao-header" id="hdr-comp-mes">
+          <h3>📅 Comparativo 2025 × 2026</h3>
+          <span class="chev">▼</span>
+        </div>
+        <div class="secao-body" id="body-comp-mes">
+          <div class="chart-card" style="border:none;padding:0;margin-bottom:12px;">
+            <div class="chart-wrap" style="height:260px;"><canvas id="chart-yoy"></canvas></div>
+          </div>
+          <div style="overflow-x:auto;">
+            <table class="tabela">
+              <thead><tr>
+                <th>Mês</th><th class="num">2025 Fat.</th><th class="num">2025 Ped.</th>
+                <th class="num">2026 Fat.</th><th class="num">2026 Ped.</th>
+                <th class="num">Cresc. R$</th><th class="num">Cresc. %</th>
+              </tr></thead>
+              <tbody id="tbody-comparativo"></tbody>
+              <tfoot id="tfoot-comparativo"></tfoot>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="secao-header" id="hdr-comp-vend">
+          <h3>👥 Por vendedor <span class="sub">clique para filtrar</span></h3>
+          <span class="chev">▼</span>
+        </div>
+        <div class="secao-body" id="body-comp-vend">
+          <div style="overflow-x:auto;">
+            <table class="tabela"><thead><tr id="thead-comp-vend"></tr></thead><tbody id="tbody-comp-vend-mes"></tbody></table>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="secao-header" id="hdr-comp-tot">
+          <h3>📈 Acumulado por vendedor</h3>
+          <span class="chev">▼</span>
+        </div>
+        <div class="secao-body" id="body-comp-tot">
+          <div style="overflow-x:auto;">
+            <table class="tabela">
+              <thead><tr><th>Vendedor</th><th class="num">2025</th><th class="num">2026</th><th class="num">Cresc. R$</th><th class="num">Cresc. %</th></tr></thead>
+              <tbody id="tbody-comparativo-vend"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="subtab-analise-cidades" class="subtab-content">
+      <div class="periodo-bar">
+        <span style="font-size:13px;color:#334155;font-weight:600;">📆 Mês:</span>
+        <select id="cidade-mes-select" style="min-width:180px;"><option value="">— último —</option></select>
+        <span style="font-size:13px;color:#334155;font-weight:600;margin-left:12px;">🏙️ Cidade:</span>
+        <select id="cidade-filtro-evolucao" style="min-width:240px;"><option value="">Todas (top 6 no gráfico)</option></select>
+        <span id="periodo-display" style="font-size:12px;color:#64748b;margin-left:auto;">—</span>
+      </div>
+      <div class="card" id="card-top-movers" style="display:none;">
+        <h2>🚀 Maiores movimentos <span class="sub">vs mês anterior</span></h2>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;">
+          <div>
+            <div style="font-size:12px;font-weight:700;text-transform:uppercase;color:#16a34a;margin-bottom:8px;">▲ Top 5 que cresceram</div>
+            <div id="top-subiram"></div>
+          </div>
+          <div>
+            <div style="font-size:12px;font-weight:700;text-transform:uppercase;color:#dc2626;margin-bottom:8px;">▼ Top 5 que caíram</div>
+            <div id="top-cairam"></div>
+          </div>
+        </div>
+      </div>
+      <div class="card" id="card-evolucao" style="display:none;">
+        <h2>📈 Evolução por cidade <span class="sub" id="evolucao-sub"></span></h2>
+        <div class="chart-wrap" style="height:280px;"><canvas id="chart-evolucao"></canvas></div>
+      </div>
+      <div class="kpi-grid" id="cidades-kpis"></div>
+      <div class="card">
+        <h2>Ranking de Cidades <span class="sub" id="cidades-info"></span></h2>
+        <div class="filtros-bar">
+          <input type="text" id="filtro-cidade-busca" placeholder="Buscar cidade..." style="flex:1;min-width:180px;">
+          <select id="filtro-cidade-vend"><option value="">Todos vendedores</option></select>
+          <label style="font-size:13px;display:flex;align-items:center;gap:5px;padding:8px 12px;background:#f1f5f9;border-radius:6px;cursor:pointer;min-height:36px;">
+            <input type="checkbox" id="filtro-ocultar-nao-cad" checked>
+            <span>Ocultar administrativos</span>
+          </label>
+        </div>
+        <div style="overflow-x:auto;">
+          <table class="tabela" id="tabela-cidades">
+            <thead><tr>
+              <th data-sort-cidade="nome">Cidade</th>
+              <th>UF</th>
+              <th class="num" data-sort-cidade="totalValor">Valor</th>
+              <th class="num" data-sort-cidade="deltaPct">Δ%</th>
+              <th class="num" data-sort-cidade="numClientes">Clientes</th>
+              <th class="num" data-sort-cidade="qtdVendas">Vendas</th>
+              <th class="num" data-sort-cidade="ticketMedio">Ticket</th>
+              <th class="num" data-sort-cidade="pctTotal">%</th>
+            </tr></thead>
+            <tbody id="tbody-cidades"></tbody>
+          </table>
+        </div>
+        <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-primary" id="btn-copiar-cidades">📱 Copiar ranking</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="subtab-analise-fabricantes" class="subtab-content">
+      <div class="periodo-bar">
+        <span style="font-size:13px;color:#334155;font-weight:600;">📆 Mês:</span>
+        <select id="fab-mes-select" style="min-width:180px;"></select>
+        <span id="fab-periodo-display" style="font-size:12px;color:#64748b;margin-left:auto;">—</span>
+      </div>
+      <div class="kpi-grid" id="fab-kpis"></div>
+      <div class="card">
+        <h2>Ranking de Fabricantes <span class="sub" id="fab-info"></span></h2>
+        <div class="filtros-bar">
+          <input type="text" id="fab-busca" placeholder="Buscar fabricante..." style="flex:1;min-width:180px;">
+          <select id="fab-filtro-delta">
+            <option value="">Δ%: todos</option>
+            <option value="up">Subindo</option>
+            <option value="down">Caindo</option>
+          </select>
+        </div>
+        <div style="overflow-x:auto;">
+          <table class="tabela">
+            <thead><tr>
+              <th>Fabricante</th>
+              <th class="num">Faturamento</th>
+              <th class="num">Δ%</th>
+              <th class="num">Produtos</th>
+              <th class="num">Curva A</th>
+              <th class="num">Ticket médio</th>
+              <th class="num">% Total</th>
+            </tr></thead>
+            <tbody id="tbody-fabricantes"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="tab-config">
+    <div class="subtabs" data-parent="config">
+      <button data-subtab="saude" class="active">💚 Saúde dos dados</button>
+      <button data-subtab="importar">📥 Importar</button>
+      <button data-subtab="lancar">✏️ Lançar</button>
+      <button data-subtab="vendedores">👤 Vendedores</button>
+      <button data-subtab="filiais">🏢 Filiais</button>
+      <button data-subtab="geral">⚙️ Geral</button>
+    </div>
+
+    <div id="subtab-config-saude" class="subtab-content active">
+      <div class="card">
+        <h2>🔍 Diagnóstico de integridade</h2>
+        <div style="font-size:13px;color:#64748b;margin-bottom:12px;">Checagem automática dos cruzamentos entre 324, 740, comparativo e cadastro de vendedores.</div>
+        <div id="diag-container"></div>
+        <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-primary" id="btn-reconstruir">🔧 Reconstruir cruzamentos</button>
+          <button class="btn" id="btn-recarregar-diag">↻ Recarregar</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="subtab-config-importar" class="subtab-content">
+      <div class="aviso" id="import-filial-aviso">Selecione uma <strong>Filial</strong> no topo antes de importar.</div>
+      <div class="card">
+        <h2>324 Detalhado</h2>
+        <div class="drop-zone" id="drop-erp">
+          <div class="icone">📊</div>
+          <div class="texto">Arraste 324 (.xlsx)</div>
+          <div class="sub">Pode soltar vários do mês juntos</div>
+        </div>
+        <input type="file" id="erp-input" accept=".xlsx,.xls" multiple hidden>
+        <div id="erp-status" style="font-size:13px;color:#64748b;margin-top:8px;"></div>
+      </div>
+      <div class="card">
+        <h2>740 Cidades</h2>
+        <div class="drop-zone" id="drop-740">
+          <div class="icone">🗺️</div>
+          <div class="texto">Arraste 740 (.xlsx)</div>
+          <div class="sub">Pode soltar vários meses de uma vez</div>
+        </div>
+        <input type="file" id="input-740" accept=".xlsx,.xls" multiple hidden>
+        <div id="status-740" style="font-size:13px;color:#64748b;margin-top:8px;"></div>
+      </div>
+      <div class="card">
+        <h2>361 Curva ABC / Fabricantes</h2>
+        <div class="drop-zone" id="drop-abc">
+          <div class="icone">📦</div>
+          <div class="texto">Arraste 361 (.xlsx)</div>
+          <div class="sub">Pode soltar vários meses de uma vez</div>
+        </div>
+        <input type="file" id="abc-input" accept=".xlsx,.xls" multiple hidden>
+        <div id="abc-status-import" style="font-size:13px;color:#64748b;margin-top:8px;"></div>
+      </div>
+      <div class="card">
+        <h2>Comparativo 2025×2026 (opcional)</h2>
+        <div style="font-size:12px;color:#64748b;margin-bottom:8px;">Só se você quiser os dados de 2025. O 2026 é preenchido automaticamente pelos 740.</div>
+        <div class="drop-zone" id="drop-comp">
+          <div class="icone">📈</div>
+          <div class="texto">Arraste planilha KPIs ALTAFIX</div>
+        </div>
+        <input type="file" id="comp-input" accept=".xlsx,.xls" hidden>
+        <div id="comp-status" style="font-size:13px;color:#64748b;margin-top:8px;"></div>
+      </div>
+      <div class="card">
+        <h2>Estado das bases</h2>
+        <div id="bases-status"></div>
+        <button class="btn btn-primary" id="btn-salvar-bases" style="margin-top:10px;">✓ Salvar pendentes</button>
+      </div>
+    </div>
+
+    <div id="subtab-config-lancar" class="subtab-content">
+      <div class="card">
+        <h2>Lançar dia</h2>
+        <div class="form-row" style="max-width:240px;">
+          <div><label>Data</label><input type="date" id="lanc-data"></div>
+        </div>
+        <div style="overflow-x:auto;">
+          <table class="tabela">
+            <thead><tr><th>Vendedor</th><th class="num">Valor</th><th class="num">Pedidos</th><th class="num">% Desc.</th></tr></thead>
+            <tbody id="grade-tbody"></tbody>
+          </table>
+        </div>
+        <div class="salvar-bar">
+          <div id="total-preview">Total: <strong>R$ 0,00</strong> · 0 pedidos</div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn" id="btn-limpar">Limpar</button>
+            <button class="btn btn-primary" id="btn-salvar-dia">✓ Salvar dia</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="subtab-config-vendedores" class="subtab-content">
+      <div class="card">
+        <h2>Vendedores e metas</h2>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px;padding:10px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;">
+          <label style="font-size:13px;font-weight:600;color:#475569;">📅 Metas do mês:</label>
+          <select id="meta-mes-select" style="min-width:180px;padding:6px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px;font-weight:600;background:#fff;min-height:36px;"></select>
+          <span style="font-size:12px;color:#64748b;">Edite as metas do mês escolhido. Se deixar vazio, herda do mês anterior mais recente.</span>
+        </div>
+        <div style="font-size:12px;color:#64748b;margin-bottom:8px;">O <strong>nome deve bater</strong> com o usado na planilha comparativo. Use 🔑 para criar login.</div>
+        <div style="overflow-x:auto;">
+          <table class="tabela">
+            <thead><tr>
+              <th>Vendedor</th><th>Email</th><th>Filial</th>
+              <th class="num">Meta Mês</th><th class="num">Meta Ticket</th>
+              <th style="text-align:center;">Adm.</th>
+              <th style="text-align:center;">Ex-vend.</th>
+              <th style="text-align:center;">Ativo</th>
+              <th>Acesso</th><th></th>
+            </tr></thead>
+            <tbody id="tbody-metas"></tbody>
+          </table>
+        </div>
+        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-sm" id="btn-add-vend">+ Adicionar</button>
+          <button class="btn btn-sm btn-primary" id="btn-salvar-metas">Salvar tudo</button>
+          <button class="btn btn-sm" id="btn-sinc-metas" style="background:#0f172a;color:#fff;border-color:#0f172a;">☁️ Salvar no servidor</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="subtab-config-filiais" class="subtab-content">
+      <div class="card">
+        <h2>Filiais</h2>
+        <div style="overflow-x:auto;">
+          <table class="tabela">
+            <thead><tr><th>Nome</th><th>UF</th><th>Grupo</th><th>Ativa</th><th></th></tr></thead>
+            <tbody id="tbody-filiais"></tbody>
+          </table>
+        </div>
+        <div style="margin-top:10px;"><button class="btn btn-sm" id="btn-add-filial">+ Adicionar filial</button></div>
+      </div>
+      <div class="card">
+        <h2>Grupos</h2>
+        <div style="overflow-x:auto;">
+          <table class="tabela">
+            <thead><tr><th>Nome</th><th>Filiais</th><th></th></tr></thead>
+            <tbody id="tbody-grupos"></tbody>
+          </table>
+        </div>
+        <div style="margin-top:10px;"><button class="btn btn-sm" id="btn-add-grupo">+ Adicionar grupo</button></div>
+      </div>
+      <div class="card"><button class="btn btn-primary" id="btn-salvar-filiais">Salvar filiais e grupos</button></div>
+    </div>
+
+    <div id="subtab-config-geral" class="subtab-content">
+      <div class="card">
+        <h2>Configurações gerais</h2>
+        <div class="form-row">
+          <div><label>Meta de pedidos/dia</label><input type="number" id="cfg-pedidos" min="0"></div>
+          <div><label>Teto desconto (%)</label><input type="text" id="cfg-teto" inputmode="decimal"></div>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Feriados</h2>
+        <textarea id="cfg-feriados" class="paste-area" style="min-height:140px;"></textarea>
+      </div>
+      <div class="card"><button class="btn btn-primary" id="btn-salvar-geral">Salvar</button></div>
+      <div class="card">
+        <h2>Backup</h2>
+        <button class="btn" id="btn-export-json">📤 Exportar JSON</button>
+        <button class="btn" id="btn-import-json">📥 Importar JSON</button>
+        <input type="file" id="file-json" accept=".json" hidden>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div id="tela-login" style="position:fixed;inset:0;background:#f5f6f8;z-index:9999;display:none;align-items:center;justify-content:center;padding:20px;">
+  <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:32px;max-width:400px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,.08);">
+    <div style="text-align:center;margin-bottom:24px;">
+      <h1 style="font-size:26px;color:#dc2626;letter-spacing:-.5px;margin-bottom:4px;">Alta Fix</h1>
+      <p style="font-size:13px;color:#64748b;">Gestão Comercial</p>
+    </div>
+    <div style="margin-bottom:12px;">
+      <label style="display:block;font-size:12px;font-weight:600;color:#475569;margin-bottom:6px;">Email</label>
+      <input type="email" id="login-email" autocomplete="email" style="width:100%;padding:12px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;" placeholder="seu@email.com">
+    </div>
+    <div style="margin-bottom:16px;">
+      <label style="display:block;font-size:12px;font-weight:600;color:#475569;margin-bottom:6px;">Senha</label>
+      <input type="password" id="login-senha" autocomplete="current-password" style="width:100%;padding:12px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;" placeholder="••••••••">
+    </div>
+    <button id="btn-login" style="width:100%;padding:12px;background:#dc2626;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;min-height:44px;">Entrar</button>
+    <div id="login-erro" style="display:none;margin-top:12px;padding:10px;background:#fee2e2;border:1px solid #fecaca;border-radius:6px;color:#991b1b;font-size:13px;"></div>
+    <p style="text-align:center;font-size:12px;color:#94a3b8;margin-top:16px;">Esqueceu a senha? Fale com o diretor.</p>
+  </div>
+</div>
+
+<div class="modal" id="help-modal">
+  <div class="modal-content">
+    <h2>Como usar</h2>
+    <p><strong>1. Saúde dos dados</strong>: checagem automática. Rode sempre depois de importar.</p>
+    <p><strong>2. Escopo no topo</strong>: Todas, Grupo ou Filial específica.</p>
+    <p><strong>3. Importar</strong>: selecione Filial antes. Pode soltar vários 324/740/361 de uma vez.</p>
+    <p><strong>4. Papéis</strong>: Adm. = não vende; Ex-vend. = aparece só em meses com dado.</p>
+    <p><strong>5. Ordem de importação não importa</strong>: cada arquivo é identificado pelo período.</p>
+    <p><strong>6. Modo vendedor</strong>: seletor no topo. Cada um vê projeção, evolução, top produtos/clientes, clientes em risco e posição no ranking.</p>
+    <button class="btn btn-primary" id="help-close" style="margin-top:10px;">Entendi</button>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
