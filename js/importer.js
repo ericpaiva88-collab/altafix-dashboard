@@ -137,14 +137,15 @@ function importar324Multi(files, filialId) {
     }
 
     const cliMap = {};
-    validos.forEach(res => {
-      (res.clientes || []).forEach(c => {
-        const k = normalizarNomeCliente(c.nome);
-        if (!cliMap[k]) cliMap[k] = Object.assign({}, c);
-        else cliMap[k] = mesclarCliente(cliMap[k], c);
-      });
-    });
-    const clientes = Object.values(cliMap);
+validos.forEach(res => {
+  const mesFile = (res.dataFim || res.dataInicio || '').slice(0, 7);
+  (res.clientes || []).forEach(c => {
+    const k = normalizarNomeCliente(c.nome) + '|' + mesFile;
+    if (!cliMap[k]) cliMap[k] = Object.assign({}, c, { mes: mesFile });
+    else cliMap[k] = mesclarCliente(cliMap[k], c);
+  });
+});
+const clientes = Object.values(cliMap);
 
     const prodMap = {};
     validos.forEach(res => {
@@ -232,6 +233,7 @@ export function processar324(wb, filialId) {
   }
 
   const dRef = dataFim || dataInicio || isoDate(new Date());
+  const mesRef = dRef.slice(0, 7);
 
   let eh324 = false;
   for (let i = 0; i < Math.min(rows.length, 60); i++) {
@@ -310,14 +312,15 @@ export function processar324(wb, filialId) {
     const cliId = 'cli_' + ncStr.toLowerCase().replace(/[^a-z0-9]+/g, '_').slice(0, 40);
 
     if (!clientes[ncStr]) {
-      clientes[ncStr] = {
-        id: cliId, nome: ncStr, codigo: cs,
-        vendedor: vend ? vend.id : null,
-        filialId: filialId,
-        valorTotal: 0, numCompras: 0,
-        ultimaCompra: null, primeiraCompra: null,
-        linhas: 0, _datas: []
-      };
+  clientes[ncStr] = {
+    id: cliId, nome: ncStr, codigo: cs,
+    vendedor: vend ? vend.id : null,
+    filialId: filialId,
+    mes: mesRef,
+    valorTotal: 0, numCompras: 0,
+    ultimaCompra: null, primeiraCompra: null,
+    linhas: 0, _datas: []
+  };
       vendasPorCliente[cliId] = {};
       comprasDatasPorCliente[cliId] = {};
     }
@@ -367,13 +370,14 @@ export function processar324(wb, filialId) {
 
     // VendasItens: par cliente × produto
     const cliNorm = normalizarNomeCliente(ncStr);
-    const keyVI = cliNorm + '|' + cs;
-    if (!vendasItensMap[keyVI]) {
-      vendasItensMap[keyVI] = {
-        clienteNorm: cliNorm, produtoCodigo: cs,
-        produtoDescricao: descStr, valor: 0, qtd: 0
-      };
-    }
+const keyVI = mesRef + '|' + cliNorm + '|' + cs;
+if (!vendasItensMap[keyVI]) {
+  vendasItensMap[keyVI] = {
+    mes: mesRef,
+    clienteNorm: cliNorm, produtoCodigo: cs,
+    produtoDescricao: descStr, valor: 0, qtd: 0
+  };
+}
     vendasItensMap[keyVI].valor += tcd;
     vendasItensMap[keyVI].qtd += (isNaN(qt) ? 0 : qt);
   }

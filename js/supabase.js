@@ -3,9 +3,8 @@
 // ============================================================
 
 import { state, session, basesPreview } from './state.js';
-import { normalizarNomeCliente } from './utils.js';
+import { normalizarNomeCliente, diffDias, isoDate } from './utils.js';
 
-// ---------- Configuração ----------
 const SUPABASE_URL = 'https://yrrazohgaopcudgmvxkv.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_3CiOUhLIPV9Ze3gCHfvzOg_4AMGiZeb';
 
@@ -73,9 +72,7 @@ export async function sbSessaoAtual() {
 }
 
 // ============================================================
-// PAGINAÇÃO — CORREÇÃO DO BUG DOS 1000 REGISTROS
-// PostgREST corta em 1000 por padrão. Esta função pagina
-// automaticamente até trazer TODAS as linhas.
+// PAGINAÇÃO
 // ============================================================
 
 export async function sbFetchAll(table, opts) {
@@ -91,9 +88,7 @@ export async function sbFetchAll(table, opts) {
       .range(from, from + pageSize - 1);
 
     if (opts.order) q = q.order(opts.order.column, opts.order.options || {});
-    if (opts.eq) {
-      Object.keys(opts.eq).forEach(k => { q = q.eq(k, opts.eq[k]); });
-    }
+    if (opts.eq) Object.keys(opts.eq).forEach(k => { q = q.eq(k, opts.eq[k]); });
 
     const r = await q;
     if (r.error) throw new Error(table + ': ' + r.error.message);
@@ -108,7 +103,7 @@ export async function sbFetchAll(table, opts) {
 }
 
 // ============================================================
-// CARREGAR TUDO — usa sbFetchAll em todas as tabelas
+// CARREGAR TUDO
 // ============================================================
 
 export async function sbCarregarTudo() {
@@ -118,44 +113,35 @@ export async function sbCarregarTudo() {
     produtosMes: [], vendasItens: [], acoesTratadas: {}, config: {}
   };
 
-  try {
-    const q = await Promise.all([
-      sbFetchAll('filiais', { order: { column: 'nome' } }),
-      sbFetchAll('grupos', { order: { column: 'nome' } }),
-      sbFetchAll('vendedores', { order: { column: 'nome' } }),
-      sbFetchAll('clientes'),
-      sbFetchAll('produtos'),
-      sbFetchAll('lancamentos', { order: { column: 'data', options: { ascending: false } } }),
-      sbFetchAll('comparativo'),
-      sbFetchAll('cidades'),
-      sbFetchAll('acoes_tratadas'),
-      sbFetchAll('config'),
-      sbFetchAll('metas'),
-      sbFetchAll('produtos_mes'),
-      sbFetchAll('vendas_itens')
-    ]);
+  const q = await Promise.all([
+    sbFetchAll('filiais', { order: { column: 'nome' } }),
+    sbFetchAll('grupos', { order: { column: 'nome' } }),
+    sbFetchAll('vendedores', { order: { column: 'nome' } }),
+    sbFetchAll('clientes'),
+    sbFetchAll('produtos'),
+    sbFetchAll('lancamentos', { order: { column: 'data', options: { ascending: false } } }),
+    sbFetchAll('comparativo'),
+    sbFetchAll('cidades'),
+    sbFetchAll('acoes_tratadas'),
+    sbFetchAll('config'),
+    sbFetchAll('metas'),
+    sbFetchAll('produtos_mes'),
+    sbFetchAll('vendas_itens')
+  ]);
 
-    if (q[0].data) out.filiais = q[0].data;
-    if (q[1].data) out.grupos = q[1].data;
-    if (q[2].data) out.vendedores = q[2].data;
-    if (q[3].data) out.clientes = q[3].data;
-    if (q[4].data) out.produtos = q[4].data;
-    if (q[5].data) out.lancamentos = q[5].data;
-    if (q[6].data) out.comparativo = q[6].data;
-    if (q[7].data) out.cidades = q[7].data;
-    if (q[8].data) {
-      q[8].data.forEach(a => { out.acoesTratadas[a.acao_id] = new Date(a.tratado_em).getTime(); });
-    }
-    if (q[9].data) {
-      q[9].data.forEach(c => { out.config[c.chave] = c.valor; });
-    }
-    if (q[10].data) out.metas = q[10].data;
-    if (q[11].data) out.produtosMes = q[11].data;
-    if (q[12].data) out.vendasItens = q[12].data;
-  } catch (e) {
-    console.error('sbCarregarTudo', e);
-    throw e;
-  }
+  if (q[0].data) out.filiais = q[0].data;
+  if (q[1].data) out.grupos = q[1].data;
+  if (q[2].data) out.vendedores = q[2].data;
+  if (q[3].data) out.clientes = q[3].data;
+  if (q[4].data) out.produtos = q[4].data;
+  if (q[5].data) out.lancamentos = q[5].data;
+  if (q[6].data) out.comparativo = q[6].data;
+  if (q[7].data) out.cidades = q[7].data;
+  if (q[8].data) q[8].data.forEach(a => { out.acoesTratadas[a.acao_id] = new Date(a.tratado_em).getTime(); });
+  if (q[9].data) q[9].data.forEach(c => { out.config[c.chave] = c.valor; });
+  if (q[10].data) out.metas = q[10].data;
+  if (q[11].data) out.produtosMes = q[11].data;
+  if (q[12].data) out.vendasItens = q[12].data;
 
   return out;
 }
@@ -243,7 +229,7 @@ export function aplicarDadosDoBanco(d) {
 }
 
 // ============================================================
-// UPSERTS — subir dados para o banco
+// UPSERTS
 // ============================================================
 
 export function construirMapaVendedores() {
@@ -257,73 +243,154 @@ export function construirMapaVendedores() {
   return mapa;
 }
 
+// ------------------------------------------------------------
+// CLIENTES — CORREÇÃO BUG A
+// ------------------------------------------------------------
+
 export async function sbUpsertClientes(lista, filialId, vendedoresMap) {
   if (!lista || lista.length === 0) return 0;
 
-  // Deduplica localmente
-  const dedup = {};
+  const porMes = {};
   lista.forEach(c => {
-    const k = normalizarNomeCliente(c.nome);
-    if (!k) return;
-    if (!dedup[k]) {
-      dedup[k] = Object.assign({}, c);
-    } else {
-      dedup[k].valorTotal = (dedup[k].valorTotal || 0) + (c.valorTotal || 0);
-      dedup[k].numCompras = (dedup[k].numCompras || 0) + (c.numCompras || 0);
-      if (c.ultimaCompra && (!dedup[k].ultimaCompra || c.ultimaCompra > dedup[k].ultimaCompra)) {
-        dedup[k].ultimaCompra = c.ultimaCompra;
-      }
-      if (c.primeiraCompra && (!dedup[k].primeiraCompra || c.primeiraCompra < dedup[k].primeiraCompra)) {
-        dedup[k].primeiraCompra = c.primeiraCompra;
-      }
-    }
+    const mes = c.mes || '';
+    if (!mes) return;
+    if (!porMes[mes]) porMes[mes] = [];
+    porMes[mes].push(c);
   });
 
-  const payload = Object.keys(dedup).map(k => {
-    const c = dedup[k];
-    return {
+  const meses = Object.keys(porMes);
+  for (let mIdx = 0; mIdx < meses.length; mIdx++) {
+    const mes = meses[mIdx];
+    const clientesDoMes = porMes[mes];
+
+    const dedup = {};
+    clientesDoMes.forEach(c => {
+      const k = normalizarNomeCliente(c.nome);
+      if (!dedup[k]) {
+        dedup[k] = Object.assign({}, c);
+      } else {
+        dedup[k].valorTotal = (dedup[k].valorTotal || 0) + (c.valorTotal || 0);
+        dedup[k].numCompras = (dedup[k].numCompras || 0) + (c.numCompras || 0);
+        if (c.ultimaCompra && (!dedup[k].ultimaCompra || c.ultimaCompra > dedup[k].ultimaCompra)) {
+          dedup[k].ultimaCompra = c.ultimaCompra;
+        }
+        if (c.primeiraCompra && (!dedup[k].primeiraCompra || c.primeiraCompra < dedup[k].primeiraCompra)) {
+          dedup[k].primeiraCompra = c.primeiraCompra;
+        }
+      }
+    });
+
+    const payload = Object.values(dedup).map(c => ({
       filial_id: filialId,
+      mes,
+      cliente_norm: normalizarNomeCliente(c.nome),
+      nome: c.nome,
+      codigo: c.codigo || null,
+      cidade: c.cidade || null,
+      uf: c.uf || null,
       vendedor_id: c.vendedor && vendedoresMap[c.vendedor] ? vendedoresMap[c.vendedor] : null,
-      nome: c.nome, codigo: c.codigo || null,
-      cidade: c.cidade || null, uf: c.uf || null,
-      valor_total: c.valorTotal || 0, num_compras: c.numCompras || 0,
-      ultima_compra: c.ultimaCompra || null, primeira_compra: c.primeiraCompra || null,
-      intervalo_medio: c.intervaloMedio || 30,
-      valor_medio_mensal: c.valorMedioMensal || 0
+      valor: c.valorTotal || 0,
+      num_compras: c.numCompras || 0,
+      ultima_compra: c.ultimaCompra || null,
+      primeira_compra_no_mes: c.primeiraCompra || null
+    }));
+
+    const del = await session.sb.from('clientes_mes')
+      .delete().eq('filial_id', filialId).eq('mes', mes);
+    if (del.error) throw new Error('clientes_mes delete: ' + del.error.message);
+
+    for (let i = 0; i < payload.length; i += 500) {
+      const chunk = payload.slice(i, i + 500);
+      const r = await session.sb.from('clientes_mes').insert(chunk);
+      if (r.error) throw new Error('clientes_mes insert: ' + r.error.message);
+    }
+  }
+
+  const todas = await sbFetchAll('clientes_mes', { eq: { filial_id: filialId } });
+
+  const agregado = {};
+  (todas.data || []).forEach(row => {
+    const k = row.cliente_norm;
+    if (!agregado[k]) {
+      agregado[k] = {
+        filial_id: filialId,
+        vendedor_id: row.vendedor_id,
+        nome: row.nome,
+        codigo: row.codigo,
+        cidade: row.cidade,
+        uf: row.uf,
+        valor_total: 0,
+        num_compras: 0,
+        ultima_compra: null,
+        primeira_compra: null,
+        _datas: []
+      };
+    }
+    const a = agregado[k];
+    a.valor_total += Number(row.valor) || 0;
+    a.num_compras += Number(row.num_compras) || 0;
+
+    if (row.ultima_compra) {
+      if (!a.ultima_compra || row.ultima_compra > a.ultima_compra) {
+        a.ultima_compra = row.ultima_compra;
+      }
+      if (a._datas.indexOf(row.ultima_compra) < 0) a._datas.push(row.ultima_compra);
+    }
+    if (row.primeira_compra_no_mes) {
+      if (!a.primeira_compra || row.primeira_compra_no_mes < a.primeira_compra) {
+        a.primeira_compra = row.primeira_compra_no_mes;
+      }
+    }
+    if (row.vendedor_id && !a.vendedor_id) a.vendedor_id = row.vendedor_id;
+    if (row.cidade && !a.cidade) { a.cidade = row.cidade; a.uf = row.uf; }
+  });
+
+  const payloadFinal = Object.values(agregado).map(a => {
+    a._datas.sort();
+    let intervaloMedio = 30;
+    if (a._datas.length > 1) {
+      const span = diffDias(a._datas[0], a._datas[a._datas.length - 1]);
+      intervaloMedio = Math.max(1, Math.round(span / (a._datas.length - 1)));
+    }
+    let valorMedioMensal = a.valor_total;
+    if (a.primeira_compra && a.ultima_compra) {
+      const diasSpan = diffDias(a.primeira_compra, a.ultima_compra);
+      const meses = Math.max(1, Math.round(diasSpan / 30) + 1);
+      valorMedioMensal = a.valor_total / meses;
+    }
+    return {
+      filial_id: a.filial_id,
+      vendedor_id: a.vendedor_id,
+      nome: a.nome,
+      codigo: a.codigo,
+      cidade: a.cidade,
+      uf: a.uf,
+      valor_total: a.valor_total,
+      num_compras: a.num_compras,
+      ultima_compra: a.ultima_compra,
+      primeira_compra: a.primeira_compra,
+      intervalo_medio: intervaloMedio,
+      valor_medio_mensal: valorMedioMensal
     };
   });
 
-  // CORREÇÃO BUG 6: faz backup dos antigos antes de apagar.
-  // Se o insert falhar, restaura.
-  const antigos = await session.sb.from('clientes').select('*').eq('filial_id', filialId);
-  const antigosData = (antigos.data || []);
+  const delCli = await session.sb.from('clientes').delete().eq('filial_id', filialId);
+  if (delCli.error) throw new Error('clientes delete: ' + delCli.error.message);
 
-  const del = await session.sb.from('clientes').delete().eq('filial_id', filialId);
-  if (del.error) throw new Error('clientes delete: ' + del.error.message);
-
-  try {
-    let total = 0;
-    for (let i = 0; i < payload.length; i += 500) {
-      const chunk = payload.slice(i, i + 500);
-      const r = await session.sb.from('clientes').insert(chunk);
-      if (r.error) throw new Error('clientes insert: ' + r.error.message);
-      total += chunk.length;
-    }
-    return total;
-  } catch (err) {
-    // Restaura os antigos
-    if (antigosData.length > 0) {
-      try {
-        for (let j = 0; j < antigosData.length; j += 500) {
-          await session.sb.from('clientes').insert(antigosData.slice(j, j + 500));
-        }
-      } catch (e2) {
-        console.error('Falha ao restaurar clientes:', e2);
-      }
-    }
-    throw err;
+  let total = 0;
+  for (let i = 0; i < payloadFinal.length; i += 500) {
+    const chunk = payloadFinal.slice(i, i + 500);
+    const r = await session.sb.from('clientes').insert(chunk);
+    if (r.error) throw new Error('clientes insert: ' + r.error.message);
+    total += chunk.length;
   }
+
+  return total;
 }
+
+// ------------------------------------------------------------
+// PRODUTOS
+// ------------------------------------------------------------
 
 export async function sbUpsertProdutos(lista, filialId) {
   if (!lista || lista.length === 0) return 0;
@@ -383,6 +450,10 @@ export async function sbUpsertProdutos(lista, filialId) {
   return total;
 }
 
+// ------------------------------------------------------------
+// LANÇAMENTOS
+// ------------------------------------------------------------
+
 export async function sbUpsertLancamentos(lista, filialId, vendedoresMap) {
   if (!lista || lista.length === 0) return 0;
 
@@ -421,6 +492,10 @@ export async function sbUpsertLancamentos(lista, filialId, vendedoresMap) {
   return total;
 }
 
+// ------------------------------------------------------------
+// CIDADES
+// ------------------------------------------------------------
+
 export async function sbUpsertCidades(lista, filialId, mesKey) {
   if (!lista || lista.length === 0) return 0;
   const listaMes = lista.filter(c => (c.mesKey || mesKey) === mesKey);
@@ -445,6 +520,10 @@ export async function sbUpsertCidades(lista, filialId, mesKey) {
   return total;
 }
 
+// ------------------------------------------------------------
+// COMPARATIVO
+// ------------------------------------------------------------
+
 export async function sbUpsertComparativo(lista, filialId) {
   if (!lista || lista.length === 0) return 0;
   const meses = lista.map(m => m.mes);
@@ -462,6 +541,10 @@ export async function sbUpsertComparativo(lista, filialId) {
   if (r.error) throw new Error('comparativo: ' + r.error.message);
   return payload.length;
 }
+
+// ------------------------------------------------------------
+// PRODUTOS_MES
+// ------------------------------------------------------------
 
 export async function sbUpsertProdutosMes(lista, filialId, mes) {
   if (!lista || lista.length === 0) return 0;
@@ -497,29 +580,55 @@ export async function sbUpsertProdutosMes(lista, filialId, mes) {
   return total;
 }
 
-export async function sbUpsertVendasItens(lista, filialId, mes) {
+// ------------------------------------------------------------
+// VENDAS_ITENS — CORREÇÃO BUG B
+// ------------------------------------------------------------
+
+export async function sbUpsertVendasItens(lista, filialId) {
   if (!lista || lista.length === 0) return 0;
 
-  await session.sb.from('vendas_itens').delete().eq('filial_id', filialId).eq('mes', mes);
+  const porMes = {};
+  lista.forEach(v => {
+    const mes = v.mes;
+    if (!mes) return;
+    if (!porMes[mes]) porMes[mes] = [];
+    porMes[mes].push(v);
+  });
 
-  const payload = lista.map(v => ({
-    filial_id: filialId, mes,
-    cliente_norm: v.clienteNorm, produto_codigo: v.produtoCodigo,
-    produto_descricao: v.produtoDescricao,
-    valor: v.valor || 0, qtd: v.qtd || 0
-  }));
-
+  const meses = Object.keys(porMes);
   let total = 0;
-  for (let i = 0; i < payload.length; i += 500) {
-    const chunk = payload.slice(i, i + 500);
-    const r = await session.sb.from('vendas_itens').upsert(chunk, {
-      onConflict: 'filial_id,mes,cliente_norm,produto_codigo'
-    });
-    if (r.error) throw new Error('vendas_itens: ' + r.error.message);
-    total += chunk.length;
+
+  for (let mIdx = 0; mIdx < meses.length; mIdx++) {
+    const mes = meses[mIdx];
+    const itensDoMes = porMes[mes];
+
+    const del = await session.sb.from('vendas_itens')
+      .delete().eq('filial_id', filialId).eq('mes', mes);
+    if (del.error) throw new Error('vendas_itens delete: ' + del.error.message);
+
+    const payload = itensDoMes.map(v => ({
+      filial_id: filialId, mes,
+      cliente_norm: v.clienteNorm, produto_codigo: v.produtoCodigo,
+      produto_descricao: v.produtoDescricao,
+      valor: v.valor || 0, qtd: v.qtd || 0
+    }));
+
+    for (let i = 0; i < payload.length; i += 500) {
+      const chunk = payload.slice(i, i + 500);
+      const r = await session.sb.from('vendas_itens').upsert(chunk, {
+        onConflict: 'filial_id,mes,cliente_norm,produto_codigo'
+      });
+      if (r.error) throw new Error('vendas_itens: ' + r.error.message);
+      total += chunk.length;
+    }
   }
+
   return total;
 }
+
+// ------------------------------------------------------------
+// ESTOQUE / ABC
+// ------------------------------------------------------------
 
 export async function sbAplicarEstoqueABC(lista) {
   if (!lista || lista.length === 0) return 0;
@@ -553,15 +662,13 @@ export async function sbAplicarEstoqueABC(lista) {
   return total;
 }
 
-// ============================================================
-// SINCRONIZAR BASES PENDENTES (chamado de Config → Importar)
-// ============================================================
+// ------------------------------------------------------------
+// SINCRONIZAR BASES PENDENTES
+// ------------------------------------------------------------
 
 export async function sbSincronizarBasesPendentes() {
   const st = document.getElementById('erp-status');
-  if (!basesPreview.filialImport) {
-    throw new Error('Sem filial definida');
-  }
+  if (!basesPreview.filialImport) throw new Error('Sem filial definida');
 
   const filialId = basesPreview.filialImport;
   const vMap = construirMapaVendedores();
@@ -586,8 +693,8 @@ export async function sbSincronizarBasesPendentes() {
     const n = await sbUpsertLancamentos(basesPreview.lancamentosMulti, filialId, vMap);
     status('✓ ' + n + ' lançamentos');
   }
-  if (arr(basesPreview.vendasItens).length > 0 && basesPreview.mesVendasItens) {
-    const n = await sbUpsertVendasItens(basesPreview.vendasItens, filialId, basesPreview.mesVendasItens);
+  if (arr(basesPreview.vendasItens).length > 0) {
+    const n = await sbUpsertVendasItens(basesPreview.vendasItens, filialId);
     status('✓ ' + n + ' pares cliente×produto');
   }
   if (arr(basesPreview.cidades).length > 0) {

@@ -21,7 +21,8 @@ import {
 } from './views/painel.js';
 
 import {
-  renderClientes, copiarInativos, copiarSegmento, imprimirClientes
+  renderClientes, copiarInativos, copiarSegmento, imprimirClientes,
+  setupClientesNovos
 } from './views/clientes.js';
 
 import { renderProdutos, imprimirProdutos } from './views/produtos.js';
@@ -595,6 +596,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupMetas();
     setupFiliais();
     setupGeral();
+    setupClientesNovos();
 
     // 9. Collapse dos headers de seção
     setupCollapse('hdr-historico', 'body-historico');

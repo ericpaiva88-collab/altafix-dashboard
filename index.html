@@ -215,6 +215,32 @@
       </div>
     </div>
   </section>
+    <div class="card minimizavel" id="card-clientes-novos">
+      <h2>🆕 Clientes Novos <span class="sub" id="novos-count"></span></h2>
+      <div class="min-conteudo">
+        <div class="filtros-bar">
+          <select id="novos-periodo">
+            <option value="7">Últimos 7 dias</option>
+            <option value="30" selected>Últimos 30 dias</option>
+            <option value="60">Últimos 60 dias</option>
+            <option value="90">Últimos 90 dias</option>
+          </select>
+          <select id="novos-vendedor"><option value="">Todos vendedores</option></select>
+        </div>
+        <div class="kpi-grid" id="novos-kpis" style="margin-bottom:12px;"></div>
+        <div style="overflow-x:auto;">
+          <table class="tabela">
+            <thead><tr>
+              <th>Cliente</th><th>Cidade</th><th>Vendedor</th>
+              <th>Primeira Compra</th>
+              <th class="num">Valor</th><th class="num">Compras</th>
+              <th>Há quanto tempo</th>
+            </tr></thead>
+            <tbody id="tbody-novos"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
 
   <section id="tab-produtos">
     <div class="kpi-grid" id="produtos-kpis"></div>

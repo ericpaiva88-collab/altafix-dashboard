@@ -1,10 +1,11 @@
 // ============================================================
-// views/clientes.js — Tela de Clientes
+// views/clientes.js — Tela de Clientes + Clientes Novos
 // ============================================================
 
 import { state, ui } from '../state.js';
 import {
-  fmtBRL, escapeHtml, badgeSuspeito, copiarTexto, isoDate, diffDias
+  fmtBRL, escapeHtml, badgeSuspeito, copiarTexto, isoDate, diffDias,
+  fmtDataBR
 } from '../utils.js';
 import {
   clientesNoEscopo, calcRFMScores, calcABCClientes,
@@ -35,19 +36,17 @@ export function renderClientes() {
       'Nenhum cliente. Importe o 324.</td></tr>';
     ce.textContent = '';
     if (suspeitoEl) suspeitoEl.innerHTML = '';
+    renderClientesNovos();
     return;
   }
 
-  // Calcula RFM e ABC
   const clsBase = clientesBase.slice();
   calcRFMScores(clsBase);
   calcABCClientes(clsBase);
 
-  // Popula selects
   popularSelectVendedor(clsBase);
   popularSelectCidade(clsBase);
 
-  // Aplica filtros
   const filtrados = clsBase.filter(c => {
     if (ui.filtroClienteVend && c.vendedor !== ui.filtroClienteVend) return false;
     if (ui.filtroClienteCidade && c.cidade !== ui.filtroClienteCidade) return false;
@@ -63,13 +62,9 @@ export function renderClientes() {
     return true;
   });
 
-  // KPIs
   renderKPIs(filtrados, clsBase);
-
-  // Segmentos clicáveis
   renderSegmentos(clsBase);
 
-  // Contador + badge suspeitos
   ce.textContent = filtrados.length + ' clientes';
   const semVend = filtrados.filter(c => !c.vendedor).length;
   if (suspeitoEl) {
@@ -80,11 +75,10 @@ export function renderClientes() {
     }
   }
 
-  // Tabela
   renderTabela(filtrados);
-
-  // Guarda pro imprimir/copiar
   window._clientesFiltrados = filtrados;
+
+  renderClientesNovos();
 }
 
 // ============================================================
@@ -94,7 +88,7 @@ export function renderClientes() {
 function popularSelectVendedor(clientes) {
   const selV = document.getElementById('filtro-cliente-vend');
   if (!selV) return;
-  if (selV.options.length > 1) return; // já populado
+  if (selV.options.length > 1) return;
 
   const vistos = {};
   clientes.forEach(c => { if (c.vendedor) vistos[c.vendedor] = true; });
@@ -147,7 +141,7 @@ function renderKPIs(filtrados, clsBase) {
 }
 
 // ============================================================
-// SEGMENTOS CLICÁVEIS
+// SEGMENTOS
 // ============================================================
 
 function renderSegmentos(clsBase) {
@@ -190,7 +184,7 @@ function renderSegmentos(clsBase) {
 }
 
 // ============================================================
-// TABELA
+// TABELA PRINCIPAL
 // ============================================================
 
 function renderTabela(filtrados) {
@@ -242,6 +236,113 @@ function renderTabela(filtrados) {
       '<td class="num">' + (c.diasSemComprar < 9999 ? c.diasSemComprar + 'd' : '—') + '</td>' +
       '<td>' + bd + '</td></tr>';
   }).join('');
+}
+
+// ============================================================
+// CLIENTES NOVOS
+// ============================================================
+
+export function renderClientesNovos() {
+  const kEl = document.getElementById('novos-kpis');
+  const tb = document.getElementById('tbody-novos');
+  const selPeriodo = document.getElementById('novos-periodo');
+  const selVendedor = document.getElementById('novos-vendedor');
+  const countEl = document.getElementById('novos-count');
+
+  if (!tb) return;
+
+  let base = clientesNoEscopo(ui.escopoAtual);
+  if (ui.modoVendedor) base = base.filter(c => c.vendedor === ui.modoVendedor);
+
+  const periodo = selPeriodo ? (parseInt(selPeriodo.value, 10) || 30) : 30;
+  const filtroVend = selVendedor ? selVendedor.value : '';
+  const hj = isoDate(new Date());
+
+  if (selVendedor && selVendedor.options.length <= 1) {
+    const vistos = {};
+    base.forEach(c => { if (c.vendedor) vistos[c.vendedor] = true; });
+    let opts = '<option value="">Todos vendedores</option>';
+    Object.keys(vistos).forEach(id => {
+      const v = state.vendedores.find(x => x.id === id);
+      if (v) opts += '<option value="' + escapeHtml(id) + '">' + escapeHtml(v.nome) + '</option>';
+    });
+    selVendedor.innerHTML = opts;
+  }
+
+  const novos = base.filter(c => {
+    if (!c.primeiraCompra) return false;
+    const dias = diffDias(c.primeiraCompra, hj);
+    if (dias > periodo) return false;
+    if (filtroVend && c.vendedor !== filtroVend) return false;
+    return true;
+  }).sort((a, b) => (b.primeiraCompra || '').localeCompare(a.primeiraCompra || ''));
+
+  const totalValor = novos.reduce((s, c) => s + (c.valorTotal || 0), 0);
+  const totalCompras = novos.reduce((s, c) => s + (c.numCompras || 0), 0);
+  const ticketMedio = totalCompras > 0 ? totalValor / totalCompras : 0;
+
+  const porVend = {};
+  novos.forEach(c => {
+    const k = c.vendedor || '__sem__';
+    if (!porVend[k]) porVend[k] = { qtd: 0, valor: 0 };
+    porVend[k].qtd++;
+    porVend[k].valor += (c.valorTotal || 0);
+  });
+
+  let topVendId = null, topQtd = 0;
+  Object.keys(porVend).forEach(v => {
+    if (porVend[v].qtd > topQtd) { topQtd = porVend[v].qtd; topVendId = v; }
+  });
+  const topVendNome = topVendId === '__sem__'
+    ? 'sem vendedor'
+    : (topVendId ? (state.vendedores.find(x => x.id === topVendId) || {}).nome || '—' : '—');
+
+  if (kEl) {
+    kEl.innerHTML =
+      '<div class="kpi"><div class="label">Novos clientes</div>' +
+      '<div class="value">' + novos.length + '</div>' +
+      '<div class="hint">últimos ' + periodo + ' dias</div></div>' +
+      '<div class="kpi positivo"><div class="label">Valor total</div>' +
+      '<div class="value">' + fmtBRL(totalValor) + '</div></div>' +
+      '<div class="kpi"><div class="label">Ticket médio</div>' +
+      '<div class="value">' + fmtBRL(ticketMedio) + '</div></div>' +
+      '<div class="kpi"><div class="label">Top vendedor</div>' +
+      '<div class="value" style="font-size:16px;">' + escapeHtml(topVendNome) + '</div>' +
+      '<div class="hint">' + topQtd + ' cliente(s)</div></div>';
+  }
+
+  if (countEl) countEl.textContent = novos.length + ' cliente(s) novos';
+
+  if (novos.length === 0) {
+    tb.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;color:#64748b;">' +
+      'Nenhum cliente novo nos últimos ' + periodo + ' dias.</td></tr>';
+    return;
+  }
+
+  tb.innerHTML = novos.slice(0, 300).map(c => {
+    const v = state.vendedores.find(x => x.id === c.vendedor);
+    const dias = diffDias(c.primeiraCompra, hj);
+    const badge = dias <= 7
+      ? '<span class="badge badge-risco" style="background:#16a34a;">🆕 ' + dias + 'd</span>'
+      : '<span class="badge" style="background:#0ea5e9;color:#fff;">' + dias + 'd</span>';
+
+    return '<tr>' +
+      '<td>' + escapeHtml(c.nome) + '</td>' +
+      '<td>' + escapeHtml(c.cidade || '—') + '</td>' +
+      '<td>' + (v ? escapeHtml(v.nome) : '<span style="color:#dc2626;">⚠ sem</span>') + '</td>' +
+      '<td>' + fmtDataBR(c.primeiraCompra) + '</td>' +
+      '<td class="num">' + fmtBRL(c.valorTotal) + '</td>' +
+      '<td class="num">' + (c.numCompras || 0) + '</td>' +
+      '<td>' + badge + '</td></tr>';
+  }).join('');
+}
+
+export function setupClientesNovos() {
+  const selPeriodo = document.getElementById('novos-periodo');
+  if (selPeriodo) selPeriodo.onchange = renderClientesNovos;
+
+  const selVendedor = document.getElementById('novos-vendedor');
+  if (selVendedor) selVendedor.onchange = renderClientesNovos;
 }
 
 // ============================================================

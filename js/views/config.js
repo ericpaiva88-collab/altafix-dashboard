@@ -227,31 +227,29 @@ function aplicarBasesLocais() {
     });
   }
 
-  if (basesPreview.vendasItens && basesPreview.vendasItens.length > 0 &&
-      basesPreview.mesVendasItens) {
-    const mesVI = basesPreview.mesVendasItens;
-    const mapaVI = {};
-    state.vendasItens.forEach(v => {
-      if (v.filialId === fId && v.mes === mesVI) return;
-      mapaVI[v.filialId + '|' + v.mes + '|' + v.clienteNorm + '|' + v.produtoCodigo] = v;
-    });
+ if (basesPreview.vendasItens && basesPreview.vendasItens.length > 0) {
+   const mapaVI = {};
+state.vendasItens.forEach(v => {
+  mapaVI[v.filialId + '|' + v.mes + '|' + v.clienteNorm + '|' + v.produtoCodigo] = v;
+});
 
-    const novosVI = {};
-    basesPreview.vendasItens.forEach(v => {
-      const k = fId + '|' + mesVI + '|' + v.clienteNorm + '|' + v.produtoCodigo;
-      if (mapaVI[k]) {
-        mapaVI[k].valor += v.valor;
-        mapaVI[k].qtd += v.qtd;
-      } else {
-        novosVI[k] = {
-          filialId: fId, mes: mesVI,
-          clienteNorm: v.clienteNorm, produtoCodigo: v.produtoCodigo,
-          produtoDescricao: v.produtoDescricao,
-          valor: v.valor, qtd: v.qtd
-        };
-      }
-    });
-    state.vendasItens = Object.values(mapaVI).concat(Object.values(novosVI));
+basesPreview.vendasItens.forEach(v => {
+  const mes = v.mes || '';
+  if (!mes) return;
+  const k = fId + '|' + mes + '|' + v.clienteNorm + '|' + v.produtoCodigo;
+  if (mapaVI[k]) {
+    mapaVI[k].valor += v.valor;
+    mapaVI[k].qtd += v.qtd;
+  } else {
+    mapaVI[k] = {
+      filialId: fId, mes,
+      clienteNorm: v.clienteNorm, produtoCodigo: v.produtoCodigo,
+      produtoDescricao: v.produtoDescricao,
+      valor: v.valor, qtd: v.qtd
+    };
+  }
+});
+state.vendasItens = Object.values(mapaVI);
   }
 
   if (basesPreview.estoqueABC) {
