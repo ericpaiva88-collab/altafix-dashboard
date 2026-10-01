@@ -219,12 +219,13 @@ export function aplicarDadosDoBanco(d) {
   }));
 
   state.vendasItens = (d.vendasItens || []).map(v => ({
-    filialId: v.filial_id,
-    periodoIni: v.periodo_ini, periodoFim: v.periodo_fim,
-    clienteNorm: v.cliente_norm,
-    produtoCodigo: v.produto_codigo, produtoDescricao: v.produto_descricao,
-    valor: Number(v.valor) || 0, qtd: Number(v.qtd) || 0
-  }));
+  filialId: v.filial_id,
+  periodoIni: v.periodo_ini, periodoFim: v.periodo_fim,
+  clienteNorm: v.cliente_norm,
+  produtoCodigo: v.produto_codigo, produtoDescricao: v.produto_descricao,
+  vendedor: v.vendedor_id,
+  valor: Number(v.valor) || 0, qtd: Number(v.qtd) || 0
+}));
 
   state.clientesImportacoes = (d.clientesImportacoes || []).map(r => ({
     filialId: r.filial_id,
@@ -654,15 +655,14 @@ export async function sbUpsertVendasItens(lista, filialId) {
       filial_id: filialId,
       periodo_ini: p.pIni, periodo_fim: p.pFim,
       cliente_norm: v.clienteNorm, produto_codigo: v.produtoCodigo,
+      vendedor_id: v.vendedor || null,
       produto_descricao: v.produtoDescricao,
       valor: v.valor || 0, qtd: v.qtd || 0
     }));
 
     for (let i = 0; i < payload.length; i += 500) {
       const chunk = payload.slice(i, i + 500);
-      const r = await session.sb.from('vendas_itens').upsert(chunk, {
-        onConflict: 'filial_id,periodo_ini,periodo_fim,cliente_norm,produto_codigo'
-      });
+      const r = await session.sb.from('vendas_itens').insert(chunk);
       if (r.error) throw new Error('vendas_itens: ' + r.error.message);
       total += chunk.length;
     }

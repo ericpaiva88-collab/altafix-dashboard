@@ -109,18 +109,20 @@ function calcularPeriodo() {
 
 function valorNoPeriodo(cliente, periodo) {
   if (!periodo) return { valor: cliente.valorTotal || 0, compras: cliente.numCompras || 0 };
-  const idx = getIndiceImportacoes();
-  const k = cliente.filialId + '|' + normalizarNomeCliente(cliente.nome);
-  const rows = idx[k] || [];
 
-  let valor = 0, compras = 0;
-  rows.forEach(r => {
-    if (r.periodoIni >= periodo.ini && r.periodoIni <= periodo.fim) {
-      valor += Number(r.valor) || 0;
-      compras += Number(r.numCompras) || 0;
-    }
+  const clienteNorm = normalizarNomeCliente(cliente.nome);
+  const vendedorAlvo = ui.modoVendedor || ui.filtroClienteVend || null;
+
+  let valor = 0;
+  state.vendasItens.forEach(vi => {
+    if (vi.clienteNorm !== clienteNorm) return;
+    if (vi.filialId !== cliente.filialId) return;
+    if (vi.periodoIni < periodo.ini || vi.periodoIni > periodo.fim) return;
+    if (vendedorAlvo && vi.vendedor !== vendedorAlvo) return;
+    valor += Number(vi.valor) || 0;
   });
-  return { valor, compras };
+
+  return { valor, compras: valor > 0 ? 1 : 0 };
 }
 
 function comprouNoPeriodo(cliente, periodo) {

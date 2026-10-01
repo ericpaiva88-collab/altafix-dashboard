@@ -372,11 +372,13 @@ export function processar324(wb, filialId) {
 
     // VendasItens: par cliente × produto
     const cliNorm = normalizarNomeCliente(ncStr);
-const keyVI = periodoIni + '|' + periodoFim + '|' + cliNorm + '|' + cs;
+const vendId = vend ? vend.id : null;
+const keyVI = periodoIni + '|' + periodoFim + '|' + cliNorm + '|' + cs + '|' + (vendId || 'x');
 if (!vendasItensMap[keyVI]) {
   vendasItensMap[keyVI] = {
     periodoIni, periodoFim,
     clienteNorm: cliNorm, produtoCodigo: cs,
+    vendedor: vendId,
     produtoDescricao: descStr, valor: 0, qtd: 0
   };
 }
@@ -902,7 +904,7 @@ export function processar361(wb) {
     console.log('1ª linha de dados:', rows[hi + 1]);
     console.log('2ª linha de dados:', rows[hi + 2]);
   }
-  
+
   if (hi < 0) return { itens: [], periodoInicio: '', periodoFim: '' };
 
   const mapa = {};
