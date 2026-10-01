@@ -226,7 +226,7 @@ tr.inativo td{opacity:.6}
 }
 
 .numero-grande {
-  font-size: 72px;
+  font-size: 48px;
   font-weight: 800;
   line-height: 1;
   letter-spacing: -2.5px;
@@ -239,7 +239,7 @@ tr.inativo td{opacity:.6}
 }
 
 .numero-grande .pct-inline {
-  font-size: 22px;
+  font-size: 16px;
   font-weight: 700;
   padding: 4px 12px;
   border-radius: 6px;

@@ -137,12 +137,6 @@ export function matchVendedor(n, filialId) {
 // ============================================================
 
 export function mesRefAtual(escopoAtual) {
-  const lancs = lancamentosNoEscopo(escopoAtual);
-  if (lancs.length > 0) {
-    const s = lancs.slice().sort((a, b) => b.data.localeCompare(a.data));
-    const d = s[0].data;
-    return { ano: parseInt(d.slice(0, 4), 10), mes: parseInt(d.slice(5, 7), 10) - 1 };
-  }
   const h = new Date();
   return { ano: h.getFullYear(), mes: h.getMonth() };
 }
