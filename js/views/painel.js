@@ -899,10 +899,16 @@ export function renderPainelVendedor(v, a, m) {
     'Com dados: <strong>' + c.diasTrab + '</strong> · ' +
     'Restantes: <strong>' + c.diasFaltam + '</strong>';
 
-  document.getElementById('painel-status').innerHTML = c.pctMeta == null ? '' :
-    (c.faturado >= c.ritmoEsperado
-      ? '<span class="badge badge-ok">✓ ACIMA</span>'
-      : '<span class="badge badge-risco">⚠ ABAIXO</span>');
+  const stEl = document.getElementById('painel-status');
+if (c.diasTrab === 0) {
+    stEl.innerHTML = '<span class="badge" style="background:#e2e8f0;color:#475569;">— SEM DADOS AINDA</span>';
+} else if (c.pctMeta == null) {
+    stEl.innerHTML = '';
+} else if (c.faturado >= c.ritmoEsperado) {
+    stEl.innerHTML = '<span class="badge badge-ok">✓ ACIMA</span>';
+} else {
+    stEl.innerHTML = '<span class="badge badge-risco">⚠ ABAIXO</span>';
+}
 
   // Número grande: FATURADO (com % da meta inline)
   const pct = c.pctMeta != null ? c.pctMeta : 0;
@@ -1395,9 +1401,13 @@ export function renderPainel() {
     return;
   }
 
-  st.innerHTML = f.status === 'ACIMA'
-    ? '<span class="badge badge-ok">✓ ACIMA DO RITMO</span>'
-    : '<span class="badge badge-risco">⚠ ABAIXO DO RITMO</span>';
+  if (f.diasTrab === 0) {
+    st.innerHTML = '<span class="badge" style="background:#e2e8f0;color:#475569;">— SEM DADOS AINDA</span>';
+} else if (f.status === 'ACIMA') {
+    st.innerHTML = '<span class="badge badge-ok">✓ ACIMA DO RITMO</span>';
+} else {
+    st.innerHTML = '<span class="badge badge-risco">⚠ ABAIXO DO RITMO</span>';
+}
 
   // Hero: FATURADO grande + % da meta inline
   const pct = f.pctMeta || 0;
