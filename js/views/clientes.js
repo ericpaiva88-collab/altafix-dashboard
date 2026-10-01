@@ -266,7 +266,11 @@ export function renderClientes() {
   popularSelectVendedor(clsBase);
   popularSelectCidade(clsBase);
 
+  const mapaCidadeFiltro = construirMapaCidade();
+
   const filtrados = clsBase.filter(c => {
+    const infoCidade = mapaCidadeFiltro[normalizarNomeCliente(c.nome)];
+    const cidadeEfetiva = c.cidade || (infoCidade && infoCidade.cidade);
     if (ui.filtroClienteVend && c.vendedor !== ui.filtroClienteVend) {
       // Se modo vendedor está off, aceita o filtro por dono OU por venda no período
       const k2 = c.filialId + '|' + normalizarNomeCliente(c.nome);
@@ -277,7 +281,7 @@ export function renderClientes() {
       );
       if (!vendido) return false;
     }
-    if (ui.filtroClienteCidade && c.cidade !== ui.filtroClienteCidade) return false;
+    if (ui.filtroClienteCidade && cidadeEfetiva !== ui.filtroClienteCidade) return false;
     if (ui.filtroClienteBusca) {
       const t = ui.filtroClienteBusca.toUpperCase();
       if (String(c.nome).toUpperCase().indexOf(t) < 0) return false;
@@ -345,8 +349,16 @@ function popularSelectCidade(clientes) {
   const selC = document.getElementById('filtro-cliente-cidade');
   if (!selC) return;
   if (selC.options.length > 1) return;
+
+  const mapaCidade = construirMapaCidade();
   const cids = {};
-  clientes.forEach(c => { if (c.cidade) cids[c.cidade] = true; });
+
+  clientes.forEach(c => {
+    const info = mapaCidade[normalizarNomeCliente(c.nome)];
+    const cidade = c.cidade || (info && info.cidade);
+    if (cidade) cids[cidade] = true;
+  });
+
   let optsC = '<option value="">Todas cidades</option>';
   Object.keys(cids).sort().forEach(cid => {
     optsC += '<option value="' + escapeHtml(cid) + '">' + escapeHtml(cid) + '</option>';
