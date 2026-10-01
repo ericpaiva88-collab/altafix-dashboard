@@ -439,6 +439,19 @@ export async function sbUpsertProdutos(lista, filialId) {
     }
   });
 
+  // Busca fabricante/curva de produtos_mes COM PAGINAÇÃO (corrige o bug dos 1000)
+  const pm = await sbFetchAll('produtos_mes', {
+    select: 'codigo, fabricante, curva',
+    eq: { filial_id: filialId },
+    order: { column: 'mes', options: { ascending: false } }
+  });
+  const mapaPM = {};
+  (pm.data || []).forEach(p => {
+    if (!mapaPM[p.codigo]) mapaPM[p.codigo] = { fabricante: null, curva: null };
+    if (p.fabricante && !mapaPM[p.codigo].fabricante) mapaPM[p.codigo].fabricante = p.fabricante;
+    if (p.curva && !mapaPM[p.codigo].curva) mapaPM[p.codigo].curva = p.curva;
+  });
+
   const existentes = await session.sb.from('produtos')
     .select('codigo, curva, estoque_atual, estoque_minimo, fabricante')
     .eq('filial_id', filialId);
@@ -450,10 +463,12 @@ export async function sbUpsertProdutos(lista, filialId) {
   const payload = Object.keys(dedup).map(k => {
     const p = dedup[k];
     const ant = mapaAnt[k];
+    const pmInfo = mapaPM[k] || {};
+
     return {
       filial_id: filialId, codigo: p.codigo, descricao: p.descricao,
-      fabricante: (ant && ant.fabricante) || p.fabricante || null,
-      curva: (ant && ant.curva) || p.curva || null,
+      fabricante: pmInfo.fabricante || (ant && ant.fabricante) || p.fabricante || null,
+      curva: pmInfo.curva || (ant && ant.curva) || p.curva || null,
       qtd_vendida: p.qtdVendida || 0,
       valor_vendido: p.valorVendido || 0,
       estoque_atual: (ant && ant.estoque_atual != null) ? ant.estoque_atual : (p.estoqueAtual != null ? p.estoqueAtual : null),
