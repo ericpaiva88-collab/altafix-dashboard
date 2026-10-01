@@ -552,17 +552,24 @@ function renderResumoNovosReativados(filtrados, classificados, periodo, usaPerio
   const filtro = st === 'novos' ? 'novo' : 'reativado';
   const doTipo = filtrados.filter(c => classificados[c.id] && classificados[c.id].tipo === filtro);
 
-  const totalValor = doTipo.reduce((s, c) => s + (c.valorTotal || 0), 0);
-  const totalCompras = doTipo.reduce((s, c) => s + (c.numCompras || 0), 0);
+  // Calcula valor/compras do PERÍODO (não acumulado)
+  const comValores = doTipo.map(c => {
+    const vp = valorNoPeriodo(c, periodo);
+    return { cliente: c, valor: vp.valor, compras: vp.compras };
+  });
+
+  const totalValor = comValores.reduce((s, x) => s + x.valor, 0);
+  const totalCompras = comValores.reduce((s, x) => s + x.compras, 0);
   const ticketMedio = totalCompras > 0 ? totalValor / totalCompras : 0;
 
+  // Agrupa por vendedor
   const porVend = {};
-  doTipo.forEach(c => {
+  comValores.forEach(({ cliente: c, valor, compras }) => {
     const k = c.vendedor || '__sem__';
     if (!porVend[k]) porVend[k] = { qtd: 0, valor: 0, compras: 0 };
     porVend[k].qtd++;
-    porVend[k].valor += (c.valorTotal || 0);
-    porVend[k].compras += (c.numCompras || 0);
+    porVend[k].valor += valor;
+    porVend[k].compras += compras;
   });
 
   const arr = Object.keys(porVend).map(k => {
@@ -589,8 +596,9 @@ function renderResumoNovosReativados(filtrados, classificados, periodo, usaPerio
   h += '<div class="kpi-grid" style="margin-bottom:12px;">';
   h += '<div class="kpi"><div class="label">Total de clientes</div>' +
     '<div class="value">' + doTipo.length + '</div></div>';
-  h += '<div class="kpi positivo"><div class="label">Faturamento total</div>' +
-    '<div class="value">' + fmtBRL(totalValor) + '</div></div>';
+  h += '<div class="kpi positivo"><div class="label">Faturado no período</div>' +
+    '<div class="value">' + fmtBRL(totalValor) + '</div>' +
+    '<div class="hint">só o que entrou de ' + tipoLabel + '</div></div>';
   h += '<div class="kpi"><div class="label">Ticket médio</div>' +
     '<div class="value">' + fmtBRL(ticketMedio) + '</div></div>';
   h += '<div class="kpi"><div class="label">Vendedores envolvidos</div>' +
@@ -607,7 +615,7 @@ function renderResumoNovosReativados(filtrados, classificados, periodo, usaPerio
 
   h += '<div style="overflow-x:auto;"><table class="tabela"><thead><tr>';
   h += '<th>Vendedor</th><th class="num">Clientes</th>' +
-    '<th class="num">Faturamento</th><th class="num">Compras</th>' +
+    '<th class="num">Faturado no período</th><th class="num">Compras</th>' +
     '<th class="num">Ticket</th><th class="num">% do total</th>';
   h += '</tr></thead><tbody>';
 
@@ -678,7 +686,7 @@ export function imprimirClientes() {
       '<td>' + rfmLabel(c.rfm_segmento) + '</td>' +
       '<td>' + c.abcCliente + '</td>' +
       '<td class="num">' + fmtBRL(c.valorTotal) + '</td>' +
-      '<td class="num">' + c.numCompras + '</td>' +
+      '<td class="num">' + (periodo ? (vp.compras || 0) : c.numCompras) + '</td>' +
       '<td class="num">' + (c.diasSemComprar < 9999 ? c.diasSemComprar + 'd' : '—') + '</td></tr>';
   });
   h += '</tbody></table>';
