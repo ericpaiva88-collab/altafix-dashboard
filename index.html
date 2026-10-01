@@ -48,20 +48,52 @@
 </div>
 
 <main>
-  <section id="tab-painel" class="active">
-    <div class="card">
-      <h2 id="painel-titulo">Carregando...</h2>
-      <div id="painel-status"></div>
-      <div id="painel-dias-info" style="font-size:12px;color:#64748b;margin-top:6px;"></div>
-      <div style="margin-top:12px;display:flex;gap:6px;flex-wrap:wrap;">
+    <section id="tab-painel" class="active">
+    <div class="painel-hero">
+      <div class="painel-hero-top">
+        <h2 id="painel-titulo">Carregando...</h2>
+        <div id="painel-status"></div>
+      </div>
+      <div id="painel-dias-info" class="painel-hero-dias"></div>
+
+      <div class="painel-hero-numero">
+        <div class="numero-grande" id="painel-pct">—</div>
+        <div class="barra-pct" id="painel-barra"><div></div></div>
+      </div>
+
+      <div class="painel-hero-resumo" id="painel-resumo"></div>
+
+      <div class="frase-resumo" id="painel-frase" style="display:none;"></div>
+
+      <div class="painel-hero-botoes">
         <button class="btn btn-primary btn-sm" id="btn-relatorio-matinal">📱 Relatório matinal</button>
         <button class="btn btn-sm" id="btn-relatorio-fechamento">📊 Relatório fechamento</button>
         <button class="btn btn-sm" id="btn-min-todos">▾ Minimizar tudo</button>
         <button class="btn btn-sm" id="btn-max-todos">▸ Expandir tudo</button>
       </div>
     </div>
-    <div class="kpi-grid" id="painel-kpis"></div>
-    <div class="frase-resumo" id="painel-frase" style="display:none;"></div>
+
+    <div class="painel-duas-colunas">
+      <div class="card minimizavel" id="card-painel-acoes" style="border-left:4px solid #dc2626;padding:0;">
+        <h2 style="padding:14px 14px 10px 14px;border-bottom:1px solid #e2e8f0;margin-bottom:0;">
+          🎯 Ações de hoje <span class="sub" id="acoes-sub"></span>
+          <button class="btn btn-sm" id="btn-acoes-ver-todas" style="display:none;margin-left:auto;">ver todas</button>
+        </h2>
+        <div class="min-conteudo"><div id="acoes-container"></div></div>
+      </div>
+
+      <div class="card minimizavel" id="card-painel-rank">
+        <h2>🏆 Ranking <span class="sub" id="rank-sub"></span>
+          <button class="btn btn-sm" id="btn-rank-ver-todos" style="display:none;margin-left:auto;">ver completo</button>
+        </h2>
+        <div class="min-conteudo">
+          <div id="rank-container"></div>
+          <div style="margin-top:8px;">
+            <button class="btn btn-sm" id="btn-imprimir-ranking">🖨️ Imprimir</button>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <div class="card minimizavel" id="card-vend-novidade" style="display:none;">
       <h2>🎉 Suas conquistas do mês</h2>
@@ -102,11 +134,6 @@
       <div class="min-conteudo"><div id="vend-rank-container"></div></div>
     </div>
 
-    <div class="card minimizavel" id="card-painel-acoes" style="border-left:4px solid #dc2626;padding:0;">
-      <h2 style="padding:14px 14px 10px 14px;border-bottom:1px solid #e2e8f0;margin-bottom:0;">🎯 Ações de hoje <span class="sub" id="acoes-sub"></span></h2>
-      <div class="min-conteudo"><div id="acoes-container"></div></div>
-    </div>
-
     <div class="card minimizavel" id="card-painel-graficos">
       <h2>📊 Gráficos <span class="sub">últimos 30 dias e acumulado do mês</span></h2>
       <div class="min-conteudo">
@@ -129,14 +156,6 @@
       </div>
     </div>
 
-    <div class="card minimizavel" id="card-painel-rank">
-      <h2>🏆 Ranking de Vendedores <span class="sub" id="rank-sub"></span></h2>
-      <div class="min-conteudo">
-        <div style="margin-bottom:8px;"><button class="btn btn-sm" id="btn-imprimir-ranking">🖨️ Imprimir ranking</button></div>
-        <div id="rank-container"></div>
-      </div>
-    </div>
-
     <div class="card minimizavel" id="card-painel-semana">
       <h2>📅 Semana corrente</h2>
       <div class="min-conteudo">
@@ -156,73 +175,9 @@
       </div>
     </div>
 
-    <div class="card">
-      <div class="secao-header" id="hdr-historico">
-        <h3>📋 Histórico <span class="sub" id="historico-count"></span></h3>
-        <span class="chev">▼</span>
-      </div>
-      <div class="secao-body" id="body-historico"><div id="historico-container"></div></div>
-    </div>
-  </section>
-
-  <section id="tab-clientes">
-    <div class="kpi-grid" id="clientes-kpis"></div>
-
-    <div class="card" style="padding:12px 14px;">
-      <div id="chips-segmento" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;"></div>
-    </div>
-
-    <div id="resumo-novos-reativados" style="display:none;"></div>
-
-    <div class="card">
-      <h2>👥 Clientes <span class="sub" id="clientes-count"></span> <span id="clientes-suspeito"></span></h2>
-      <div class="filtros-bar">
-        <input type="text" id="filtro-cliente-busca" placeholder="Buscar..." style="flex:1;min-width:180px;">
-        <select id="filtro-cliente-vend"><option value="">Todos vendedores</option></select>
-        <select id="filtro-cliente-cidade"><option value="">Todas cidades</option></select>
-        <select id="filtro-cliente-status">
-          <option value="todos">Status: todos</option>
-          <option value="ativos">Ativos (até 30d)</option>
-          <option value="inativos">Inativos (30+)</option>
-          <option value="criticos">Críticos (90+)</option>
-          <option value="novos">🆕 Novos</option>
-          <option value="reativados">♻️ Reativados (90d+)</option>
-          <option value="sem-vendedor">Sem vendedor</option>
-        </select>
-        <select id="filtro-cliente-periodo">
-          <option value="tudo" selected>📅 Todo o período</option>
-          <option value="mes_atual">📅 Este mês</option>
-          <option value="mes_passado">📅 Mês passado</option>
-          <option value="trimestre_atual">📅 Este trimestre</option>
-          <option value="trimestre_passado">📅 Trimestre passado</option>
-          <option value="semestre_atual">📅 Este semestre</option>
-          <option value="semestre_passado">📅 Semestre passado</option>
-          <option value="ano_atual">📅 Este ano</option>
-          <option value="ano_passado">📅 Ano passado</option>
-          <option value="personalizado">📅 Personalizado…</option>
-        </select>
-        <input type="date" id="filtro-cliente-data-ini" style="display:none;">
-        <input type="date" id="filtro-cliente-data-fim" style="display:none;">
-        <select id="filtro-cliente-abc">
-          <option value="">ABC: todas</option>
-          <option value="A">A</option><option value="B">B</option><option value="C">C</option>
-        </select>
-      </div>
-      <div style="overflow-x:auto;">
-        <table class="tabela">
-          <thead><tr>
-            <th>Cliente</th><th>Cidade</th><th>Vendedor</th><th>Segmento</th><th>ABC</th>
-            <th class="num">Acum.</th><th class="num">Período</th><th class="num">Compras</th><th class="num">Ticket</th>
-            <th class="num">Dias</th><th>Risco</th>
-          </tr></thead>
-          <tbody id="tbody-clientes"></tbody>
-        </table>
-      </div>
-      <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
-        <button class="btn btn-primary" id="btn-copiar-inativos">📱 Copiar inativos</button>
-        <button class="btn" id="btn-copiar-segmento">📱 Copiar segmento</button>
-        <button class="btn" id="btn-imprimir-clientes">🖨️ Imprimir lista filtrada</button>
-      </div>
+    <div class="card minimizavel" id="card-painel-historico">
+      <h2>📋 Histórico <span class="sub" id="historico-count"></span></h2>
+      <div class="min-conteudo"><div id="historico-container"></div></div>
     </div>
   </section>
 

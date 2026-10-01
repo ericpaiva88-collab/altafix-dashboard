@@ -187,3 +187,140 @@ tr.inativo td{opacity:.6}
 .chip-seg{padding:6px 12px;border:1px solid #cbd5e1;background:#fff;border-radius:20px;cursor:pointer;font-size:12px;font-weight:600;color:#475569;transition:all .15s;font-family:inherit}
 .chip-seg:hover{background:#f1f5f9}
 .chip-seg.active{background:#0f172a;color:#fff;border-color:#0f172a}
+/* ============================================================
+   Painel Hero
+   ============================================================ */
+
+.painel-hero {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 24px 28px;
+  margin-bottom: 14px;
+}
+
+.painel-hero-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+.painel-hero-top h2 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #0f172a;
+  margin: 0;
+}
+
+.painel-hero-dias {
+  font-size: 12px;
+  color: #64748b;
+  margin-bottom: 20px;
+}
+
+.painel-hero-numero {
+  margin-bottom: 18px;
+}
+
+.numero-grande {
+  font-size: 64px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -2px;
+  color: #dc2626;
+  margin-bottom: 12px;
+}
+
+.numero-grande.ok { color: #16a34a; }
+.numero-grande.alerta { color: #ca8a04; }
+
+.barra-pct {
+  height: 14px;
+  background: #e2e8f0;
+  border-radius: 7px;
+  overflow: hidden;
+  position: relative;
+}
+
+.barra-pct > div {
+  height: 100%;
+  background: #dc2626;
+  border-radius: 7px;
+  transition: width .4s;
+}
+
+.barra-pct > div.ok { background: #16a34a; }
+.barra-pct > div.alerta { background: #ca8a04; }
+
+.painel-hero-resumo {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.painel-hero-resumo .item {
+  border-left: 2px solid #e2e8f0;
+  padding-left: 12px;
+}
+
+.painel-hero-resumo .item .lbl {
+  font-size: 11px;
+  text-transform: uppercase;
+  color: #64748b;
+  font-weight: 600;
+  letter-spacing: .3px;
+  margin-bottom: 2px;
+}
+
+.painel-hero-resumo .item .val {
+  font-size: 18px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.painel-hero-resumo .item .hint {
+  font-size: 11px;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+.painel-hero .frase-resumo {
+  margin: 10px 0 16px;
+}
+
+.painel-hero-botoes {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* ============================================================
+   Duas colunas (Ações + Ranking)
+   ============================================================ */
+
+.painel-duas-colunas {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.painel-duas-colunas > .card {
+  margin-bottom: 0;
+}
+
+@media (max-width: 900px) {
+  .painel-duas-colunas {
+    grid-template-columns: 1fr;
+  }
+  .numero-grande {
+    font-size: 48px;
+  }
+  .painel-hero {
+    padding: 18px 20px;
+  }
+}

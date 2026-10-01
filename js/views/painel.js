@@ -892,67 +892,48 @@ export function renderPainelVendedor(v, a, m) {
     'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
   document.getElementById('painel-titulo').textContent =
-    v.nome + ' — ' + meses[m] + '/' + a + (fi ? ' · ' + fi.nome : '');
+    v.nome + (fi ? ' · ' + fi.nome : '') + ' · ' + meses[m] + '/' + a;
+
+  const fc = 0;
   document.getElementById('painel-dias-info').innerHTML =
     'Dias úteis: <strong>' + c.diasUteisTotal + '</strong> · ' +
     'Com dados: <strong>' + c.diasTrab + '</strong> · ' +
     'Restantes: <strong>' + c.diasFaltam + '</strong>';
+
   document.getElementById('painel-status').innerHTML = c.pctMeta == null ? '' :
-    (c.faturado >= c.ritmoEsperado ? '<span class="badge badge-ok">✓ ACIMA</span>' :
-      '<span class="badge badge-risco">⚠ ABAIXO</span>');
+    (c.faturado >= c.ritmoEsperado
+      ? '<span class="badge badge-ok">✓ ACIMA</span>'
+      : '<span class="badge badge-risco">⚠ ABAIXO</span>');
 
-  const hoje = new Date();
-  const diaCorte = (hoje.getFullYear() === a && hoje.getMonth() === m) ? hoje.getDate() : 31;
-  const mesAnt = new Date(a, m - 1, 1);
-  const prefixAnt = mesAnt.getFullYear() + '-' + String(mesAnt.getMonth() + 1).padStart(2, '0');
+  // Número grande + barra
+  const pct = c.pctMeta != null ? c.pctMeta : 0;
+  const cls = pct >= 100 ? 'ok' : pct >= 80 ? 'alerta' : '';
+  const pctEl = document.getElementById('painel-pct');
+  pctEl.textContent = c.pctMeta != null ? fmtPct(c.pctMeta, 1) : '—';
+  pctEl.className = 'numero-grande ' + cls;
+  const barraEl = document.getElementById('painel-barra').firstElementChild;
+  barraEl.style.width = Math.min(100, pct) + '%';
+  barraEl.className = cls;
 
-  let fatMesAnt = 0;
-  state.lancamentos.forEach(l => {
-    if (l.vendedor !== v.id) return;
-    if (l.data.indexOf(prefixAnt) !== 0) return;
-    if (parseInt(l.data.slice(8, 10), 10) > diaCorte) return;
-    fatMesAnt += (l.valor || 0);
-  });
+  // Resumo
+  const falta = Math.max(0, c.meta - c.faturado);
+  const resumo = document.getElementById('painel-resumo');
+  resumo.innerHTML =
+    '<div class="item"><div class="lbl">Faturado</div>' +
+    '<div class="val">' + fmtBRL(c.faturado) + '</div>' +
+    '<div class="hint">' + c.pedidos + ' pedidos</div></div>' +
+    '<div class="item"><div class="lbl">Meta</div>' +
+    '<div class="val">' + fmtBRL(c.meta) + '</div></div>' +
+    '<div class="item"><div class="lbl">Falta</div>' +
+    '<div class="val" style="color:' + (falta > 0 ? '#dc2626' : '#16a34a') + ';">' +
+    fmtBRL(falta) + '</div>' +
+    (c.diasFaltam > 0 ? '<div class="hint">' + fmtBRL(c.metaDia) + '/dia em ' +
+      c.diasFaltam + 'd</div>' : '') + '</div>' +
+    '<div class="item"><div class="lbl">Ticket</div>' +
+    '<div class="val">' + fmtBRL(c.ticket) + '</div>' +
+    '<div class="hint">meta ' + fmtBRL(c.metaTicket) + '</div></div>';
 
-  const deltaMesAnt = fatMesAnt > 0 ? ((c.faturado - fatMesAnt) / fatMesAnt) * 100 : null;
-
-  const pc = c.pctMeta == null ? '' : (c.pctMeta >= 100 ? 'positivo' : (c.pctMeta >= 80 ? '' : 'negativo'));
-  const bc = c.pctMeta == null ? '' : (c.pctMeta >= 100 ? '' : (c.pctMeta >= 80 ? 'warn' : 'danger'));
-  const projPct = c.meta > 0 ? (c.projecao / c.meta) * 100 : 0;
-  const bateProj = c.projecao >= c.meta;
-
-  let deltaHTML = '';
-  if (deltaMesAnt != null) {
-    const cls = deltaMesAnt >= 2 ? 'up' : deltaMesAnt <= -2 ? 'down' : '';
-    const arrow = deltaMesAnt >= 2 ? '▲' : deltaMesAnt <= -2 ? '▼' : '▬';
-    deltaHTML = '<div class="delta ' + cls + '">' + arrow + ' ' +
-      fmtPct(Math.abs(deltaMesAnt), 1) + ' vs mês ant.</div>';
-  }
-
-  document.getElementById('painel-kpis').innerHTML =
-    '<div class="kpi"><div class="label">Faturado</div>' +
-    '<div class="value">' + fmtBRL(c.faturado) + '</div>' +
-    '<div class="hint">' + c.pedidos + ' pedidos</div>' + deltaHTML + '</div>' +
-    '<div class="kpi"><div class="label">Meta</div>' +
-    '<div class="value">' + fmtBRL(c.meta) + '</div></div>' +
-    '<div class="kpi ' + pc + '"><div class="label">% da meta</div>' +
-    '<div class="value">' + (c.pctMeta != null ? fmtPct(c.pctMeta, 1) : '—') + '</div>' +
-    (c.pctMeta != null ? '<div class="barra"><div class="' + bc + '" style="width:' +
-      Math.min(100, c.pctMeta) + '%"></div></div>' : '') + '</div>' +
-    '<div class="kpi ' + (bateProj ? 'positivo' : 'negativo') + '">' +
-    '<div class="label">Projeção</div>' +
-    '<div class="value">' + fmtBRL(c.projecao) + '</div>' +
-    '<div class="hint">' + (bateProj ? '✓ Vai bater' : 'Abaixo da meta') +
-    ' · ' + fmtPct(projPct, 0) + '</div></div>' +
-    '<div class="kpi"><div class="label">Ticket</div>' +
-    '<div class="value">' + fmtBRL(c.ticket) + '</div>' +
-    '<div class="hint">meta ' + fmtBRL(c.metaTicket) + '</div></div>' +
-    '<div class="kpi ' + (c.meta - c.faturado > 0 ? 'negativo' : 'positivo') + '">' +
-    '<div class="label">Falta</div>' +
-    '<div class="value">' + fmtBRL(Math.max(0, c.meta - c.faturado)) + '</div>' +
-    (c.diasFaltam > 0 ? '<div class="hint">' + fmtBRL(c.metaDia) +
-      '/dia em ' + c.diasFaltam + 'd</div>' : '') + '</div>';
-
+  // Frase
   const fr = document.getElementById('painel-frase');
   fr.style.display = 'block';
   if (c.meta > 0 && c.faturado < c.meta && c.diasFaltam > 0) {
@@ -962,24 +943,41 @@ export function renderPainelVendedor(v, a, m) {
   } else if (c.meta > 0 && c.faturado >= c.meta) {
     fr.innerHTML = '🎉 <strong>Meta batida!</strong>';
   } else {
-    fr.innerHTML = 'Sem meta cadastrada.';
+    fr.style.display = 'none';
   }
 
-  renderAcoesPainel();
+  // Botões personalizados pro vendedor
+  const botoes = document.querySelector('.painel-hero-botoes');
+  botoes.innerHTML =
+    '<button class="btn btn-primary btn-sm" id="btn-relatorio-matinal">📱 Meu relatório</button>' +
+    '<button class="btn btn-sm" id="btn-min-todos">▾ Minimizar tudo</button>' +
+    '<button class="btn btn-sm" id="btn-max-todos">▸ Expandir tudo</button>';
+  const brm = document.getElementById('btn-relatorio-matinal');
+  if (brm) brm.onclick = () => copiarTexto(gerarRelatorioMatinal());
+  const bmin = document.getElementById('btn-min-todos');
+  if (bmin) bmin.onclick = () => toggleTodosMinimizaveis(true);
+  const bmax = document.getElementById('btn-max-todos');
+  if (bmax) bmax.onclick = () => toggleTodosMinimizaveis(false);
 
-  const gc = document.querySelector('#card-painel-graficos');
+  // Ações (full width - esconde o card de ranking admin)
+  const cardRank = document.getElementById('card-painel-rank');
+  if (cardRank) cardRank.style.display = 'none';
+  const duasCol = document.querySelector('.painel-duas-colunas');
+  if (duasCol) duasCol.style.gridTemplateColumns = '1fr';
+
+  renderAcoesPainel();
+  renderVendedorExtras(v, a, m);
+
+  // Esconde os cards admin
+  const gc = document.getElementById('card-painel-graficos');
   if (gc) gc.style.display = 'none';
   const sc = document.getElementById('card-painel-semana');
   if (sc) sc.style.display = 'none';
   const sca = document.getElementById('card-painel-simulador');
   if (sca) sca.style.display = 'none';
 
-  const rankEl = document.getElementById('rank-container');
-  if (rankEl) rankEl.innerHTML = '<div class="empty"><p>Ranking indisponível em modo vendedor.</p></div>';
-
   destruirGraficos();
   renderHistorico();
-  renderVendedorExtras(v, a, m);
 }
 
 // ============================================================
@@ -1305,6 +1303,34 @@ export function renderPainel() {
     return;
   }
 
+  // Reset layout admin
+  const cardRank = document.getElementById('card-painel-rank');
+  if (cardRank) cardRank.style.display = '';
+  const duasCol = document.querySelector('.painel-duas-colunas');
+  if (duasCol) duasCol.style.gridTemplateColumns = '';
+  const gc = document.getElementById('card-painel-graficos');
+  if (gc) gc.style.display = '';
+  const sc = document.getElementById('card-painel-semana');
+  if (sc) sc.style.display = '';
+  const sca = document.getElementById('card-painel-simulador');
+  if (sca) sca.style.display = '';
+
+  // Restaura botões admin
+  const botoes = document.querySelector('.painel-hero-botoes');
+  botoes.innerHTML =
+    '<button class="btn btn-primary btn-sm" id="btn-relatorio-matinal">📱 Relatório matinal</button>' +
+    '<button class="btn btn-sm" id="btn-relatorio-fechamento">📊 Relatório fechamento</button>' +
+    '<button class="btn btn-sm" id="btn-min-todos">▾ Minimizar tudo</button>' +
+    '<button class="btn btn-sm" id="btn-max-todos">▸ Expandir tudo</button>';
+  const brm = document.getElementById('btn-relatorio-matinal');
+  if (brm) brm.onclick = () => copiarTexto(gerarRelatorioMatinal());
+  const brf = document.getElementById('btn-relatorio-fechamento');
+  if (brf) brf.onclick = () => copiarTexto(gerarRelatorioFechamento());
+  const bmin = document.getElementById('btn-min-todos');
+  if (bmin) bmin.onclick = () => toggleTodosMinimizaveis(true);
+  const bmax = document.getElementById('btn-max-todos');
+  if (bmax) bmax.onclick = () => toggleTodosMinimizaveis(false);
+
   const f = calcFilial(a, m, ui.escopoAtual);
   const compar = calcFilialMesmaAltura(a, m, ui.escopoAtual);
 
@@ -1322,7 +1348,10 @@ export function renderPainel() {
 
   if (lancamentosNoEscopo(ui.escopoAtual).length === 0) {
     st.innerHTML = '';
-    document.getElementById('painel-kpis').innerHTML = '';
+    document.getElementById('painel-pct').textContent = '—';
+    document.getElementById('painel-pct').className = 'numero-grande';
+    document.getElementById('painel-barra').firstElementChild.style.width = '0%';
+    document.getElementById('painel-resumo').innerHTML = '';
     document.getElementById('painel-frase').style.display = 'none';
     document.getElementById('acoes-container').innerHTML =
       '<div class="acao-linha vazio">Sem dados. Importe o 324.</div>';
@@ -1337,43 +1366,51 @@ export function renderPainel() {
     ? '<span class="badge badge-ok">✓ ACIMA DO RITMO</span>'
     : '<span class="badge badge-risco">⚠ ABAIXO DO RITMO</span>';
 
+  // Hero: número grande + barra
+  const pct = f.pctMeta || 0;
+  const cls = pct >= 100 ? 'ok' : pct >= 80 ? 'alerta' : '';
+  const pctEl = document.getElementById('painel-pct');
+  pctEl.textContent = fmtPct(f.pctMeta, 1);
+  pctEl.className = 'numero-grande ' + cls;
+  const barraEl = document.getElementById('painel-barra').firstElementChild;
+  barraEl.style.width = Math.min(100, pct) + '%';
+  barraEl.className = cls;
+
+  // Hero: resumo
   function dH(atual, passado) {
-    if (passado <= 0) return '<span class="delta">—</span>';
+    if (passado <= 0) return '';
     const d = ((atual - passado) / passado) * 100;
-    const cls = d >= 2 ? 'up' : d <= -2 ? 'down' : '';
     const arrow = d >= 2 ? '▲' : d <= -2 ? '▼' : '▬';
-    return '<span class="delta ' + cls + '">' + arrow + ' ' + fmtPct(Math.abs(d), 1) + '</span>';
+    const cor = d >= 2 ? '#16a34a' : d <= -2 ? '#dc2626' : '#94a3b8';
+    return ' <span style="color:' + cor + ';font-size:11px;font-weight:600;">' +
+      arrow + ' ' + fmtPct(Math.abs(d), 1) + '</span>';
   }
 
-  const pc = f.pctMeta >= 100 ? 'positivo' : (f.pctMeta >= 80 ? '' : 'negativo');
-  const bc = f.pctMeta >= 100 ? '' : (f.pctMeta >= 80 ? 'warn' : 'danger');
+  let resumoHTML =
+    '<div class="item"><div class="lbl">Faturado</div>' +
+    '<div class="val">' + fmtBRL(f.faturadoTotal) + dH(f.faturadoTotal, compar.faturadoTotal) + '</div>' +
+    '<div class="hint">' + f.pedidosTotal + ' pedidos</div></div>' +
+    '<div class="item"><div class="lbl">Meta</div>' +
+    '<div class="val">' + fmtBRL(f.metaTotal) + '</div></div>' +
+    '<div class="item"><div class="lbl">Falta</div>' +
+    '<div class="val" style="color:' + (f.falta > 0 ? '#dc2626' : '#16a34a') + ';">' +
+    fmtBRL(f.falta) + '</div>' +
+    (f.diasFaltam > 0 && f.falta > 0
+      ? '<div class="hint">' + fmtBRL(f.porDia) + '/dia em ' + f.diasFaltam + 'd</div>'
+      : '') + '</div>' +
+    '<div class="item"><div class="lbl">Projeção</div>' +
+    '<div class="val" style="color:' + (f.projecao >= f.metaTotal ? '#16a34a' : '#dc2626') + ';">' +
+    fmtBRL(f.projecao) + '</div>' +
+    '<div class="hint">' + (f.projecao >= f.metaTotal ? '✓ Bater' : 'Abaixo') + '</div></div>';
 
-  const kpiAdminHTML = f.faturadoAdmin > 0
-    ? '<div class="kpi" style="border-color:#94a3b8;background:#f8fafc;">' +
-      '<div class="label" style="color:#64748b;">Administrativo</div>' +
-      '<div class="value" style="font-size:18px;color:#64748b;">' + fmtBRL(f.faturadoAdmin) + '</div>' +
-      '<div class="hint">' + f.pedidosAdmin + ' pedidos · fora da meta</div></div>'
-    : '';
+  if (f.faturadoAdmin > 0) {
+    resumoHTML +=
+      '<div class="item"><div class="lbl">Admin</div>' +
+      '<div class="val" style="color:#64748b;font-size:15px;">' + fmtBRL(f.faturadoAdmin) + '</div>' +
+      '<div class="hint">fora da meta</div></div>';
+  }
 
-  document.getElementById('painel-kpis').innerHTML =
-    '<div class="kpi"><div class="label">Faturado</div>' +
-    '<div class="value">' + fmtBRL(f.faturadoTotal) + '</div>' +
-    '<div class="hint">' + f.pedidosTotal + ' pedidos</div>' +
-    dH(f.faturadoTotal, compar.faturadoTotal) + '</div>' +
-    '<div class="kpi"><div class="label">Meta</div>' +
-    '<div class="value">' + fmtBRL(f.metaTotal) + '</div></div>' +
-    '<div class="kpi ' + pc + '"><div class="label">% da meta</div>' +
-    '<div class="value">' + fmtPct(f.pctMeta, 1) + '</div>' +
-    '<div class="barra"><div class="' + bc + '" style="width:' +
-    Math.min(100, f.pctMeta) + '%"></div></div></div>' +
-    '<div class="kpi"><div class="label">Projeção</div>' +
-    '<div class="value">' + fmtBRL(f.projecao) + '</div>' +
-    '<div class="hint">' + (f.projecao >= f.metaTotal ? '✓ Bater' : 'Abaixo') + '</div></div>' +
-    '<div class="kpi ' + (f.falta > 0 ? 'negativo' : 'positivo') + '">' +
-    '<div class="label">Falta</div>' +
-    '<div class="value">' + fmtBRL(f.falta) + '</div>' +
-    '<div class="hint">' + f.diasFaltam + ' dias</div></div>' +
-    kpiAdminHTML;
+  document.getElementById('painel-resumo').innerHTML = resumoHTML;
 
   const fr = document.getElementById('painel-frase');
   fr.style.display = 'block';
@@ -1384,14 +1421,15 @@ export function renderPainel() {
   } else if (f.falta <= 0) {
     fr.innerHTML = '🎉 <strong>Meta batida!</strong>';
   } else {
-    fr.innerHTML = '⚠ Sem dias úteis restantes.';
+    fr.style.display = 'none';
   }
 
+  // Ranking
   const ord = f.dados.slice().sort((x, y) => (y.pctMeta || 0) - (x.pctMeta || 0));
   let rows = '';
   const mostraFilial = parseEscopo(ui.escopoAtual).tipo !== 'filial';
 
-  ord.forEach(d => {
+  ord.forEach((d, i) => {
     const v = d.vendedor;
     let cls = '';
     if (d.pctMeta == null) cls = '';
@@ -1406,49 +1444,57 @@ export function renderPainel() {
       ? ' <span class="badge badge-ex" style="font-size:10px;">ex</span>'
       : '';
 
-    rows += '<tr class="' + cls + '">' +
-      '<td><strong>' + escapeHtml(v.nome) + '</strong>' + badgeExtra +
+    const visivel = i < 5;
+    const escondido = visivel ? '' : ' style="display:none;" data-rank-extra';
+
+    rows += '<tr class="' + cls + '"' + escondido + '>' +
+      '<td><strong>' + (i + 1) + 'º</strong> ' + escapeHtml(v.nome) + badgeExtra +
       (mostraFilial && fi ? ' <span class="badge badge-filial" style="font-size:10px;">' +
         escapeHtml(fi.nome) + '</span>' : '') + '</td>' +
       '<td class="num">' + fmtBRL(d.faturado) + '</td>' +
-      '<td class="num">' + (d.meta > 0 ? fmtBRL(d.meta) : '—') + '</td>' +
       '<td class="num">' + (d.pctMeta != null ? fmtPct(d.pctMeta, 1) : '—') + '</td>' +
-      '<td class="num">' + fmtBRL(d.ticket) + '</td>' +
-      '<td class="num">' + fmtBRL(d.metaTicket) + '</td>' +
-      '<td class="num">' + d.pedidos + '</td>' +
-      '<td class="num">' + fmtPct(d.descontoMedio, 2) + '</td>' +
-      '<td>' + d.status + '</td></tr>';
+      '<td class="num">' + d.pedidos + '</td></tr>';
   });
 
   const ordAdmin = (f.dadosAdmin || []).slice().sort((x, y) => y.faturado - x.faturado);
   ordAdmin.forEach(d => {
     if (d.faturado === 0) return;
     const v = d.vendedor;
-    rows += '<tr style="background:#f8fafc;color:#64748b;">' +
-      '<td><strong>' + escapeHtml(v.nome) + '</strong> ' +
-      '<span class="badge badge-adm" style="font-size:10px;">adm</span></td>' +
+    rows += '<tr style="background:#f8fafc;color:#64748b;display:none;" data-rank-extra>' +
+      '<td>— ' + escapeHtml(v.nome) + ' <span class="badge badge-adm" style="font-size:10px;">adm</span></td>' +
       '<td class="num">' + fmtBRL(d.faturado) + '</td>' +
-      '<td class="num">—</td><td class="num">—</td>' +
-      '<td class="num">' + fmtBRL(d.ticket) + '</td>' +
-      '<td class="num">—</td><td class="num">' + d.pedidos + '</td>' +
-      '<td class="num">' + fmtPct(d.descontoMedio, 2) + '</td>' +
-      '<td>ADM</td></tr>';
+      '<td class="num">—</td>' +
+      '<td class="num">' + d.pedidos + '</td></tr>';
   });
 
   document.getElementById('rank-container').innerHTML =
     '<table class="tabela"><thead><tr>' +
-    '<th>Vendedor</th><th class="num">Faturado</th><th class="num">Meta</th>' +
-    '<th class="num">%</th><th class="num">Ticket</th><th class="num">Meta Tk.</th>' +
-    '<th class="num">Ped.</th><th class="num">% Desc.</th><th>Status</th>' +
+    '<th>Vendedor</th><th class="num">Faturado</th>' +
+    '<th class="num">% Meta</th><th class="num">Ped.</th>' +
     '</tr></thead><tbody>' + rows + '</tbody></table>';
 
   document.getElementById('rank-sub').textContent =
     f.diasTrab + ' de ' + f.diasUteisTotal + ' dias com dados';
 
-  // Oculta cards de vendedor
+  // Botão ver completo
+  const btnVerTodos = document.getElementById('btn-rank-ver-todos');
+  const temMais = ord.length + ordAdmin.filter(d => d.faturado > 0).length > 5;
+  if (btnVerTodos) {
+    btnVerTodos.style.display = temMais ? '' : 'none';
+    btnVerTodos.onclick = () => {
+      const escondidos = document.querySelectorAll('[data-rank-extra]');
+      const mostrando = btnVerTodos.textContent === 'ver menos';
+      escondidos.forEach(el => {
+        el.style.display = mostrando ? 'none' : '';
+      });
+      btnVerTodos.textContent = mostrando ? 'ver completo' : 'ver menos';
+    };
+  }
+
+  // Oculta cards vendedor
   ['card-vend-evolucao', 'card-vend-historico', 'card-vend-clientes',
    'card-vend-em-risco', 'card-vend-top-produtos', 'card-vend-novidade',
-   'card-vend-rank', 'card-sim-vendedor'].forEach(id => {
+   'card-vend-rank'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = 'none';
   });
