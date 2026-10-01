@@ -3,7 +3,8 @@
 // Inicializa Supabase, liga eventos, coordena views
 // ============================================================
 
-import { state, ui, session, carregar, salvar, derivarHistorico } from './state.js';
+import { state, ui, session, carregar, salvar } from './state.js';
+import { derivarHistorico } from './calc.js';
 import { fmtBRL, toast, isoDate, normalizarNomeCliente, copiarTexto } from './utils.js';
 import {
   sbInit, sbLogin, sbLogout, sbSessaoAtual, sbCarregarPerfil,
