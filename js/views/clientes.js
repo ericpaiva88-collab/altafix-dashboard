@@ -47,8 +47,18 @@ function getIndiceImportacoes() {
 // ============================================================
 
 function calcularPeriodo() {
-  const preset = ui.filtroClientePeriodo || 'tudo';
+  let preset = ui.filtroClientePeriodo || 'tudo';
   if (preset === 'tudo') return null;
+
+  // Fallback: se "Este mês" não tem dados, usa "Mês passado"
+  if (preset === 'mes_atual') {
+    const hj = new Date();
+    const p = hj.getFullYear() + '-' + String(hj.getMonth() + 1).padStart(2, '0');
+    const temDadosMesAtual = (state.vendasItens || []).some(vi =>
+      vi.periodoIni && vi.periodoIni.indexOf(p) === 0
+    );
+    if (!temDadosMesAtual) preset = 'mes_passado';
+  }
 
   const hj = new Date();
   let inicio, fim;
@@ -104,7 +114,7 @@ function calcularPeriodo() {
 }
 
 // ============================================================
-// VALOR NO PERÍODO
+// VALOR NO PERÍODO — usa vendas_itens (fonte por venda)
 // ============================================================
 
 function valorNoPeriodo(cliente, periodo) {
@@ -114,21 +124,24 @@ function valorNoPeriodo(cliente, periodo) {
   const vendedorAlvo = ui.modoVendedor || ui.filtroClienteVend || null;
 
   let valor = 0;
+  let numCompras = 0;
+
   state.vendasItens.forEach(vi => {
     if (vi.clienteNorm !== clienteNorm) return;
     if (vi.filialId !== cliente.filialId) return;
     if (vi.periodoIni < periodo.ini || vi.periodoIni > periodo.fim) return;
     if (vendedorAlvo && vi.vendedor !== vendedorAlvo) return;
     valor += Number(vi.valor) || 0;
+    if (vi.valor > 0) numCompras++;
   });
 
-  return { valor, compras: valor > 0 ? 1 : 0 };
+  return { valor, compras: numCompras };
 }
 
 function comprouNoPeriodo(cliente, periodo) {
   if (!periodo) return true;
   const r = valorNoPeriodo(cliente, periodo);
-  return r.compras > 0 || r.valor > 0;
+  return r.valor > 0;
 }
 
 // ============================================================
@@ -192,8 +205,25 @@ export function renderClientes() {
   const suspeitoEl = document.getElementById('clientes-suspeito');
 
   let clientesBase = clientesNoEscopo(ui.escopoAtual);
+
+  // Modo vendedor: inclui clientes donos + clientes vendidos no período
   if (ui.modoVendedor) {
-    clientesBase = clientesBase.filter(c => c.vendedor === ui.modoVendedor);
+    const periodoModo = calcularPeriodo();
+    const clientesVendidos = new Set();
+
+    (state.vendasItens || []).forEach(vi => {
+      if (vi.vendedor !== ui.modoVendedor) return;
+      if (periodoModo) {
+        if (vi.periodoIni < periodoModo.ini || vi.periodoIni > periodoModo.fim) return;
+      }
+      clientesVendidos.add(vi.filialId + '|' + vi.clienteNorm);
+    });
+
+    clientesBase = clientesBase.filter(c => {
+      if (c.vendedor === ui.modoVendedor) return true;
+      const k2 = c.filialId + '|' + normalizarNomeCliente(c.nome);
+      return clientesVendidos.has(k2);
+    });
   }
 
   if (clientesBase.length === 0) {
@@ -227,7 +257,16 @@ export function renderClientes() {
   popularSelectCidade(clsBase);
 
   const filtrados = clsBase.filter(c => {
-    if (ui.filtroClienteVend && c.vendedor !== ui.filtroClienteVend) return false;
+    if (ui.filtroClienteVend && c.vendedor !== ui.filtroClienteVend) {
+      // Se modo vendedor está off, aceita o filtro por dono OU por venda no período
+      const k2 = c.filialId + '|' + normalizarNomeCliente(c.nome);
+      const vendido = (state.vendasItens || []).some(vi =>
+        vi.vendedor === ui.filtroClienteVend &&
+        vi.clienteNorm === normalizarNomeCliente(c.nome) &&
+        (!periodo || (vi.periodoIni >= periodo.ini && vi.periodoIni <= periodo.fim))
+      );
+      if (!vendido) return false;
+    }
     if (ui.filtroClienteCidade && c.cidade !== ui.filtroClienteCidade) return false;
     if (ui.filtroClienteBusca) {
       const t = ui.filtroClienteBusca.toUpperCase();
@@ -254,7 +293,12 @@ export function renderClientes() {
   renderKPIs(filtrados, clsBase, periodo);
   renderChips(clsBase);
 
-  ce.textContent = filtrados.length + ' clientes';
+  let textoCount = filtrados.length + ' clientes';
+  if (periodo && filtrados.length === 0 && clsBase.length > 0) {
+    textoCount += ' em ' + periodo.nome + ' — troque o período ou use "Todo o período"';
+  }
+  ce.textContent = textoCount;
+
   const semVend = filtrados.filter(c => !c.vendedor).length;
   if (suspeitoEl) {
     if (semVend > 0) {
@@ -307,10 +351,10 @@ function popularSelectCidade(clientes) {
 function renderKPIs(filtrados, clsBase, periodo) {
   const k = document.getElementById('clientes-kpis');
 
-  const emRisco = filtrados.filter(c =>
+  const emRisco = clsBase.filter(c =>
     c.diasSemComprar >= 30 && c.diasSemComprar < EM_RISCO_ATE
   );
-  const perdidos = filtrados.filter(c => c.diasSemComprar >= EM_RISCO_ATE);
+  const perdidos = clsBase.filter(c => c.diasSemComprar >= EM_RISCO_ATE);
 
   const valorEmRisco = emRisco.reduce((s, c) => s + (c.valorMedioMensal || 0), 0);
   const valorAcum = filtrados.reduce((s, c) => s + (c.valorTotal || 0), 0);
