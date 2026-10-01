@@ -5,7 +5,7 @@
 import { state, ui } from '../state.js';
 import {
   fmtBRL, fmtPct, escapeHtml, badgeSuspeito, copiarTexto, isoDate, diffDias,
-  normalizarNomeCliente
+  fmtDataBR, normalizarNomeCliente
 } from '../utils.js';
 import {
   clientesNoEscopo, calcRFMScores, calcABCClientes,
@@ -13,12 +13,11 @@ import {
 } from '../calc.js';
 import { imprimirHTML } from './painel.js';
 
-const PERIODO_NOVO = 30;      // dias
-const GAP_REATIVADO = 90;     // dias mínimos sem comprar pra ser reativado
-const PERIODO_REATIVADO = 30; // dias máximos desde a reativação
+const GAP_REATIVADO = 90;
+const EM_RISCO_ATE = 180;
 
 // ============================================================
-// ÍNDICE DE IMPORTAÇÕES (performance)
+// ÍNDICE DE IMPORTAÇÕES
 // ============================================================
 
 let _indiceImportacoes = null;
@@ -44,42 +43,136 @@ function getIndiceImportacoes() {
 }
 
 // ============================================================
-// CLASSIFICAÇÃO: novo / reativado / null
+// PERÍODO
 // ============================================================
 
-function classificar(cliente) {
+function calcularPeriodo() {
+  const preset = ui.filtroClientePeriodo || 'tudo';
+  if (preset === 'tudo') return null;
+
+  const hj = new Date();
+  let inicio, fim;
+
+  if (preset === 'personalizado') {
+    if (!ui.filtroClienteDataIni || !ui.filtroClienteDataFim) return null;
+    return { ini: ui.filtroClienteDataIni, fim: ui.filtroClienteDataFim, nome: 'Personalizado' };
+  }
+
+  if (preset === 'mes_atual') {
+    inicio = new Date(hj.getFullYear(), hj.getMonth(), 1);
+    fim = new Date(hj.getFullYear(), hj.getMonth() + 1, 0);
+  } else if (preset === 'mes_passado') {
+    inicio = new Date(hj.getFullYear(), hj.getMonth() - 1, 1);
+    fim = new Date(hj.getFullYear(), hj.getMonth(), 0);
+  } else if (preset === 'trimestre_atual') {
+    const t = Math.floor(hj.getMonth() / 3);
+    inicio = new Date(hj.getFullYear(), t * 3, 1);
+    fim = new Date(hj.getFullYear(), t * 3 + 3, 0);
+  } else if (preset === 'trimestre_passado') {
+    let t = Math.floor(hj.getMonth() / 3) - 1;
+    let ano = hj.getFullYear();
+    if (t < 0) { t = 3; ano--; }
+    inicio = new Date(ano, t * 3, 1);
+    fim = new Date(ano, t * 3 + 3, 0);
+  } else if (preset === 'semestre_atual') {
+    const s = hj.getMonth() < 6 ? 0 : 1;
+    inicio = new Date(hj.getFullYear(), s * 6, 1);
+    fim = new Date(hj.getFullYear(), s * 6 + 6, 0);
+  } else if (preset === 'semestre_passado') {
+    let s = hj.getMonth() < 6 ? 1 : 0;
+    let ano = hj.getFullYear();
+    if (hj.getMonth() < 6) ano--;
+    inicio = new Date(ano, s * 6, 1);
+    fim = new Date(ano, s * 6 + 6, 0);
+  } else if (preset === 'ano_atual') {
+    inicio = new Date(hj.getFullYear(), 0, 1);
+    fim = new Date(hj.getFullYear(), 11, 31);
+  } else if (preset === 'ano_passado') {
+    inicio = new Date(hj.getFullYear() - 1, 0, 1);
+    fim = new Date(hj.getFullYear() - 1, 11, 31);
+  } else {
+    return null;
+  }
+
+  const nomeSel = document.getElementById('filtro-cliente-periodo');
+  let nome = 'Período';
+  if (nomeSel) {
+    nome = nomeSel.options[nomeSel.selectedIndex].text.replace('📅 ', '');
+  }
+
+  return { ini: isoDate(inicio), fim: isoDate(fim), nome };
+}
+
+// ============================================================
+// VALOR NO PERÍODO
+// ============================================================
+
+function valorNoPeriodo(cliente, periodo) {
+  if (!periodo) return { valor: cliente.valorTotal || 0, compras: cliente.numCompras || 0 };
+  const idx = getIndiceImportacoes();
+  const k = cliente.filialId + '|' + normalizarNomeCliente(cliente.nome);
+  const rows = idx[k] || [];
+
+  let valor = 0, compras = 0;
+  rows.forEach(r => {
+    if (r.periodoIni >= periodo.ini && r.periodoIni <= periodo.fim) {
+      valor += Number(r.valor) || 0;
+      compras += Number(r.numCompras) || 0;
+    }
+  });
+  return { valor, compras };
+}
+
+function comprouNoPeriodo(cliente, periodo) {
+  if (!periodo) return true;
+  const r = valorNoPeriodo(cliente, periodo);
+  return r.compras > 0 || r.valor > 0;
+}
+
+// ============================================================
+// CLASSIFICAÇÃO: novo / reativado
+// ============================================================
+
+function classificar(cliente, periodo) {
+  if (!periodo) return null;
+
   const idx = getIndiceImportacoes();
   const k = cliente.filialId + '|' + normalizarNomeCliente(cliente.nome);
   const rows = idx[k];
   if (!rows || rows.length === 0) return null;
 
-  const hj = isoDate(new Date());
   const primeira = rows[0].periodoIni;
-  const ultima = rows[rows.length - 1].ultimaCompra || rows[rows.length - 1].periodoIni;
-  const diasDesdePrimeira = diffDias(primeira, hj);
 
-  // Novo
-  if (diasDesdePrimeira <= PERIODO_NOVO) {
-    return { tipo: 'novo', quando: primeira, detalhe: 'Primeira compra há ' + diasDesdePrimeira + 'd' };
+  if (primeira >= periodo.ini && primeira <= periodo.fim) {
+    return {
+      tipo: 'novo',
+      quando: primeira,
+      detalhe: 'Primeira compra em ' + fmtDataBR(primeira)
+    };
   }
 
-  // Reativado
   if (rows.length < 2) return null;
-  const diasDesdeUltima = diffDias(ultima, hj);
-  if (diasDesdeUltima > PERIODO_REATIVADO) return null;
 
   const ultimaRow = rows[rows.length - 1];
   const penultimaRow = rows[rows.length - 2];
-  const gapRecente = diffDias(
+  const voltaEm = ultimaRow.periodoIni;
+
+  if (voltaEm < periodo.ini || voltaEm > periodo.fim) return null;
+
+  const gap = diffDias(
     penultimaRow.ultimaCompra || penultimaRow.periodoIni,
     ultimaRow.periodoIni
   );
 
-  if (gapRecente >= GAP_REATIVADO) {
+  if (gap >= GAP_REATIVADO) {
+    const totalCompras = cliente.numCompras || 0;
+    const ativoAgora = totalCompras >= 10 && (cliente.diasSemComprar || 999) <= 15;
+    if (ativoAgora) return null;
+
     return {
       tipo: 'reativado',
-      quando: ultimaRow.periodoIni,
-      detalhe: 'Voltou há ' + diasDesdeUltima + 'd após ' + gapRecente + 'd parado'
+      quando: voltaEm,
+      detalhe: 'Voltou em ' + fmtDataBR(voltaEm) + ' após ' + gap + 'd parado'
     };
   }
 
@@ -103,11 +196,12 @@ export function renderClientes() {
 
   if (clientesBase.length === 0) {
     k.innerHTML = '';
-    te.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:30px;color:#64748b;">' +
+    te.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:30px;color:#64748b;">' +
       'Nenhum cliente. Importe o 324.</td></tr>';
     ce.textContent = '';
     if (suspeitoEl) suspeitoEl.innerHTML = '';
     renderChips([]);
+    renderResumoNovosReativados([], {}, null, null);
     return;
   }
 
@@ -115,11 +209,17 @@ export function renderClientes() {
   calcRFMScores(clsBase);
   calcABCClientes(clsBase);
 
+  const st = ui.filtroClienteStatus;
+  const periodo = calcularPeriodo();
+  const usaPeriodoNovos = (st === 'novos' || st === 'reativados');
+
   const classificados = {};
-  clsBase.forEach(c => {
-    const res = classificar(c);
-    if (res) classificados[c.id] = res;
-  });
+  if (usaPeriodoNovos && periodo) {
+    clsBase.forEach(c => {
+      const res = classificar(c, periodo);
+      if (res) classificados[c.id] = res;
+    });
+  }
 
   popularSelectVendedor(clsBase);
   popularSelectCidade(clsBase);
@@ -132,7 +232,10 @@ export function renderClientes() {
       if (String(c.nome).toUpperCase().indexOf(t) < 0) return false;
     }
 
-    const st = ui.filtroClienteStatus;
+    if (periodo && !usaPeriodoNovos) {
+      if (!comprouNoPeriodo(c, periodo)) return false;
+    }
+
     if (st === 'ativos' && c.diasSemComprar >= 30) return false;
     if (st === 'inativos' && c.diasSemComprar < 30) return false;
     if (st === 'criticos' && c.diasSemComprar < 90) return false;
@@ -146,7 +249,7 @@ export function renderClientes() {
     return true;
   });
 
-  renderKPIs(filtrados, clsBase);
+  renderKPIs(filtrados, clsBase, periodo);
   renderChips(clsBase);
 
   ce.textContent = filtrados.length + ' clientes';
@@ -159,97 +262,9 @@ export function renderClientes() {
     }
   }
 
-  renderTabela(filtrados, classificados);
-  renderResumoNovosReativados(filtrados, classificados);
+  renderTabela(filtrados, classificados, usaPeriodoNovos, periodo);
+  renderResumoNovosReativados(filtrados, classificados, periodo, usaPeriodoNovos);
   window._clientesFiltrados = filtrados;
-}
-
-// ============================================================
-// RESUMO NOVOS/REATIVADOS POR VENDEDOR
-// ============================================================
-
-function renderResumoNovosReativados(filtrados, classificados) {
-  const container = document.getElementById('resumo-novos-reativados');
-  if (!container) return;
-
-  const st = ui.filtroClienteStatus;
-  if (st !== 'novos' && st !== 'reativados') {
-    container.style.display = 'none';
-    return;
-  }
-
-  container.style.display = 'block';
-
-  const filtro = st === 'novos' ? 'novo' : 'reativado';
-  const doTipo = filtrados.filter(c => classificados[c.id] && classificados[c.id].tipo === filtro);
-
-  const totalValor = doTipo.reduce((s, c) => s + (c.valorTotal || 0), 0);
-  const totalCompras = doTipo.reduce((s, c) => s + (c.numCompras || 0), 0);
-  const ticketMedio = totalCompras > 0 ? totalValor / totalCompras : 0;
-
-  // Agrupa por vendedor
-  const porVend = {};
-  doTipo.forEach(c => {
-    const k = c.vendedor || '__sem__';
-    if (!porVend[k]) porVend[k] = { qtd: 0, valor: 0, compras: 0 };
-    porVend[k].qtd++;
-    porVend[k].valor += (c.valorTotal || 0);
-    porVend[k].compras += (c.numCompras || 0);
-  });
-
-  const arr = Object.keys(porVend).map(k => {
-    const v = state.vendedores.find(x => x.id === k);
-    return {
-      nome: v ? v.nome : (k === '__sem__' ? '⚠ Sem vendedor' : '—'),
-      qtd: porVend[k].qtd,
-      valor: porVend[k].valor,
-      compras: porVend[k].compras,
-      ticket: porVend[k].compras > 0 ? porVend[k].valor / porVend[k].compras : 0,
-      sem: k === '__sem__'
-    };
-  }).sort((a, b) => b.valor - a.valor);
-
-  const tipoLabel = st === 'novos' ? 'novos' : 'reativados';
-  const tipoEmoji = st === 'novos' ? '🆕' : '♻️';
-  const tipoCor = st === 'novos' ? '#16a34a' : '#0ea5e9';
-
-  let h = '<div class="card" style="border-left:4px solid ' + tipoCor + ';">';
-  h += '<h2>' + tipoEmoji + ' Resumo de ' + tipoLabel + ' por vendedor</h2>';
-
-  h += '<div class="kpi-grid" style="margin-bottom:12px;">';
-  h += '<div class="kpi"><div class="label">Total de clientes</div>' +
-    '<div class="value">' + doTipo.length + '</div></div>';
-  h += '<div class="kpi positivo"><div class="label">Faturamento total</div>' +
-    '<div class="value">' + fmtBRL(totalValor) + '</div></div>';
-  h += '<div class="kpi"><div class="label">Ticket médio</div>' +
-    '<div class="value">' + fmtBRL(ticketMedio) + '</div></div>';
-  h += '<div class="kpi"><div class="label">Vendedores envolvidos</div>' +
-    '<div class="value">' + arr.length + '</div></div>';
-  h += '</div>';
-
-  h += '<div style="overflow-x:auto;"><table class="tabela"><thead><tr>';
-  h += '<th>Vendedor</th><th class="num">Clientes</th>' +
-    '<th class="num">Faturamento</th><th class="num">Compras</th>' +
-    '<th class="num">Ticket</th><th class="num">% do total</th>';
-  h += '</tr></thead><tbody>';
-
-  arr.forEach(x => {
-    const pct = totalValor > 0 ? (x.valor / totalValor) * 100 : 0;
-    const cls = x.sem ? 'style="color:#dc2626;"' : '';
-    h += '<tr ' + cls + '>';
-    h += '<td><strong>' + escapeHtml(x.nome) + '</strong></td>';
-    h += '<td class="num">' + x.qtd + '</td>';
-    h += '<td class="num">' + fmtBRL(x.valor) + '</td>';
-    h += '<td class="num">' + x.compras + '</td>';
-    h += '<td class="num">' + fmtBRL(x.ticket) + '</td>';
-    h += '<td class="num">' + fmtPct(pct, 1) + '</td>';
-    h += '</tr>';
-  });
-
-  h += '</tbody></table></div>';
-  h += '</div>';
-
-  container.innerHTML = h;
 }
 
 // ============================================================
@@ -287,23 +302,48 @@ function popularSelectCidade(clientes) {
 // KPIs
 // ============================================================
 
-function renderKPIs(filtrados, clsBase) {
+function renderKPIs(filtrados, clsBase, periodo) {
   const k = document.getElementById('clientes-kpis');
-  const inat = filtrados.filter(c => c.diasSemComprar >= 30);
-  const tr = inat.reduce((s, c) => s + (c.valorMedioMensal || 0), 0);
-  const fatFiltro = filtrados.reduce((s, c) => s + (c.valorTotal || 0), 0);
+
+  const emRisco = filtrados.filter(c =>
+    c.diasSemComprar >= 30 && c.diasSemComprar < EM_RISCO_ATE
+  );
+  const perdidos = filtrados.filter(c => c.diasSemComprar >= EM_RISCO_ATE);
+
+  const valorEmRisco = emRisco.reduce((s, c) => s + (c.valorMedioMensal || 0), 0);
+  const valorAcum = filtrados.reduce((s, c) => s + (c.valorTotal || 0), 0);
+
+  let valorPeriodo = 0;
+  if (periodo) {
+    filtrados.forEach(c => {
+      const vp = valorNoPeriodo(c, periodo);
+      valorPeriodo += vp.valor;
+    });
+  } else {
+    valorPeriodo = valorAcum;
+  }
+
+  const labelPeriodo = periodo ? ('em ' + periodo.nome.toLowerCase()) : 'acumulado total';
 
   k.innerHTML =
     '<div class="kpi"><div class="label">Clientes</div>' +
     '<div class="value">' + filtrados.length + '</div>' +
     '<div class="hint">de ' + clsBase.length + '</div></div>' +
-    '<div class="kpi"><div class="label">Valor total</div>' +
-    '<div class="value">' + fmtBRL(fatFiltro) + '</div></div>' +
-    '<div class="kpi ' + (inat.length > 0 ? 'negativo' : 'positivo') + '">' +
-    '<div class="label">Inativos</div>' +
-    '<div class="value">' + inat.length + '</div></div>' +
-    '<div class="kpi negativo"><div class="label">Valor em risco</div>' +
-    '<div class="value">' + fmtBRL(tr) + '</div></div>';
+    '<div class="kpi"><div class="label">Valor acumulado</div>' +
+    '<div class="value">' + fmtBRL(valorAcum) + '</div></div>' +
+    '<div class="kpi"><div class="label">Valor no período</div>' +
+    '<div class="value">' + fmtBRL(valorPeriodo) + '</div>' +
+    '<div class="hint">' + labelPeriodo + '</div></div>' +
+    '<div class="kpi" style="border-left:4px solid #f59e0b;">' +
+    '<div class="label">Em risco (30-180d)</div>' +
+    '<div class="value">' + emRisco.length + '</div>' +
+    '<div class="hint">' + fmtBRL(valorEmRisco) + '/mês</div></div>' +
+    '<div class="kpi" style="border-left:4px solid #64748b;">' +
+    '<div class="label">Perdidos (180d+)</div>' +
+    '<div class="value">' + perdidos.length + '</div></div>' +
+    '<div class="kpi negativo"><div class="label">Valor em risco real</div>' +
+    '<div class="value">' + fmtBRL(valorEmRisco) + '</div>' +
+    '<div class="hint">só os recuperáveis</div></div>';
 }
 
 // ============================================================
@@ -355,15 +395,14 @@ function renderChips(clsBase) {
 // TABELA
 // ============================================================
 
-function renderTabela(filtrados, classificados) {
+function renderTabela(filtrados, classificados, usaPeriodo, periodo) {
   const te = document.getElementById('tbody-clientes');
   const mostraFilial = parseEscopo(ui.escopoAtual).tipo !== 'filial';
-  const mostrarTipo = ui.filtroClienteStatus === 'novos' || ui.filtroClienteStatus === 'reativados';
 
   const st = filtrados.slice().sort((a, b) => (b.valorTotal || 0) - (a.valorTotal || 0));
 
   if (st.length === 0) {
-    te.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:20px;color:#64748b;">' +
+    te.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:20px;color:#64748b;">' +
       'Nenhum cliente.</td></tr>';
     return;
   }
@@ -373,7 +412,9 @@ function renderTabela(filtrados, classificados) {
     const fi = state.filiais.find(x => x.id === c.filialId);
 
     let bd = '';
-    if (c.diasSemComprar >= 90) {
+    if (c.diasSemComprar >= 180) {
+      bd = '<span class="badge" style="background:#475569;color:#fff;">PERDIDO</span>';
+    } else if (c.diasSemComprar >= 90) {
       bd = '<span class="badge badge-risco">CRÍTICO</span>';
     } else if (c.diasSemComprar >= 60) {
       bd = '<span class="badge" style="background:#f59e0b;color:#fff;">ATENÇÃO</span>';
@@ -391,7 +432,7 @@ function renderTabela(filtrados, classificados) {
 
     let nomeTxt = escapeHtml(c.nome);
     const info = classificados[c.id];
-    if (mostrarTipo && info) {
+    if (usaPeriodo && info) {
       if (info.tipo === 'novo') {
         nomeTxt += ' <span class="badge" style="background:#16a34a;color:#fff;font-size:10px;" ' +
           'title="' + escapeHtml(info.detalhe) + '">🆕</span>';
@@ -404,6 +445,9 @@ function renderTabela(filtrados, classificados) {
     const clsSuspeito = !c.vendedor ? 'suspeito' : '';
     const ticket = c.valorTotal / Math.max(1, c.numCompras);
 
+    const vp = valorNoPeriodo(c, periodo);
+    const periodoTxt = periodo ? fmtBRL(vp.valor) : '<span style="color:#94a3b8;">—</span>';
+
     return '<tr class="' + clsSuspeito + '">' +
       '<td>' + nomeTxt + '</td>' +
       '<td>' + escapeHtml(c.cidade || '—') + '</td>' +
@@ -412,11 +456,109 @@ function renderTabela(filtrados, classificados) {
         rfmLabel(c.rfm_segmento) + '</span></td>' +
       '<td><span class="badge badge-' + c.abcCliente + '">' + c.abcCliente + '</span></td>' +
       '<td class="num">' + fmtBRL(c.valorTotal) + '</td>' +
+      '<td class="num">' + periodoTxt + '</td>' +
       '<td class="num">' + c.numCompras + '</td>' +
       '<td class="num">' + fmtBRL(ticket) + '</td>' +
       '<td class="num">' + (c.diasSemComprar < 9999 ? c.diasSemComprar + 'd' : '—') + '</td>' +
       '<td>' + bd + '</td></tr>';
   }).join('');
+}
+
+// ============================================================
+// RESUMO NOVOS/REATIVADOS
+// ============================================================
+
+function renderResumoNovosReativados(filtrados, classificados, periodo, usaPeriodo) {
+  const container = document.getElementById('resumo-novos-reativados');
+  if (!container) return;
+
+  const st = ui.filtroClienteStatus;
+  if ((st !== 'novos' && st !== 'reativados') || !periodo) {
+    container.style.display = 'none';
+    return;
+  }
+
+  container.style.display = 'block';
+
+  const filtro = st === 'novos' ? 'novo' : 'reativado';
+  const doTipo = filtrados.filter(c => classificados[c.id] && classificados[c.id].tipo === filtro);
+
+  const totalValor = doTipo.reduce((s, c) => s + (c.valorTotal || 0), 0);
+  const totalCompras = doTipo.reduce((s, c) => s + (c.numCompras || 0), 0);
+  const ticketMedio = totalCompras > 0 ? totalValor / totalCompras : 0;
+
+  const porVend = {};
+  doTipo.forEach(c => {
+    const k = c.vendedor || '__sem__';
+    if (!porVend[k]) porVend[k] = { qtd: 0, valor: 0, compras: 0 };
+    porVend[k].qtd++;
+    porVend[k].valor += (c.valorTotal || 0);
+    porVend[k].compras += (c.numCompras || 0);
+  });
+
+  const arr = Object.keys(porVend).map(k => {
+    const v = state.vendedores.find(x => x.id === k);
+    return {
+      nome: v ? v.nome : (k === '__sem__' ? '⚠ Sem vendedor' : '—'),
+      qtd: porVend[k].qtd,
+      valor: porVend[k].valor,
+      compras: porVend[k].compras,
+      ticket: porVend[k].compras > 0 ? porVend[k].valor / porVend[k].compras : 0,
+      sem: k === '__sem__'
+    };
+  }).sort((a, b) => b.valor - a.valor);
+
+  const tipoLabel = st === 'novos' ? 'novos' : 'reativados';
+  const tipoEmoji = st === 'novos' ? '🆕' : '♻️';
+  const tipoCor = st === 'novos' ? '#16a34a' : '#0ea5e9';
+
+  let h = '<div class="card" style="border-left:4px solid ' + tipoCor + ';">';
+  h += '<h2>' + tipoEmoji + ' Resumo de ' + tipoLabel +
+    ' <span class="sub">' + escapeHtml(periodo.nome) + ' · ' +
+    fmtDataBR(periodo.ini) + ' a ' + fmtDataBR(periodo.fim) + '</span></h2>';
+
+  h += '<div class="kpi-grid" style="margin-bottom:12px;">';
+  h += '<div class="kpi"><div class="label">Total de clientes</div>' +
+    '<div class="value">' + doTipo.length + '</div></div>';
+  h += '<div class="kpi positivo"><div class="label">Faturamento total</div>' +
+    '<div class="value">' + fmtBRL(totalValor) + '</div></div>';
+  h += '<div class="kpi"><div class="label">Ticket médio</div>' +
+    '<div class="value">' + fmtBRL(ticketMedio) + '</div></div>';
+  h += '<div class="kpi"><div class="label">Vendedores envolvidos</div>' +
+    '<div class="value">' + arr.length + '</div></div>';
+  h += '</div>';
+
+  if (arr.length === 0) {
+    h += '<div style="text-align:center;padding:24px;color:#64748b;font-size:13px;">' +
+      'Nenhum cliente nesse período.</div>';
+    h += '</div>';
+    container.innerHTML = h;
+    return;
+  }
+
+  h += '<div style="overflow-x:auto;"><table class="tabela"><thead><tr>';
+  h += '<th>Vendedor</th><th class="num">Clientes</th>' +
+    '<th class="num">Faturamento</th><th class="num">Compras</th>' +
+    '<th class="num">Ticket</th><th class="num">% do total</th>';
+  h += '</tr></thead><tbody>';
+
+  arr.forEach(x => {
+    const pct = totalValor > 0 ? (x.valor / totalValor) * 100 : 0;
+    const cls = x.sem ? 'style="color:#dc2626;"' : '';
+    h += '<tr ' + cls + '>';
+    h += '<td><strong>' + escapeHtml(x.nome) + '</strong></td>';
+    h += '<td class="num">' + x.qtd + '</td>';
+    h += '<td class="num">' + fmtBRL(x.valor) + '</td>';
+    h += '<td class="num">' + x.compras + '</td>';
+    h += '<td class="num">' + fmtBRL(x.ticket) + '</td>';
+    h += '<td class="num">' + fmtPct(pct, 1) + '</td>';
+    h += '</tr>';
+  });
+
+  h += '</tbody></table></div>';
+  h += '</div>';
+
+  container.innerHTML = h;
 }
 
 // ============================================================
@@ -474,5 +616,4 @@ export function imprimirClientes() {
   imprimirHTML('Lista de Clientes', lista.length + ' clientes', h);
 }
 
-// Placeholder — mantém compatibilidade com main.js
 export function setupClientesNovos() {}

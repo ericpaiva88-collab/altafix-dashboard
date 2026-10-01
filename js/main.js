@@ -3,8 +3,7 @@
 // Inicializa Supabase, liga eventos, coordena views
 // ============================================================
 
-import { state, ui, session, carregar, salvar } from './state.js';
-import { derivarHistorico } from './calc.js';
+import { state, ui, session, carregar, salvar, derivarHistorico } from './state.js';
 import { fmtBRL, toast, isoDate, normalizarNomeCliente, copiarTexto } from './utils.js';
 import {
   sbInit, sbLogin, sbLogout, sbSessaoAtual, sbCarregarPerfil,
@@ -39,7 +38,7 @@ import {
 } from './views/config.js';
 
 // ============================================================
-// HELPERS GLOBAIS (usadas por outros módulos)
+// HELPERS GLOBAIS
 // ============================================================
 
 export function parseEscopo(str) {
@@ -154,9 +153,28 @@ function escapeAttr(s) {
     .replace(/"/g, '&quot;');
 }
 
-// Exporta pro config.js usar via window
+// Registra pro config.js usar via window
 window._popularEscopoSelect = popularEscopoSelect;
 window._popularModoVendedor = popularModoVendedor;
+
+// ============================================================
+// CONTROLES DE PERÍODO (Clientes)
+// ============================================================
+
+function atualizarControlesPeriodo() {
+  const selPer = document.getElementById('filtro-cliente-periodo');
+  const dIni = document.getElementById('filtro-cliente-data-ini');
+  const dFim = document.getElementById('filtro-cliente-data-fim');
+
+  if (selPer) selPer.style.display = '';
+
+  const ehPersonalizado = ui.filtroClientePeriodo === 'personalizado';
+  if (dIni) dIni.style.display = ehPersonalizado ? '' : 'none';
+  if (dFim) dFim.style.display = ehPersonalizado ? '' : 'none';
+
+  if (dIni && !dIni.value) dIni.value = ui.filtroClienteDataIni || '';
+  if (dFim && !dFim.value) dFim.value = ui.filtroClienteDataFim || '';
+}
 
 // ============================================================
 // LOGIN
@@ -243,12 +261,7 @@ function exportarExcel() {
 
   try {
     const wb = XLSX.utils.book_new();
-    const hoje = new Date();
-    const a = hoje.getFullYear();
-    const m = hoje.getMonth();
 
-    // Pega as funções do calc via import dinâmico seria exagero.
-    // Aqui simplificamos: só exporta o que está em state.
     const resumo = [
       ['Alta Fix — Export'],
       ['Escopo: ' + escopoNome(ui.escopoAtual)],
@@ -363,17 +376,47 @@ function setupFiltros() {
   const fdp = document.getElementById('filtro-delta-produto');
   if (fdp) fdp.onchange = e => { ui.filtroDeltaProduto = e.target.value; renderProdutos(); };
 
-  // Clientes
+  // Clientes — busca
   const fcb = document.getElementById('filtro-cliente-busca');
   if (fcb) fcb.oninput = e => { ui.filtroClienteBusca = e.target.value; renderClientes(); };
+
+  // Clientes — vendedor
   const fcv = document.getElementById('filtro-cliente-vend');
   if (fcv) fcv.onchange = e => { ui.filtroClienteVend = e.target.value; renderClientes(); };
+
+  // Clientes — cidade
   const fcc = document.getElementById('filtro-cliente-cidade');
   if (fcc) fcc.onchange = e => { ui.filtroClienteCidade = e.target.value; renderClientes(); };
+
+  // Clientes — status
   const fcs = document.getElementById('filtro-cliente-status');
-  if (fcs) fcs.onchange = e => { ui.filtroClienteStatus = e.target.value; renderClientes(); };
-  const fcr = document.getElementById('filtro-cliente-rfm');
-  if (fcr) fcr.onchange = e => { ui.filtroClienteRFM = e.target.value; renderClientes(); };
+  if (fcs) fcs.onchange = e => {
+    ui.filtroClienteStatus = e.target.value;
+    atualizarControlesPeriodo();
+    renderClientes();
+  };
+
+  // Clientes — período
+  const fcp = document.getElementById('filtro-cliente-periodo');
+  if (fcp) fcp.onchange = e => {
+    ui.filtroClientePeriodo = e.target.value;
+    atualizarControlesPeriodo();
+    renderClientes();
+  };
+
+  // Clientes — datas personalizadas
+  const fcdIni = document.getElementById('filtro-cliente-data-ini');
+  if (fcdIni) fcdIni.onchange = e => {
+    ui.filtroClienteDataIni = e.target.value;
+    renderClientes();
+  };
+  const fcdFim = document.getElementById('filtro-cliente-data-fim');
+  if (fcdFim) fcdFim.onchange = e => {
+    ui.filtroClienteDataFim = e.target.value;
+    renderClientes();
+  };
+
+  // Clientes — ABC
   const fca = document.getElementById('filtro-cliente-abc');
   if (fca) fca.onchange = e => { ui.filtroClienteABC = e.target.value; renderClientes(); };
 
@@ -397,7 +440,7 @@ function setupFiltros() {
   const ffd = document.getElementById('fab-filtro-delta');
   if (ffd) ffd.onchange = renderFabricantes;
 
-  // Cidades - mês + evolução
+  // Cidades — mês + evolução
   const smc = document.getElementById('cidade-mes-select');
   if (smc) smc.onchange = e => {
     ui.mesCidadesSelecionado = e.target.value || '';
@@ -573,7 +616,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (e) {
       toast('❌ Erro ao carregar: ' + e.message);
       console.error(e);
-      // Segue com o que tem do localStorage
       dados = { vendedores: [], clientes: [], produtos: [], lancamentos: [], cidades: [], comparativo: [] };
     }
 
@@ -608,7 +650,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 10. Minimizáveis
     aplicarMinimizaveis();
 
-    // 11. Render inicial
+    // 11. Controles de período (Clientes)
+    atualizarControlesPeriodo();
+
+    // 12. Render inicial
     renderTudo();
 
     toast('✓ Pronto');

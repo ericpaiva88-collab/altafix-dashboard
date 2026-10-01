@@ -172,7 +172,7 @@
       <div id="chips-segmento" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;"></div>
     </div>
 
-        <div id="resumo-novos-reativados" style="display:none;"></div>
+    <div id="resumo-novos-reativados" style="display:none;"></div>
 
     <div class="card">
       <h2>👥 Clientes <span class="sub" id="clientes-count"></span> <span id="clientes-suspeito"></span></h2>
@@ -185,22 +185,34 @@
           <option value="ativos">Ativos (até 30d)</option>
           <option value="inativos">Inativos (30+)</option>
           <option value="criticos">Críticos (90+)</option>
-          <option value="novos">🆕 Novos (30d)</option>
+          <option value="novos">🆕 Novos</option>
           <option value="reativados">♻️ Reativados (90d+)</option>
           <option value="sem-vendedor">Sem vendedor</option>
         </select>
+        <select id="filtro-cliente-periodo">
+          <option value="tudo" selected>📅 Todo o período</option>
+          <option value="mes_atual">📅 Este mês</option>
+          <option value="mes_passado">📅 Mês passado</option>
+          <option value="trimestre_atual">📅 Este trimestre</option>
+          <option value="trimestre_passado">📅 Trimestre passado</option>
+          <option value="semestre_atual">📅 Este semestre</option>
+          <option value="semestre_passado">📅 Semestre passado</option>
+          <option value="ano_atual">📅 Este ano</option>
+          <option value="ano_passado">📅 Ano passado</option>
+          <option value="personalizado">📅 Personalizado…</option>
+        </select>
+        <input type="date" id="filtro-cliente-data-ini" style="display:none;">
+        <input type="date" id="filtro-cliente-data-fim" style="display:none;">
         <select id="filtro-cliente-abc">
           <option value="">ABC: todas</option>
-          <option value="A">A</option>
-          <option value="B">B</option>
-          <option value="C">C</option>
+          <option value="A">A</option><option value="B">B</option><option value="C">C</option>
         </select>
       </div>
       <div style="overflow-x:auto;">
         <table class="tabela">
           <thead><tr>
             <th>Cliente</th><th>Cidade</th><th>Vendedor</th><th>Segmento</th><th>ABC</th>
-            <th class="num">Valor</th><th class="num">Compras</th><th class="num">Ticket</th>
+            <th class="num">Acum.</th><th class="num">Período</th><th class="num">Compras</th><th class="num">Ticket</th>
             <th class="num">Dias</th><th>Risco</th>
           </tr></thead>
           <tbody id="tbody-clientes"></tbody>
