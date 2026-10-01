@@ -226,16 +226,37 @@ tr.inativo td{opacity:.6}
 }
 
 .numero-grande {
-  font-size: 64px;
+  font-size: 72px;
   font-weight: 800;
   line-height: 1;
-  letter-spacing: -2px;
-  color: #dc2626;
-  margin-bottom: 12px;
+  letter-spacing: -2.5px;
+  color: #0f172a;
+  margin-bottom: 14px;
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  flex-wrap: wrap;
 }
 
-.numero-grande.ok { color: #16a34a; }
-.numero-grande.alerta { color: #ca8a04; }
+.numero-grande .pct-inline {
+  font-size: 22px;
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: 6px;
+  letter-spacing: -.5px;
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.numero-grande .pct-inline.ok {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.numero-grande .pct-inline.alerta {
+  background: #fef3c7;
+  color: #78350f;
+}
 
 .barra-pct {
   height: 14px;
@@ -243,6 +264,7 @@ tr.inativo td{opacity:.6}
   border-radius: 7px;
   overflow: hidden;
   position: relative;
+  margin-top: 12px;
 }
 
 .barra-pct > div {

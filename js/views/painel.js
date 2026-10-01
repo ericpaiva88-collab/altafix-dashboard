@@ -894,7 +894,6 @@ export function renderPainelVendedor(v, a, m) {
   document.getElementById('painel-titulo').textContent =
     v.nome + (fi ? ' · ' + fi.nome : '') + ' · ' + meses[m] + '/' + a;
 
-  const fc = 0;
   document.getElementById('painel-dias-info').innerHTML =
     'Dias úteis: <strong>' + c.diasUteisTotal + '</strong> · ' +
     'Com dados: <strong>' + c.diasTrab + '</strong> · ' +
@@ -905,12 +904,18 @@ export function renderPainelVendedor(v, a, m) {
       ? '<span class="badge badge-ok">✓ ACIMA</span>'
       : '<span class="badge badge-risco">⚠ ABAIXO</span>');
 
-  // Número grande + barra
+  // Número grande: FATURADO (com % da meta inline)
   const pct = c.pctMeta != null ? c.pctMeta : 0;
   const cls = pct >= 100 ? 'ok' : pct >= 80 ? 'alerta' : '';
   const pctEl = document.getElementById('painel-pct');
-  pctEl.textContent = c.pctMeta != null ? fmtPct(c.pctMeta, 1) : '—';
-  pctEl.className = 'numero-grande ' + cls;
+
+  const pctInline = c.pctMeta != null
+    ? '<span class="pct-inline ' + cls + '">' + fmtPct(c.pctMeta, 1) + ' da meta</span>'
+    : '';
+
+  pctEl.innerHTML = fmtBRL(c.faturado) + pctInline;
+  pctEl.className = 'numero-grande';
+
   const barraEl = document.getElementById('painel-barra').firstElementChild;
   barraEl.style.width = Math.min(100, pct) + '%';
   barraEl.className = cls;
@@ -919,9 +924,6 @@ export function renderPainelVendedor(v, a, m) {
   const falta = Math.max(0, c.meta - c.faturado);
   const resumo = document.getElementById('painel-resumo');
   resumo.innerHTML =
-    '<div class="item"><div class="lbl">Faturado</div>' +
-    '<div class="val">' + fmtBRL(c.faturado) + '</div>' +
-    '<div class="hint">' + c.pedidos + ' pedidos</div></div>' +
     '<div class="item"><div class="lbl">Meta</div>' +
     '<div class="val">' + fmtBRL(c.meta) + '</div></div>' +
     '<div class="item"><div class="lbl">Falta</div>' +
@@ -929,6 +931,8 @@ export function renderPainelVendedor(v, a, m) {
     fmtBRL(falta) + '</div>' +
     (c.diasFaltam > 0 ? '<div class="hint">' + fmtBRL(c.metaDia) + '/dia em ' +
       c.diasFaltam + 'd</div>' : '') + '</div>' +
+    '<div class="item"><div class="lbl">Pedidos</div>' +
+    '<div class="val">' + c.pedidos + '</div></div>' +
     '<div class="item"><div class="lbl">Ticket</div>' +
     '<div class="val">' + fmtBRL(c.ticket) + '</div>' +
     '<div class="hint">meta ' + fmtBRL(c.metaTicket) + '</div></div>';
@@ -959,7 +963,7 @@ export function renderPainelVendedor(v, a, m) {
   const bmax = document.getElementById('btn-max-todos');
   if (bmax) bmax.onclick = () => toggleTodosMinimizaveis(false);
 
-  // Ações (full width - esconde o card de ranking admin)
+  // Ações full width — esconde ranking admin
   const cardRank = document.getElementById('card-painel-rank');
   if (cardRank) cardRank.style.display = 'none';
   const duasCol = document.querySelector('.painel-duas-colunas');
@@ -968,7 +972,7 @@ export function renderPainelVendedor(v, a, m) {
   renderAcoesPainel();
   renderVendedorExtras(v, a, m);
 
-  // Esconde os cards admin
+  // Esconde cards admin
   const gc = document.getElementById('card-painel-graficos');
   if (gc) gc.style.display = 'none';
   const sc = document.getElementById('card-painel-semana');
@@ -976,7 +980,6 @@ export function renderPainelVendedor(v, a, m) {
   const sca = document.getElementById('card-painel-simulador');
   if (sca) sca.style.display = 'none';
 
-  destruirGraficos();
   renderHistorico();
 }
 
@@ -1366,12 +1369,13 @@ export function renderPainel() {
     ? '<span class="badge badge-ok">✓ ACIMA DO RITMO</span>'
     : '<span class="badge badge-risco">⚠ ABAIXO DO RITMO</span>';
 
-  // Hero: número grande + barra
+  // Hero: FATURADO grande + % da meta inline
   const pct = f.pctMeta || 0;
   const cls = pct >= 100 ? 'ok' : pct >= 80 ? 'alerta' : '';
   const pctEl = document.getElementById('painel-pct');
-  pctEl.textContent = fmtPct(f.pctMeta, 1);
-  pctEl.className = 'numero-grande ' + cls;
+  pctEl.innerHTML = fmtBRL(f.faturadoTotal) +
+    '<span class="pct-inline ' + cls + '">' + fmtPct(f.pctMeta, 1) + ' da meta</span>';
+  pctEl.className = 'numero-grande';
   const barraEl = document.getElementById('painel-barra').firstElementChild;
   barraEl.style.width = Math.min(100, pct) + '%';
   barraEl.className = cls;
@@ -1387,9 +1391,6 @@ export function renderPainel() {
   }
 
   let resumoHTML =
-    '<div class="item"><div class="lbl">Faturado</div>' +
-    '<div class="val">' + fmtBRL(f.faturadoTotal) + dH(f.faturadoTotal, compar.faturadoTotal) + '</div>' +
-    '<div class="hint">' + f.pedidosTotal + ' pedidos</div></div>' +
     '<div class="item"><div class="lbl">Meta</div>' +
     '<div class="val">' + fmtBRL(f.metaTotal) + '</div></div>' +
     '<div class="item"><div class="lbl">Falta</div>' +
@@ -1397,6 +1398,11 @@ export function renderPainel() {
     fmtBRL(f.falta) + '</div>' +
     (f.diasFaltam > 0 && f.falta > 0
       ? '<div class="hint">' + fmtBRL(f.porDia) + '/dia em ' + f.diasFaltam + 'd</div>'
+      : '') + '</div>' +
+    '<div class="item"><div class="lbl">Pedidos</div>' +
+    '<div class="val">' + f.pedidosTotal + '</div>' +
+    (compar.faturadoTotal > 0
+      ? '<div class="hint">' + dH(f.faturadoTotal, compar.faturadoTotal) + ' vs ant.</div>'
       : '') + '</div>' +
     '<div class="item"><div class="lbl">Projeção</div>' +
     '<div class="val" style="color:' + (f.projecao >= f.metaTotal ? '#16a34a' : '#dc2626') + ';">' +
