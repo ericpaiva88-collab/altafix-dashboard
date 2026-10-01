@@ -22,6 +22,16 @@ const EM_RISCO_ATE = 180;
 
 let _indiceImportacoes = null;
 let _indiceTimestamp = 0;
+function construirMapaCidade() {
+  const mapa = {};
+  (state.cidades || []).forEach(cid => {
+    (cid.clientes || []).forEach(cl => {
+      const k = normalizarNomeCliente(cl.nome);
+      if (!mapa[k]) mapa[k] = { cidade: cid.nome, uf: cid.uf };
+    });
+  });
+  return mapa;
+}
 
 function getIndiceImportacoes() {
   const agora = Date.now();
@@ -444,6 +454,7 @@ function renderChips(clsBase) {
 function renderTabela(filtrados, classificados, usaPeriodo, periodo) {
   const te = document.getElementById('tbody-clientes');
   const mostraFilial = parseEscopo(ui.escopoAtual).tipo !== 'filial';
+  const mapaCidade = construirMapaCidade();
 
   const st = filtrados.slice().sort((a, b) => (b.valorTotal || 0) - (a.valorTotal || 0));
 
@@ -496,7 +507,7 @@ function renderTabela(filtrados, classificados, usaPeriodo, periodo) {
 
     return '<tr class="' + clsSuspeito + '">' +
       '<td>' + nomeTxt + '</td>' +
-      '<td>' + escapeHtml(c.cidade || '—') + '</td>' +
+      '<td>' + escapeHtml(c.cidade || (mapaCidade[normalizarNomeCliente(c.nome)] || {}).cidade || '—') + '</td>' +
       '<td>' + vendTxt + '</td>' +
       '<td><span class="badge badge-rfm ' + c.rfm_segmento + '">' +
         rfmLabel(c.rfm_segmento) + '</span></td>' +
