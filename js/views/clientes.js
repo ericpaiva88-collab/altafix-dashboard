@@ -56,24 +56,31 @@ function classificar(cliente) {
   const hj = isoDate(new Date());
   const primeira = rows[0].periodoIni;
   const ultima = rows[rows.length - 1].ultimaCompra || rows[rows.length - 1].periodoIni;
-
-  // Novo: primeira compra recente
   const diasDesdePrimeira = diffDias(primeira, hj);
-  if (diasDesdePrimeira <= PERIODO_NOVO) return 'novo';
 
-  // Reativado: última compra recente + gap grande antes
+  // Novo
+  if (diasDesdePrimeira <= PERIODO_NOVO) {
+    return { tipo: 'novo', quando: primeira, detalhe: 'Primeira compra há ' + diasDesdePrimeira + 'd' };
+  }
+
+  // Reativado
+  if (rows.length < 2) return null;
   const diasDesdeUltima = diffDias(ultima, hj);
   if (diasDesdeUltima > PERIODO_REATIVADO) return null;
 
-  for (let i = rows.length - 1; i > 0; i--) {
-    const atual = rows[i];
-    const anterior = rows[i - 1];
-    const gap = diffDias(anterior.ultimaCompra || anterior.periodoIni, atual.periodoIni);
-    if (gap >= GAP_REATIVADO) {
-      const diasDesdeReativacao = diffDias(atual.periodoIni, hj);
-      if (diasDesdeReativacao <= PERIODO_REATIVADO) return 'reativado';
-      return null;
-    }
+  const ultimaRow = rows[rows.length - 1];
+  const penultimaRow = rows[rows.length - 2];
+  const gapRecente = diffDias(
+    penultimaRow.ultimaCompra || penultimaRow.periodoIni,
+    ultimaRow.periodoIni
+  );
+
+  if (gapRecente >= GAP_REATIVADO) {
+    return {
+      tipo: 'reativado',
+      quando: ultimaRow.periodoIni,
+      detalhe: 'Voltou há ' + diasDesdeUltima + 'd após ' + gapRecente + 'd parado'
+    };
   }
 
   return null;
@@ -110,8 +117,8 @@ export function renderClientes() {
 
   const classificados = {};
   clsBase.forEach(c => {
-    const tipo = classificar(c);
-    if (tipo) classificados[c.id] = tipo;
+    const res = classificar(c);
+    if (res) classificados[c.id] = res;
   });
 
   popularSelectVendedor(clsBase);
@@ -130,8 +137,8 @@ export function renderClientes() {
     if (st === 'inativos' && c.diasSemComprar < 30) return false;
     if (st === 'criticos' && c.diasSemComprar < 90) return false;
     if (st === 'sem-vendedor' && c.vendedor) return false;
-    if (st === 'novos' && classificados[c.id] !== 'novo') return false;
-    if (st === 'reativados' && classificados[c.id] !== 'reativado') return false;
+    if (st === 'novos' && (!classificados[c.id] || classificados[c.id].tipo !== 'novo')) return false;
+    if (st === 'reativados' && (!classificados[c.id] || classificados[c.id].tipo !== 'reativado')) return false;
 
     if (ui.filtroClienteRFM && c.rfm_segmento !== ui.filtroClienteRFM) return false;
     if (ui.filtroClienteABC && c.abcCliente !== ui.filtroClienteABC) return false;
@@ -174,7 +181,7 @@ function renderResumoNovosReativados(filtrados, classificados) {
   container.style.display = 'block';
 
   const filtro = st === 'novos' ? 'novo' : 'reativado';
-  const doTipo = filtrados.filter(c => classificados[c.id] === filtro);
+  const doTipo = filtrados.filter(c => classificados[c.id] && classificados[c.id].tipo === filtro);
 
   const totalValor = doTipo.reduce((s, c) => s + (c.valorTotal || 0), 0);
   const totalCompras = doTipo.reduce((s, c) => s + (c.numCompras || 0), 0);
@@ -383,12 +390,14 @@ function renderTabela(filtrados, classificados) {
     }
 
     let nomeTxt = escapeHtml(c.nome);
-    const tipo = classificados[c.id];
-    if (mostrarTipo && tipo) {
-      if (tipo === 'novo') {
-        nomeTxt += ' <span class="badge" style="background:#16a34a;color:#fff;font-size:10px;">🆕</span>';
-      } else if (tipo === 'reativado') {
-        nomeTxt += ' <span class="badge" style="background:#0ea5e9;color:#fff;font-size:10px;">♻️</span>';
+    const info = classificados[c.id];
+    if (mostrarTipo && info) {
+      if (info.tipo === 'novo') {
+        nomeTxt += ' <span class="badge" style="background:#16a34a;color:#fff;font-size:10px;" ' +
+          'title="' + escapeHtml(info.detalhe) + '">🆕</span>';
+      } else if (info.tipo === 'reativado') {
+        nomeTxt += ' <span class="badge" style="background:#0ea5e9;color:#fff;font-size:10px;" ' +
+          'title="' + escapeHtml(info.detalhe) + '">♻️</span>';
       }
     }
 
