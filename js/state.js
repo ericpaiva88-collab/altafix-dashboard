@@ -60,6 +60,7 @@ export const ui = {
   cidadesExpandidas: {},
   produtosExpandidos: {},
   mesCidadesSelecionado: '',
+  mesPainelSelecionado: '',
   mesVendedoresSelecionado: '',
   filtroClienteBusca: '',
   filtroClienteVend: '',

@@ -50,9 +50,12 @@
 <main>
   <section id="tab-painel" class="active">
     <div class="painel-hero">
-      <div class="painel-hero-top">
+            <div class="painel-hero-top">
         <h2 id="painel-titulo">Carregando...</h2>
-        <div id="painel-status"></div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <select id="painel-mes-select" class="escopo-select" style="font-size:13px;min-height:32px;padding:4px 8px;"></select>
+          <div id="painel-status"></div>
+        </div>
       </div>
       <div id="painel-dias-info" class="painel-hero-dias"></div>
 

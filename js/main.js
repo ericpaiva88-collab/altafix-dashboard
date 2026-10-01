@@ -548,6 +548,12 @@ function setupBotoes() {
     popularModoVendedor();
     renderTudo();
   };
+  // Seletor de mês do painel
+  const painelMesSel = document.getElementById('painel-mes-select');
+  if (painelMesSel) painelMesSel.onchange = e => {
+    ui.mesPainelSelecionado = e.target.value;
+    renderTudo();
+  };
 
   const bSairModo = document.getElementById('btn-sair-modo');
   if (bSairModo) bSairModo.onclick = () => {

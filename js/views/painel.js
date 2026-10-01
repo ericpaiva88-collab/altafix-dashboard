@@ -1290,8 +1290,38 @@ export function renderVendedorExtras(v, a, m) {
 // ============================================================
 // RENDER PAINEL — ADMIN (função principal)
 // ============================================================
+function popularSelectMesPainel() {
+  const sel = document.getElementById('painel-mes-select');
+  if (!sel) return;
+
+  const MESES_NOMES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
+    'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
+  const setMeses = new Set();
+
+  const hj = new Date();
+  setMeses.add(hj.getFullYear() + '-' + String(hj.getMonth() + 1).padStart(2, '0'));
+
+  lancamentosNoEscopo(ui.escopoAtual).forEach(l => {
+    if (l.data) setMeses.add(l.data.slice(0, 7));
+  });
+
+  const lista = Array.from(setMeses).sort().reverse();
+
+  sel.innerHTML = lista.map(m => {
+    const p = m.split('-');
+    return '<option value="' + m + '">' +
+      MESES_NOMES[parseInt(p[1], 10) - 1] + '/' + p[0] + '</option>';
+  }).join('');
+
+  if (!ui.mesPainelSelecionado || lista.indexOf(ui.mesPainelSelecionado) < 0) {
+    ui.mesPainelSelecionado = lista[0];
+  }
+  sel.value = ui.mesPainelSelecionado;
+}
 
 export function renderPainel() {
+  popularSelectMesPainel();
   const ref = mesRefAtual(ui.escopoAtual);
   const a = ref.ano, m = ref.mes;
   const meses = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',

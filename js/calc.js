@@ -3,7 +3,7 @@
 // (feriados, dias úteis, RFM, ABC, projeções, matching)
 // ============================================================
 
-import { state } from './state.js';
+import { state, ui } from './state.js';
 import { normalizarNomeCliente, diffDias, isoDate } from './utils.js';
 
 // ============================================================
@@ -137,6 +137,10 @@ export function matchVendedor(n, filialId) {
 // ============================================================
 
 export function mesRefAtual(escopoAtual) {
+  if (ui.mesPainelSelecionado) {
+    const p = ui.mesPainelSelecionado.split('-');
+    return { ano: parseInt(p[0], 10), mes: parseInt(p[1], 10) - 1 };
+  }
   const h = new Date();
   return { ano: h.getFullYear(), mes: h.getMonth() };
 }
