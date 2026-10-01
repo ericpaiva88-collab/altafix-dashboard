@@ -4,7 +4,7 @@
 
 import { state, ui } from '../state.js';
 import {
-  fmtBRL, escapeHtml, badgeSuspeito, copiarTexto, isoDate, diffDias,
+  fmtBRL, fmtPct, escapeHtml, badgeSuspeito, copiarTexto, isoDate, diffDias,
   normalizarNomeCliente
 } from '../utils.js';
 import {
@@ -69,7 +69,11 @@ function classificar(cliente) {
     const atual = rows[i];
     const anterior = rows[i - 1];
     const gap = diffDias(anterior.ultimaCompra || anterior.periodoIni, atual.periodoIni);
-    if (gap >= GAP_REATIVADO) return 'reativado';
+    if (gap >= GAP_REATIVADO) {
+      const diasDesdeReativacao = diffDias(atual.periodoIni, hj);
+      if (diasDesdeReativacao <= PERIODO_REATIVADO) return 'reativado';
+      return null;
+    }
   }
 
   return null;
@@ -149,7 +153,96 @@ export function renderClientes() {
   }
 
   renderTabela(filtrados, classificados);
+  renderResumoNovosReativados(filtrados, classificados);
   window._clientesFiltrados = filtrados;
+}
+
+// ============================================================
+// RESUMO NOVOS/REATIVADOS POR VENDEDOR
+// ============================================================
+
+function renderResumoNovosReativados(filtrados, classificados) {
+  const container = document.getElementById('resumo-novos-reativados');
+  if (!container) return;
+
+  const st = ui.filtroClienteStatus;
+  if (st !== 'novos' && st !== 'reativados') {
+    container.style.display = 'none';
+    return;
+  }
+
+  container.style.display = 'block';
+
+  const filtro = st === 'novos' ? 'novo' : 'reativado';
+  const doTipo = filtrados.filter(c => classificados[c.id] === filtro);
+
+  const totalValor = doTipo.reduce((s, c) => s + (c.valorTotal || 0), 0);
+  const totalCompras = doTipo.reduce((s, c) => s + (c.numCompras || 0), 0);
+  const ticketMedio = totalCompras > 0 ? totalValor / totalCompras : 0;
+
+  // Agrupa por vendedor
+  const porVend = {};
+  doTipo.forEach(c => {
+    const k = c.vendedor || '__sem__';
+    if (!porVend[k]) porVend[k] = { qtd: 0, valor: 0, compras: 0 };
+    porVend[k].qtd++;
+    porVend[k].valor += (c.valorTotal || 0);
+    porVend[k].compras += (c.numCompras || 0);
+  });
+
+  const arr = Object.keys(porVend).map(k => {
+    const v = state.vendedores.find(x => x.id === k);
+    return {
+      nome: v ? v.nome : (k === '__sem__' ? '⚠ Sem vendedor' : '—'),
+      qtd: porVend[k].qtd,
+      valor: porVend[k].valor,
+      compras: porVend[k].compras,
+      ticket: porVend[k].compras > 0 ? porVend[k].valor / porVend[k].compras : 0,
+      sem: k === '__sem__'
+    };
+  }).sort((a, b) => b.valor - a.valor);
+
+  const tipoLabel = st === 'novos' ? 'novos' : 'reativados';
+  const tipoEmoji = st === 'novos' ? '🆕' : '♻️';
+  const tipoCor = st === 'novos' ? '#16a34a' : '#0ea5e9';
+
+  let h = '<div class="card" style="border-left:4px solid ' + tipoCor + ';">';
+  h += '<h2>' + tipoEmoji + ' Resumo de ' + tipoLabel + ' por vendedor</h2>';
+
+  h += '<div class="kpi-grid" style="margin-bottom:12px;">';
+  h += '<div class="kpi"><div class="label">Total de clientes</div>' +
+    '<div class="value">' + doTipo.length + '</div></div>';
+  h += '<div class="kpi positivo"><div class="label">Faturamento total</div>' +
+    '<div class="value">' + fmtBRL(totalValor) + '</div></div>';
+  h += '<div class="kpi"><div class="label">Ticket médio</div>' +
+    '<div class="value">' + fmtBRL(ticketMedio) + '</div></div>';
+  h += '<div class="kpi"><div class="label">Vendedores envolvidos</div>' +
+    '<div class="value">' + arr.length + '</div></div>';
+  h += '</div>';
+
+  h += '<div style="overflow-x:auto;"><table class="tabela"><thead><tr>';
+  h += '<th>Vendedor</th><th class="num">Clientes</th>' +
+    '<th class="num">Faturamento</th><th class="num">Compras</th>' +
+    '<th class="num">Ticket</th><th class="num">% do total</th>';
+  h += '</tr></thead><tbody>';
+
+  arr.forEach(x => {
+    const pct = totalValor > 0 ? (x.valor / totalValor) * 100 : 0;
+    const cls = x.sem ? 'style="color:#dc2626;"' : '';
+    h += '<tr ' + cls + '>';
+    h += '<td><strong>' + escapeHtml(x.nome) + '</strong></td>';
+    h += '<td class="num">' + x.qtd + '</td>';
+    h += '<td class="num">' + fmtBRL(x.valor) + '</td>';
+    h += '<td class="num">' + x.compras + '</td>';
+    h += '<td class="num">' + fmtBRL(x.ticket) + '</td>';
+    h += '<td class="num">' + fmtPct(pct, 1) + '</td>';
+    h += '</tr>';
+  });
+
+  h += '</tbody></table></div>';
+  h += '</div>';
+
+  container.innerHTML = h;
 }
 
 // ============================================================
