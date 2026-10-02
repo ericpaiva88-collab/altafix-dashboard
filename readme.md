@@ -132,6 +132,17 @@ Diretor e vendedores abrem o painel pra saber "estou bem?" e "quanto falta?". O 
 ### Por que Painel tem seletor de mês
 Quando vira o mês, o diretor precisa ver o mês novo **imediatamente** (metas zeradas, ritmo a bater), não o fechamento do anterior. O seletor começa no mês atual, mas permite voltar a qualquer mês com dados.
 
+### Relatório matinal — o que ele comunica
+1. **Situação**: faturado vs meta, falta, gap vs esperado até hoje
+2. **Ritmo**: atual (com aviso de amostra pequena se < 5 dias) vs necessário
+3. **Projeção**: onde vai fechar se mantiver ritmo
+4. **Ticket**: individual com meta, avisa se abaixo
+5. **Pedidos**: contagem total
+6. **Comparativo**: vs mês anterior no mesmo número de dias
+7. **Prioridades**: ações categorizadas por urgência (reativar/sumido/recompra/ritmo)
+
+Sem amostra ou com 1 dia trabalhado, o ritmo pode ser volátil — por isso o aviso "amostra: X dia(s)".
+
 ### Por que "Em risco" (30-180d) e "Perdidos" (180d+) são separados
 "Valor em risco" antes somava todos os inativos, inflando o número com clientes irrecuperáveis. Agora só conta 30-180 dias (recuperáveis). Perdidos (180+) aparecem em KPI separado, sem valor.
 

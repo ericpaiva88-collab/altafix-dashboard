@@ -865,7 +865,7 @@ export function gerarRelatorioMatinal() {
     : null;
 
   let faturado, meta, pctMeta, falta, diasFaltam, diasTrab,
-      porDia, projecao, pedidos, ticket;
+      porDia, projecao, pedidos, ticket, metaTicket, ritmoEsperado;
   let titulo;
 
   if (vModo) {
@@ -880,6 +880,8 @@ export function gerarRelatorioMatinal() {
     projecao = c.projecao;
     pedidos = c.pedidos;
     ticket = c.ticket;
+    metaTicket = c.metaTicket;
+    ritmoEsperado = c.ritmoEsperado;
     titulo = '☀️ *Alta Fix* — ' + vModo.nome + ' · ' + escopoNome(ui.escopoAtual);
   } else {
     const f = calcFilial(a, m, ui.escopoAtual);
@@ -893,6 +895,8 @@ export function gerarRelatorioMatinal() {
     projecao = f.projecao;
     pedidos = f.pedidosTotal;
     ticket = f.ticketMedio;
+    metaTicket = 0;
+    ritmoEsperado = f.ritmoEsperado;
     titulo = '☀️ *Alta Fix* — ' + escopoNome(ui.escopoAtual);
   }
 
@@ -902,20 +906,40 @@ export function gerarRelatorioMatinal() {
     MESES_NOME[m] + '/' + a + '_');
   linhas.push('');
 
+  // ===== SITUAÇÃO =====
   linhas.push('📊 *SITUAÇÃO*');
-  linhas.push('Faturado: *' + fmtBRL(faturado) + '* · ' +
-    fmtPct(pctMeta, 1) + ' da meta');
+  if (meta > 0) {
+    linhas.push('Faturado: *' + fmtBRL(faturado) + '* de *' + fmtBRL(meta) +
+      '* (' + fmtPct(pctMeta, 1) + ')');
+  } else {
+    linhas.push('Faturado: *' + fmtBRL(faturado) + '*');
+  }
   if (falta > 0 && diasFaltam > 0) {
     linhas.push('Faltam *' + fmtBRL(falta) + '* em *' + diasFaltam + ' dias*');
-  } else if (falta <= 0) {
+  } else if (falta <= 0 && meta > 0) {
     linhas.push('🎉 *META BATIDA!*');
-  } else {
+  } else if (diasFaltam <= 0) {
     linhas.push('⚠️ Sem dias úteis restantes');
   }
 
+  // Gap vs esperado
+  if (ritmoEsperado > 0 && diasTrab > 0) {
+    const diff = faturado - ritmoEsperado;
+    if (diff >= 0) {
+      linhas.push('📌 Está *' + fmtBRL(diff) + '* acima do esperado');
+    } else {
+      linhas.push('📌 Está *' + fmtBRL(Math.abs(diff)) + '* abaixo do esperado');
+    }
+  }
+
+  // ===== RITMO =====
   const ritmoAtual = diasTrab > 0 ? faturado / diasTrab : 0;
   linhas.push('');
-  linhas.push('📈 Ritmo atual: ' + fmtBRL(ritmoAtual) + '/dia');
+  const avisoAmostra = (diasTrab > 0 && diasTrab <= 4)
+    ? ' (amostra: ' + diasTrab + ' dia' + (diasTrab > 1 ? 's' : '') + ')'
+    : '';
+  linhas.push('📈 Ritmo atual: ' + fmtBRL(ritmoAtual) + '/dia' + avisoAmostra);
+
   if (falta > 0 && diasFaltam > 0) {
     linhas.push('🎯 Ritmo necessário: ' + fmtBRL(porDia) + '/dia');
     if (ritmoAtual > 0 && porDia > ritmoAtual) {
@@ -923,11 +947,32 @@ export function gerarRelatorioMatinal() {
       linhas.push('⚠️ Precisa subir *' + fmtPct(precisa, 0) + '* no ritmo');
     }
   }
+
   if (projecao > 0) {
     linhas.push('🔮 Projeção: ' + fmtBRL(projecao) +
-      (projecao >= meta ? ' ✅' : ' (abaixo da meta)'));
+      (meta > 0 && projecao >= meta ? ' ✅' : ''));
   }
 
+  // ===== TICKET =====
+  if (ticket > 0) {
+    if (metaTicket > 0) {
+      const ratio = ticket / metaTicket;
+      let avisoTicket = '';
+      if (ratio < 0.5) avisoTicket = ' — muito abaixo';
+      else if (ratio < 0.8) avisoTicket = ' — abaixo';
+      linhas.push('🎫 Ticket: ' + fmtBRL(ticket) +
+        ' (meta ' + fmtBRL(metaTicket) + ')' + avisoTicket);
+    } else {
+      linhas.push('🎫 Ticket: ' + fmtBRL(ticket));
+    }
+  }
+
+  // ===== PEDIDOS =====
+  if (pedidos > 0) {
+    linhas.push('📦 Pedidos: ' + pedidos);
+  }
+
+  // ===== COMPARATIVO =====
   const mesAnt = new Date(a, m - 1, 1);
   const prefixAnt = mesAnt.getFullYear() + '-' + String(mesAnt.getMonth() + 1).padStart(2, '0');
   const hoje = new Date();
@@ -944,20 +989,24 @@ export function gerarRelatorioMatinal() {
 
   if (fatMesAnt > 0 && diasTrab > 0) {
     const dv = ((faturado - fatMesAnt) / fatMesAnt) * 100;
-    linhas.push('_vs mês anterior: ' + (dv >= 0 ? '📈 +' : '📉 ') +
+    const seta = dv >= 2 ? '📈 +' : dv <= -2 ? '📉 ' : '▬ ';
+    linhas.push('_vs mês anterior (até dia ' + diaCorte + '): ' + seta +
       fmtPct(Math.abs(dv), 1) + '_');
   }
 
+  // ===== AÇÕES =====
   const acoes = gerarAcoes(a, m);
-  const reativar = acoes.filter(x => x.categoria === 'reativar');
-  const sumidos = acoes.filter(x => x.categoria === 'sumido');
-  const perdidos = acoes.filter(x => x.categoria === 'perdido');
-  const recompra = acoes.filter(x => x.categoria === 'recompra');
-  const ritmo = acoes.filter(x => x.categoria === 'ritmo');
+  linhas.push('');
+  linhas.push('🎯 *PRIORIDADES DE HOJE*');
 
-  if (acoes.length > 0) {
-    linhas.push('');
-    linhas.push('🎯 *PRIORIDADES DE HOJE*');
+  if (acoes.length === 0) {
+    linhas.push('✓ Nada urgente. Bom trabalho.');
+  } else {
+    const reativar = acoes.filter(x => x.categoria === 'reativar');
+    const sumidos = acoes.filter(x => x.categoria === 'sumido');
+    const perdidos = acoes.filter(x => x.categoria === 'perdido');
+    const recompra = acoes.filter(x => x.categoria === 'recompra');
+    const ritmo = acoes.filter(x => x.categoria === 'ritmo');
 
     if (reativar.length > 0) {
       linhas.push('');
