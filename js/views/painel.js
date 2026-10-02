@@ -864,9 +864,8 @@ export function gerarRelatorioMatinal() {
     ? state.vendedores.find(x => x.id === ui.modoVendedor)
     : null;
 
-  // Coleta dados do escopo correto (vendedor ou filial)
   let faturado, meta, pctMeta, falta, diasFaltam, diasTrab,
-      porDia, projecao, ritmoEsperado, pedidos, ticket;
+      porDia, projecao, pedidos, ticket;
   let titulo;
 
   if (vModo) {
@@ -879,7 +878,6 @@ export function gerarRelatorioMatinal() {
     diasTrab = c.diasTrab;
     porDia = c.metaDia;
     projecao = c.projecao;
-    ritmoEsperado = c.ritmoEsperado;
     pedidos = c.pedidos;
     ticket = c.ticket;
     titulo = '☀️ *Alta Fix* — ' + vModo.nome + ' · ' + escopoNome(ui.escopoAtual);
@@ -893,7 +891,6 @@ export function gerarRelatorioMatinal() {
     diasTrab = f.diasTrab;
     porDia = f.porDia;
     projecao = f.projecao;
-    ritmoEsperado = f.ritmoEsperado;
     pedidos = f.pedidosTotal;
     ticket = f.ticketMedio;
     titulo = '☀️ *Alta Fix* — ' + escopoNome(ui.escopoAtual);
@@ -931,7 +928,6 @@ export function gerarRelatorioMatinal() {
       (projecao >= meta ? ' ✅' : ' (abaixo da meta)'));
   }
 
-  // Comparativo vs mês anterior (mesma altura de dias)
   const mesAnt = new Date(a, m - 1, 1);
   const prefixAnt = mesAnt.getFullYear() + '-' + String(mesAnt.getMonth() + 1).padStart(2, '0');
   const hoje = new Date();
