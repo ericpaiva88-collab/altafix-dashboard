@@ -857,43 +857,97 @@ export function toggleTodosMinimizaveis(minimizar) {
 export function gerarRelatorioMatinal() {
   const ref = mesRefAtual(ui.escopoAtual);
   const a = ref.ano, m = ref.mes;
-  const f = calcFilial(a, m, ui.escopoAtual);
-  const compar = calcFilialMesmaAltura(a, m, ui.escopoAtual);
   const MESES_NOME = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
     'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 
+  const vModo = ui.modoVendedor
+    ? state.vendedores.find(x => x.id === ui.modoVendedor)
+    : null;
+
+  // Coleta dados do escopo correto (vendedor ou filial)
+  let faturado, meta, pctMeta, falta, diasFaltam, diasTrab,
+      porDia, projecao, ritmoEsperado, pedidos, ticket;
+  let titulo;
+
+  if (vModo) {
+    const c = calcVendedor(vModo, a, m);
+    faturado = c.faturado;
+    meta = c.meta;
+    pctMeta = c.pctMeta || 0;
+    falta = Math.max(0, meta - faturado);
+    diasFaltam = c.diasFaltam;
+    diasTrab = c.diasTrab;
+    porDia = c.metaDia;
+    projecao = c.projecao;
+    ritmoEsperado = c.ritmoEsperado;
+    pedidos = c.pedidos;
+    ticket = c.ticket;
+    titulo = '☀️ *Alta Fix* — ' + vModo.nome + ' · ' + escopoNome(ui.escopoAtual);
+  } else {
+    const f = calcFilial(a, m, ui.escopoAtual);
+    faturado = f.faturadoTotal;
+    meta = f.metaTotal;
+    pctMeta = f.pctMeta;
+    falta = f.falta;
+    diasFaltam = f.diasFaltam;
+    diasTrab = f.diasTrab;
+    porDia = f.porDia;
+    projecao = f.projecao;
+    ritmoEsperado = f.ritmoEsperado;
+    pedidos = f.pedidosTotal;
+    ticket = f.ticketMedio;
+    titulo = '☀️ *Alta Fix* — ' + escopoNome(ui.escopoAtual);
+  }
+
   const linhas = [];
-  linhas.push('☀️ *Alta Fix* — ' + escopoNome(ui.escopoAtual));
+  linhas.push(titulo);
   linhas.push('_' + new Date().toLocaleDateString('pt-BR') + ' · ' +
     MESES_NOME[m] + '/' + a + '_');
   linhas.push('');
 
   linhas.push('📊 *SITUAÇÃO*');
-  linhas.push('Faturado: *' + fmtBRL(f.faturadoTotal) + '* · ' +
-    fmtPct(f.pctMeta, 1) + ' da meta');
-  if (f.falta > 0) {
-    linhas.push('Faltam *' + fmtBRL(f.falta) + '* em *' + f.diasFaltam + ' dias*');
-  } else {
+  linhas.push('Faturado: *' + fmtBRL(faturado) + '* · ' +
+    fmtPct(pctMeta, 1) + ' da meta');
+  if (falta > 0 && diasFaltam > 0) {
+    linhas.push('Faltam *' + fmtBRL(falta) + '* em *' + diasFaltam + ' dias*');
+  } else if (falta <= 0) {
     linhas.push('🎉 *META BATIDA!*');
+  } else {
+    linhas.push('⚠️ Sem dias úteis restantes');
   }
 
-  const ritmoAtual = f.diasTrab > 0 ? f.faturadoTotal / f.diasTrab : 0;
+  const ritmoAtual = diasTrab > 0 ? faturado / diasTrab : 0;
   linhas.push('');
   linhas.push('📈 Ritmo atual: ' + fmtBRL(ritmoAtual) + '/dia');
-  if (f.falta > 0 && f.diasFaltam > 0) {
-    linhas.push('🎯 Ritmo necessário: ' + fmtBRL(f.porDia) + '/dia');
-    if (ritmoAtual > 0 && f.porDia > ritmoAtual) {
-      const precisa = ((f.porDia / ritmoAtual) - 1) * 100;
+  if (falta > 0 && diasFaltam > 0) {
+    linhas.push('🎯 Ritmo necessário: ' + fmtBRL(porDia) + '/dia');
+    if (ritmoAtual > 0 && porDia > ritmoAtual) {
+      const precisa = ((porDia / ritmoAtual) - 1) * 100;
       linhas.push('⚠️ Precisa subir *' + fmtPct(precisa, 0) + '* no ritmo');
     }
   }
-  if (f.projecao > 0) {
-    linhas.push('🔮 Projeção: ' + fmtBRL(f.projecao) +
-      (f.projecao >= f.metaTotal ? ' ✅' : ' (abaixo da meta)'));
+  if (projecao > 0) {
+    linhas.push('🔮 Projeção: ' + fmtBRL(projecao) +
+      (projecao >= meta ? ' ✅' : ' (abaixo da meta)'));
   }
 
-  if (compar.faturadoTotal > 0 && f.diasTrab > 0) {
-    const dv = ((f.faturadoTotal - compar.faturadoTotal) / compar.faturadoTotal) * 100;
+  // Comparativo vs mês anterior (mesma altura de dias)
+  const mesAnt = new Date(a, m - 1, 1);
+  const prefixAnt = mesAnt.getFullYear() + '-' + String(mesAnt.getMonth() + 1).padStart(2, '0');
+  const hoje = new Date();
+  const diaCorte = (hoje.getFullYear() === a && hoje.getMonth() === m) ? hoje.getDate() : 31;
+  let fatMesAnt = 0;
+
+  state.lancamentos.forEach(l => {
+    if (vModo && l.vendedor !== vModo.id) return;
+    if (l.data.indexOf(prefixAnt) !== 0) return;
+    if (parseInt(l.data.slice(8, 10), 10) > diaCorte) return;
+    if (!filialNoEscopo(l.filialId, ui.escopoAtual)) return;
+    fatMesAnt += (l.valor || 0);
+  });
+
+  if (fatMesAnt > 0 && diasTrab > 0) {
+    const dv = ((faturado - fatMesAnt) / fatMesAnt) * 100;
     linhas.push('_vs mês anterior: ' + (dv >= 0 ? '📈 +' : '📉 ') +
       fmtPct(Math.abs(dv), 1) + '_');
   }
@@ -948,7 +1002,7 @@ export function gerarRelatorioMatinal() {
     if (perdidos.length > 0) {
       linhas.push('');
       linhas.push('💀 *' + perdidos.length +
-        ' cliente(s) provavelmente perdido(s)* (fora do ciclo há muito tempo)');
+        ' cliente(s) provavelmente perdido(s)*');
     }
   }
 
