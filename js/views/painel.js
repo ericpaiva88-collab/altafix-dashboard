@@ -1337,7 +1337,7 @@ export function renderPainel() {
     ? state.vendedores.find(v => v.id === ui.modoVendedor)
     : null;
 
-  if (vModo && vModo.papel !== 'diretor') {
+  if (vModo) {
     renderPainelVendedor(vModo, a, m);
     return;
   }
