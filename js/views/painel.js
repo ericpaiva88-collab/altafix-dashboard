@@ -12,7 +12,7 @@ import {
   mesRefAtual, vendedoresNoEscopo, lancamentosNoEscopo,
   clientesNoEscopo, calcVendedor, calcFilial, calcFilialMesmaAltura,
   comparativoNoEscopo, escopoNome, parseEscopo, rfmLabel,
-  calcRFMScores, calcABCClientes
+  calcRFMScores, calcABCClientes, filialNoEscopo
 } from '../calc.js';
 
 // ============================================================
