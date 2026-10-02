@@ -94,27 +94,53 @@ export function gerarAcoes(a, m) {
 
   clientes.forEach(c => {
     if (!c.ultimaCompra || !c.numCompras || c.numCompras < 2) return;
-    const d = diffDias(c.ultimaCompra, hj);
-    const im = c.intervaloMedio || 30;
-    if (d < 2 * im) return;
+
     const vrm = c.valorMedioMensal || 0;
-    if (vrm <= 0) return;
+    if (vrm < 100) return;
+
+    const dias = diffDias(c.ultimaCompra, hj);
+    const intervalo = Math.max(7, c.intervaloMedio || 30);
+    const fator = dias / intervalo;
+
+    if (fator < 1.5) return;
 
     const v = state.vendedores.find(x => x.id === c.vendedor);
-    const peso = d >= 3 * im ? 'alto' : 'medio';
 
-    const ac = {
-      id: 'cli_' + c.id, tipo: 'cliente', peso,
-      titulo: c.nome + (c.cidade ? ' (' + c.cidade + ')' : ''),
-      descricao: d + ' dias sem comprar · histórico ' + fmtBRL(vrm) + '/mês' +
-        (v ? ' · resp. ' + v.nome : ''),
-      valorRisco: vrm * (d >= 3 * im ? 1.5 : 1.0),
-      vendedor: v
-    };
-    if (c.rfm_segmento === 'risco' || c.rfm_segmento === 'hibernando') {
-      ac.descricao = '[' + rfmLabel(c.rfm_segmento) + '] ' + ac.descricao;
+    let categoria, prefixo, peso;
+    if (fator >= 3) {
+      categoria = 'reativar'; prefixo = '🚨 Reativar'; peso = 'alto';
+    } else if (fator >= 2) {
+      categoria = 'reativar'; prefixo = '⚠️ Reativar'; peso = 'alto';
+    } else {
+      categoria = 'recompra'; prefixo = '📞 Recompra'; peso = 'medio';
     }
-    acoes.push(ac);
+
+    let cicloTxt;
+    if (intervalo <= 15) cicloTxt = 'semanal';
+    else if (intervalo <= 45) cicloTxt = 'mensal';
+    else if (intervalo <= 75) cicloTxt = 'bimestral';
+    else cicloTxt = 'trimestral';
+
+    const descricao = prefixo + ' · ciclo ' + cicloTxt +
+      ' · ' + dias + 'd sem comprar (costuma a cada ' + intervalo + 'd)';
+
+    const score = vrm * Math.min(fator - 1, 3);
+
+    acoes.push({
+      id: 'cli_' + c.id,
+      tipo: 'cliente',
+      categoria,
+      peso,
+      titulo: c.nome + (c.cidade ? ' (' + c.cidade + ')' : ''),
+      descricao,
+      valorRisco: vrm,
+      score,
+      vendedor: v,
+      _dias: dias,
+      _intervalo: intervalo,
+      _fator: fator,
+      _ciclo: cicloTxt
+    });
   });
 
   let vends = vendedoresNoEscopo(ui.escopoAtual).filter(v =>
@@ -129,27 +155,30 @@ export function gerarAcoes(a, m) {
     if (gap <= 0) return;
 
     acoes.push({
-      id: 'vend_' + v.id, tipo: 'vendedor', peso: 'alto',
+      id: 'vend_' + v.id,
+      tipo: 'vendedor',
+      categoria: 'ritmo',
+      peso: 'alto',
       titulo: v.nome + ' abaixo do ritmo',
       descricao: 'Faturou ' + fmtBRL(c.faturado) + ' de ' +
-        fmtBRL(c.ritmoEsperado) + ' esperado · falta ' + fmtBRL(gap) + ' pro mês',
-      valorRisco: gap, vendedor: v
+        fmtBRL(c.ritmoEsperado) + ' esperado · gap ' + fmtBRL(gap),
+      valorRisco: gap,
+      score: gap,
+      vendedor: v
     });
   });
 
-  acoes.sort((x, y) => y.valorRisco - x.valorRisco);
+  acoes.sort((x, y) => (y.score || 0) - (x.score || 0));
 
   const tratadas = state.acoesTratadas || {};
   const limite = Date.now() - (7 * 24 * 60 * 60 * 1000);
 
-  const filtradas = acoes.filter(ac => {
+  return acoes.filter(ac => {
     const t = tratadas[ac.id];
     if (!t) return true;
     const ts = typeof t === 'number' ? t : (t.ts || 0);
     return ts < limite;
-  });
-
-  return filtradas.slice(0, 20);
+  }).slice(0, 20);
 }
 
 export function gerarAcoesAgrupadas(a, m) {
@@ -802,46 +831,87 @@ export function gerarRelatorioMatinal() {
   const a = ref.ano, m = ref.mes;
   const f = calcFilial(a, m, ui.escopoAtual);
   const compar = calcFilialMesmaAltura(a, m, ui.escopoAtual);
+  const MESES_NOME = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
+    'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
   const linhas = [];
-
-  linhas.push('☀️ *Alta Fix — ' + escopoNome(ui.escopoAtual) + '*');
+  linhas.push('☀️ *Alta Fix* — ' + escopoNome(ui.escopoAtual));
   linhas.push('_' + new Date().toLocaleDateString('pt-BR') + ' · ' +
-    ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-     'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'][m] +
-    '/' + a + '_');
+    MESES_NOME[m] + '/' + a + '_');
   linhas.push('');
+
   linhas.push('📊 *SITUAÇÃO*');
-  linhas.push('• Faturado: ' + fmtBRL(f.faturadoTotal));
-  linhas.push('• Meta: ' + fmtBRL(f.metaTotal) + ' (' + fmtPct(f.pctMeta, 1) + ')');
-
+  linhas.push('Faturado: *' + fmtBRL(f.faturadoTotal) + '* · ' +
+    fmtPct(f.pctMeta, 1) + ' da meta');
   if (f.falta > 0) {
-    linhas.push('• Falta: ' + fmtBRL(f.falta) + ' em ' + f.diasFaltam + ' dias');
-    linhas.push('• Ritmo: ' + fmtBRL(f.porDia) + '/dia');
+    linhas.push('Faltam *' + fmtBRL(f.falta) + '* em *' + f.diasFaltam + ' dias*');
   } else {
-    linhas.push('• ✅ META BATIDA!');
+    linhas.push('🎉 *META BATIDA!*');
   }
 
-  if (compar.faturadoTotal > 0) {
-    const dv = ((f.faturadoTotal - compar.faturadoTotal) / compar.faturadoTotal) * 100;
-    linhas.push('• vs mês anterior: ' + (dv >= 0 ? '📈 +' : '📉 ') + fmtPct(dv, 1));
-  }
-  if (f.faturadoAdmin > 0) {
-    linhas.push('• Admin (fora da meta): ' + fmtBRL(f.faturadoAdmin));
-  }
+  const ritmoAtual = f.diasTrab > 0 ? f.faturadoTotal / f.diasTrab : 0;
   linhas.push('');
+  linhas.push('📈 Ritmo atual: ' + fmtBRL(ritmoAtual) + '/dia');
+  if (f.falta > 0 && f.diasFaltam > 0) {
+    linhas.push('🎯 Ritmo necessário: ' + fmtBRL(f.porDia) + '/dia');
+    if (ritmoAtual > 0 && f.porDia > ritmoAtual) {
+      const precisa = ((f.porDia / ritmoAtual) - 1) * 100;
+      linhas.push('⚠️ Precisa subir *' + fmtPct(precisa, 0) + '* no ritmo');
+    }
+  }
+  if (f.projecao > 0) {
+    linhas.push('🔮 Projeção: ' + fmtBRL(f.projecao) +
+      (f.projecao >= f.metaTotal ? ' ✅' : ' (abaixo da meta)'));
+  }
 
-  const acoes = gerarAcoesAgrupadas(a, m);
+  if (compar.faturadoTotal > 0 && f.diasTrab > 0) {
+    const dv = ((f.faturadoTotal - compar.faturadoTotal) / compar.faturadoTotal) * 100;
+    linhas.push('_vs mês anterior: ' + (dv >= 0 ? '📈 +' : '📉 ') +
+      fmtPct(Math.abs(dv), 1) + '_');
+  }
+
+  const acoes = gerarAcoes(a, m);
+  const reativar = acoes.filter(x => x.categoria === 'reativar');
+  const recompra = acoes.filter(x => x.categoria === 'recompra');
+  const ritmo = acoes.filter(x => x.categoria === 'ritmo');
+
   if (acoes.length > 0) {
-    linhas.push('🎯 *AÇÕES DE HOJE*');
-    acoes.slice(0, 5).forEach((ac, i) => {
-      const p = ac.tipo === 'cliente' ? '📞' : '👤';
-      linhas.push((i + 1) + ') ' + p + ' *' + ac.titulo + '*');
-      linhas.push('   ' + ac.descricao);
-    });
+    linhas.push('');
+    linhas.push('🎯 *PRIORIDADES DE HOJE*');
+
+    if (reativar.length > 0) {
+      linhas.push('');
+      linhas.push('*🚨 Reativar* (' + reativar.length + ')');
+      reativar.slice(0, 5).forEach(x => {
+        linhas.push('• *' + x.titulo + '*');
+        linhas.push('  ' + x._dias + 'd sem comprar · ciclo ' + x._ciclo +
+          ' · ' + fmtBRL(x.valorRisco) + '/mês');
+      });
+    }
+
+    if (recompra.length > 0) {
+      linhas.push('');
+      linhas.push('*📞 Recompra esperada* (' + recompra.length + ')');
+      recompra.slice(0, 5).forEach(x => {
+        linhas.push('• *' + x.titulo + '*');
+        linhas.push('  ' + x._dias + 'd sem comprar · ciclo ' + x._ciclo +
+          ' · ' + fmtBRL(x.valorRisco) + '/mês');
+      });
+    }
+
+    if (ritmo.length > 0) {
+      linhas.push('');
+      linhas.push('*👤 Time abaixo do ritmo*');
+      ritmo.slice(0, 5).forEach(x => {
+        linhas.push('• ' + x.titulo);
+        linhas.push('  ' + x.descricao);
+      });
+    }
   }
 
   linhas.push('');
   linhas.push('_Gerado pelo Alta Fix_');
+
   return linhas.join('\n');
 }
 
