@@ -106,31 +106,57 @@ export function gerarAcoes(a, m) {
 
     const v = state.vendedores.find(x => x.id === c.vendedor);
 
-    let categoria, prefixo, peso;
-    if (fator >= 3) {
-      categoria = 'reativar'; prefixo = '🚨 Reativar'; peso = 'alto';
+    // Categoria baseada em quanto passou do ciclo
+    let categoria, statusEmoji, statusLabel, peso;
+
+    if (fator >= 6) {
+      categoria = 'perdido';
+      statusEmoji = '💀';
+      statusLabel = 'Provavelmente perdido';
+      peso = 'medio';
+    } else if (fator >= 4) {
+      categoria = 'sumido';
+      statusEmoji = '💤';
+      statusLabel = 'Sumido';
+      peso = 'alto';
     } else if (fator >= 2) {
-      categoria = 'reativar'; prefixo = '⚠️ Reativar'; peso = 'alto';
+      categoria = 'reativar';
+      statusEmoji = '🚨';
+      statusLabel = 'Reativar';
+      peso = 'alto';
     } else {
-      categoria = 'recompra'; prefixo = '📞 Recompra'; peso = 'medio';
+      categoria = 'recompra';
+      statusEmoji = '📞';
+      statusLabel = 'Recompra esperada';
+      peso = 'medio';
     }
 
+    // Ciclo em texto
     let cicloTxt;
     if (intervalo <= 15) cicloTxt = 'semanal';
     else if (intervalo <= 45) cicloTxt = 'mensal';
     else if (intervalo <= 75) cicloTxt = 'bimestral';
-    else cicloTxt = 'trimestral';
+    else if (intervalo <= 105) cicloTxt = 'trimestral';
+    else if (intervalo <= 200) cicloTxt = 'semestral';
+    else cicloTxt = 'anual';
 
-    const descricao = prefixo + ' · ciclo ' + cicloTxt +
-      ' · ' + dias + 'd sem comprar (costuma a cada ' + intervalo + 'd)';
+    // Quando fora do ciclo há muito, o cliente "costumava comprar", não "compra"
+    const prefixoCiclo = fator >= 3 ? 'costumava ' + cicloTxt : 'ciclo ' + cicloTxt;
 
-    const score = vrm * Math.min(fator - 1, 3);
+    const descricao = dias + 'd sem comprar · ' + prefixoCiclo +
+      ' (a cada ' + intervalo + 'd) · ' + fmtBRL(vrm) + '/mês' +
+      (v ? ' · resp. ' + v.nome : '');
+
+    // Score: prioriza valor × urgência (com teto)
+    const score = vrm * Math.min(fator - 1, 4);
 
     acoes.push({
       id: 'cli_' + c.id,
       tipo: 'cliente',
       categoria,
       peso,
+      statusEmoji,
+      statusLabel,
       titulo: c.nome + (c.cidade ? ' (' + c.cidade + ')' : ''),
       descricao,
       valorRisco: vrm,
@@ -159,6 +185,8 @@ export function gerarAcoes(a, m) {
       tipo: 'vendedor',
       categoria: 'ritmo',
       peso: 'alto',
+      statusEmoji: '👤',
+      statusLabel: 'Abaixo do ritmo',
       titulo: v.nome + ' abaixo do ritmo',
       descricao: 'Faturou ' + fmtBRL(c.faturado) + ' de ' +
         fmtBRL(c.ritmoEsperado) + ' esperado · gap ' + fmtBRL(gap),
@@ -178,7 +206,7 @@ export function gerarAcoes(a, m) {
     if (!t) return true;
     const ts = typeof t === 'number' ? t : (t.ts || 0);
     return ts < limite;
-  }).slice(0, 20);
+  }).slice(0, 30);
 }
 
 export function gerarAcoesAgrupadas(a, m) {
@@ -872,6 +900,8 @@ export function gerarRelatorioMatinal() {
 
   const acoes = gerarAcoes(a, m);
   const reativar = acoes.filter(x => x.categoria === 'reativar');
+  const sumidos = acoes.filter(x => x.categoria === 'sumido');
+  const perdidos = acoes.filter(x => x.categoria === 'perdido');
   const recompra = acoes.filter(x => x.categoria === 'recompra');
   const ritmo = acoes.filter(x => x.categoria === 'ritmo');
 
@@ -884,8 +914,16 @@ export function gerarRelatorioMatinal() {
       linhas.push('*🚨 Reativar* (' + reativar.length + ')');
       reativar.slice(0, 5).forEach(x => {
         linhas.push('• *' + x.titulo + '*');
-        linhas.push('  ' + x._dias + 'd sem comprar · ciclo ' + x._ciclo +
-          ' · ' + fmtBRL(x.valorRisco) + '/mês');
+        linhas.push('  ' + x.descricao);
+      });
+    }
+
+    if (sumidos.length > 0) {
+      linhas.push('');
+      linhas.push('*💤 Sumidos há muito* (' + sumidos.length + ') — vale tentar?');
+      sumidos.slice(0, 3).forEach(x => {
+        linhas.push('• *' + x.titulo + '*');
+        linhas.push('  ' + x.descricao);
       });
     }
 
@@ -894,8 +932,7 @@ export function gerarRelatorioMatinal() {
       linhas.push('*📞 Recompra esperada* (' + recompra.length + ')');
       recompra.slice(0, 5).forEach(x => {
         linhas.push('• *' + x.titulo + '*');
-        linhas.push('  ' + x._dias + 'd sem comprar · ciclo ' + x._ciclo +
-          ' · ' + fmtBRL(x.valorRisco) + '/mês');
+        linhas.push('  ' + x.descricao);
       });
     }
 
@@ -906,6 +943,12 @@ export function gerarRelatorioMatinal() {
         linhas.push('• ' + x.titulo);
         linhas.push('  ' + x.descricao);
       });
+    }
+
+    if (perdidos.length > 0) {
+      linhas.push('');
+      linhas.push('💀 *' + perdidos.length +
+        ' cliente(s) provavelmente perdido(s)* (fora do ciclo há muito tempo)');
     }
   }
 
