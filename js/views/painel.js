@@ -987,11 +987,16 @@ export function gerarRelatorioMatinal() {
     fatMesAnt += (l.valor || 0);
   });
 
-  if (fatMesAnt > 0 && diasTrab > 0) {
+    if (fatMesAnt > 0 && diasTrab > 0) {
     const dv = ((faturado - fatMesAnt) / fatMesAnt) * 100;
     const seta = dv >= 2 ? '📈 +' : dv <= -2 ? '📉 ' : '▬ ';
-    linhas.push('_vs mês anterior (até dia ' + diaCorte + '): ' + seta +
-      fmtPct(Math.abs(dv), 1) + '_');
+    if (Math.abs(dv) >= 500) {
+      linhas.push('_vs mês anterior (até dia ' + diaCorte + '): ' + seta +
+        fmtBRL(faturado - fatMesAnt) + ' (era ' + fmtBRL(fatMesAnt) + ')_');
+    } else {
+      linhas.push('_vs mês anterior (até dia ' + diaCorte + '): ' + seta +
+        fmtPct(Math.abs(dv), 1) + '_');
+    }
   }
 
   // ===== AÇÕES =====
