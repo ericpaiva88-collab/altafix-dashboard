@@ -267,7 +267,6 @@ export function construirMapaVendedores() {
 export async function sbUpsertClientes(lista, filialId, vendedoresMap) {
   if (!lista || lista.length === 0) return 0;
 
-  // Agrupa por (periodo_ini, periodo_fim)
   const porPeriodo = {};
   lista.forEach(c => {
     const pIni = c.periodoIni || '';
@@ -283,7 +282,6 @@ export async function sbUpsertClientes(lista, filialId, vendedoresMap) {
     const p = porPeriodo[periodos[pIdx]];
     const clientesDoPeriodo = p.clientes;
 
-    // Deduplica por cliente dentro do período
     const dedup = {};
     clientesDoPeriodo.forEach(c => {
       const k = normalizarNomeCliente(c.nome);
@@ -313,7 +311,8 @@ export async function sbUpsertClientes(lista, filialId, vendedoresMap) {
       vendedor_id: c.vendedor && vendedoresMap[c.vendedor] ? vendedoresMap[c.vendedor] : null,
       valor: c.valorTotal || 0,
       num_compras: c.numCompras || 0,
-      ultima_compra: c.ultimaCompra || null
+      ultima_compra: c.ultimaCompra || null,
+      primeira_compra_no_mes: c.primeiraCompra || null
     }));
 
     const del = await session.sb.from('clientes_importacoes')
@@ -348,7 +347,8 @@ export async function sbUpsertClientes(lista, filialId, vendedoresMap) {
         num_compras: 0,
         ultima_compra: null,
         primeira_compra: null,
-        _datas: []
+        _datas: [],
+        _periodos: []
       };
     }
     const a = agregado[k];
@@ -368,6 +368,11 @@ export async function sbUpsertClientes(lista, filialId, vendedoresMap) {
     }
     if (row.vendedor_id && !a.vendedor_id) a.vendedor_id = row.vendedor_id;
     if (row.cidade && !a.cidade) { a.cidade = row.cidade; a.uf = row.uf; }
+
+    a._periodos.push({
+      periodoIni: row.periodo_ini,
+      valor: Number(row.valor) || 0
+    });
   });
 
   const payloadFinal = Object.values(agregado).map(a => {
@@ -377,12 +382,33 @@ export async function sbUpsertClientes(lista, filialId, vendedoresMap) {
       const span = diffDias(a._datas[0], a._datas[a._datas.length - 1]);
       intervaloMedio = Math.max(1, Math.round(span / (a._datas.length - 1)));
     }
-    let valorMedioMensal = a.valor_total;
-    if (a.primeira_compra && a.ultima_compra) {
-      const diasSpan = diffDias(a.primeira_compra, a.ultima_compra);
-      const meses = Math.max(1, Math.round(diasSpan / 30) + 1);
-      valorMedioMensal = a.valor_total / meses;
+
+    // Valor médio mensal: últimos 90 dias de atividade
+    let valorMedioMensal = 0;
+    if (a._periodos.length > 0 && a.ultima_compra) {
+      a._periodos.sort((p1, p2) => (p1.periodoIni || '').localeCompare(p2.periodoIni || ''));
+
+      const ultima = new Date(a.ultima_compra + 'T12:00:00');
+      const corte = new Date(ultima);
+      corte.setDate(corte.getDate() - 90);
+      const corteIso = corte.getFullYear() + '-' +
+        String(corte.getMonth() + 1).padStart(2, '0') + '-' +
+        String(corte.getDate()).padStart(2, '0');
+
+      const recentes = a._periodos.filter(p =>
+        p.periodoIni >= corteIso && p.periodoIni <= a.ultima_compra
+      );
+
+      if (recentes.length > 0) {
+        const somaRecente = recentes.reduce((s, p) => s + p.valor, 0);
+        valorMedioMensal = somaRecente / 3;
+      } else {
+        const span = diffDias(a.primeira_compra, a.ultima_compra);
+        const meses = Math.max(1, Math.round(span / 30) + 1);
+        valorMedioMensal = a.valor_total / meses;
+      }
     }
+
     return {
       filial_id: a.filial_id,
       vendedor_id: a.vendedor_id,

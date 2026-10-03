@@ -132,6 +132,48 @@ Diretor e vendedores abrem o painel pra saber "estou bem?" e "quanto falta?". O 
 ### Por que Painel tem seletor de mês
 Quando vira o mês, o diretor precisa ver o mês novo **imediatamente** (metas zeradas, ritmo a bater), não o fechamento do anterior. O seletor começa no mês atual, mas permite voltar a qualquer mês com dados.
 
+### Clientes — o que é "Vale/mês"
+Não é a média de todo o histórico (isso inflava clientes que já foram grandes). É o **valor médio dos últimos 90 dias de atividade** do cliente:
+
+- Pega os 90 dias antes da última compra dele
+- Soma tudo que ele gastou nessa janela
+- Divide por 3 (meses)
+
+Exemplo: cliente que comprou R$ 30k em jan, R$ 30k em fev, R$ 30k em mar, e parou desde então. Hoje (10 meses depois) mostra Vale/mês R$ 30k — não R$ 3k/mês (média diluída) nem R$ 300k (histórico).
+
+Para clientes com menos de 90 dias de histórico, o cálculo cai no antigo (total / meses desde a primeira compra).
+
+Isso é recalculado **a cada importação de 324**. Se quiser forçar um recálculo sem reimportar, rode o SQL de recálculo (ver seção Bugs/Notas).
+
+
+### Clientes — colunas e ordenação
+A tabela mostra **Vale/mês** (valor médio mensal do cliente) e ordena por ela, não pelo acumulado histórico. Motivo: cliente que gastou R$ 1M em 2022 mas sumiu desde então não vale mais R$ 1M — vale zero. Ordenar pelo valor mensal coloca no topo quem está ativo e vale mais **agora**.
+
+Coluna **Última** mostra data + dias atrás (`30/09 (3d)`) — mais direto que só "Xd atrás".
+
+Filtro default é **"Ativos (30d)"** — abre mostrando quem importa hoje, não o cemitério.
+
+### Clientes — 4 KPIs (não 6)
+- Clientes (com contagem de ativos no hint)
+- Faturado no período (respeita o filtro de período)
+- Em risco (30-180d) com valor ajustado
+- Perdidos (180d+)
+
+Removidos: "Valor acumulado" (redundante com "Valor no período" quando filtro é "Todo o período") e "Valor em risco real" (redundante com "Em risco").
+
+### Ações — filtro em 3 faixas
+- **0-180d**: ações reais. Ordenadas por valor × proximidade do ciclo.
+- **180-365d**: recuperação lenta. Aparecem em bloco separado (relatório) mas **não** no painel admin.
+- **365d+**: arquivados. Saem da lista de ações. Só aparecem na consulta de Clientes.
+
+Valor exibido **decai com o tempo**:
+- 30-90d: 100% do valor médio
+- 90-180d: 60%
+- 180-365d: 30%
+- 365d+: 0 (arquivado)
+
+Isso evita o absurdo de "R$ 113k/mês em risco" pra cliente de 400 dias. Se ele voltar, será um cliente novo.
+
 ### Relatório matinal — o que ele comunica
 1. **Situação**: faturado vs meta, falta, gap vs esperado até hoje
 2. **Ritmo**: atual (com aviso de amostra pequena se < 5 dias) vs necessário
@@ -140,6 +182,8 @@ Quando vira o mês, o diretor precisa ver o mês novo **imediatamente** (metas z
 5. **Pedidos**: contagem total
 6. **Comparativo**: vs mês anterior no mesmo número de dias
 7. **Prioridades**: ações categorizadas por urgência (reativar/sumido/recompra/ritmo)
+8. **Recuperação lenta**: bloco separado pra clientes 180-365d (só contagem)
+9. **Arquivados**: contagem no rodapé (365d+ sem comprar)
 
 Sem amostra ou com 1 dia trabalhado, o ritmo pode ser volátil — por isso o aviso "amostra: X dia(s)".
 
