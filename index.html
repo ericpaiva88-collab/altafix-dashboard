@@ -35,6 +35,7 @@
   <nav class="tabs" id="main-tabs">
     <button data-tab="painel" class="active">🎯 Painel</button>
     <button data-tab="clientes">👥 Clientes</button>
+    <button data-tab="ligacoes">📞 Ligações</button>
     <button data-tab="produtos">📦 Produtos</button>
     <button data-tab="analise">📊 Análise</button>
     <button data-tab="config">⚙️ Config</button>
@@ -242,6 +243,56 @@
       </div>
     </div>
   </section>
+
+    <section id="tab-ligacoes">
+    <div class="kpi-grid" id="ligacoes-kpis"></div>
+
+    <div class="card">
+      <h2>📞 Ligações <span class="sub" id="ligacoes-count"></span></h2>
+      <div class="filtros-bar">
+        <input type="text" id="filtro-lig-busca" placeholder="Buscar empresa, cidade, obs..." style="flex:1;min-width:200px;">
+        <select id="filtro-lig-vend"><option value="">Todos vendedores</option></select>
+        <select id="filtro-lig-status">
+          <option value="">Status: todos</option>
+          <option value="prospeccao">🔵 Prospecção</option>
+          <option value="retornar">🟡 Retornar</option>
+          <option value="aguardando">🔴 Aguardando</option>
+          <option value="venda">🟢 Venda</option>
+          <option value="sem_interesse">⚫ Sem interesse</option>
+        </select>
+        <select id="filtro-lig-conversao">
+          <option value="">Conversão: todas</option>
+          <option value="sim">✓ Só quem gerou venda</option>
+          <option value="nao">✗ Só sem venda atribuída</option>
+        </select>
+        <select id="filtro-lig-periodo">
+          <option value="tudo" selected>📅 Todo o período</option>
+          <option value="mes_atual">📅 Este mês</option>
+          <option value="mes_passado">📅 Mês passado</option>
+          <option value="30d">📅 Últimos 30 dias</option>
+          <option value="90d">📅 Últimos 90 dias</option>
+        </select>
+        <button class="btn btn-sm btn-primary" id="btn-nova-ligacao">+ Nova ligação</button>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="tabela">
+          <thead><tr>
+            <th>Data</th>
+            <th>Vendedor</th>
+            <th>Empresa</th>
+            <th>Cidade</th>
+            <th>Status</th>
+            <th class="num">Valor</th>
+            <th>Conversão</th>
+            <th>Próximo</th>
+            <th></th>
+          </tr></thead>
+          <tbody id="tbody-ligacoes"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
 
   <section id="tab-produtos">
     <div class="kpi-grid" id="produtos-kpis"></div>

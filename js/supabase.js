@@ -110,7 +110,7 @@ export async function sbCarregarTudo() {
   const out = {
     filiais: [], grupos: [], vendedores: [], clientes: [], produtos: [],
     lancamentos: [], comparativo: [], cidades: [], metas: [],
-    produtosMes: [], vendasItens: [], clientesImportacoes: [],
+    produtosMes: [], vendasItens: [], ligacoes: [], ligacoesVendas: [],
     acoesTratadas: {}, config: {}
   };
 
@@ -128,6 +128,8 @@ export async function sbCarregarTudo() {
     sbFetchAll('metas'),
     sbFetchAll('produtos_mes'),
     sbFetchAll('vendas_itens'),
+    sbFetchAll('ligacoes'),
+    sbFetchAll('ligacoes_vendas'),
     sbFetchAll('clientes_importacoes')
   ]);
 
@@ -144,7 +146,9 @@ export async function sbCarregarTudo() {
   if (q[10].data) out.metas = q[10].data;
   if (q[11].data) out.produtosMes = q[11].data;
   if (q[12].data) out.vendasItens = q[12].data;
-  if (q[13].data) out.clientesImportacoes = q[13].data;
+  if (q[13].data) out.ligacoes = q[13].data;
+  if (q[14].data) out.ligacoesVendas = q[14].data;
+  if (q[15].data) out.clientesImportacoes = q[15].data;
 
   return out;
 }
@@ -226,6 +230,36 @@ export function aplicarDadosDoBanco(d) {
   vendedor: v.vendedor_id,
   valor: Number(v.valor) || 0, qtd: Number(v.qtd) || 0
 }));
+
+  state.ligacoes = (d.ligacoes || []).map(l => ({
+    id: l.id,
+    filialId: l.filial_id,
+    vendedor: l.vendedor_id,
+    data: l.data,
+    codigo: l.codigo,
+    empresa: l.empresa,
+    clienteNorm: l.cliente_norm,
+    contato: l.contato,
+    telefone: l.telefone,
+    cidade: l.cidade,
+    estado: l.estado,
+    status: l.status,
+    valor: Number(l.valor) || 0,
+    proximo: l.proximo,
+    obs: l.obs
+  }));
+
+  state.ligacoesVendas = (d.ligacoesVendas || []).map(lv => ({
+    id: lv.id,
+    ligacaoId: lv.ligacao_id,
+    clienteNorm: lv.cliente_norm,
+    filialId: lv.filial_id,
+    vendedor: lv.vendedor_id,
+    dataLigacao: lv.data_ligacao,
+    dataVenda: lv.data_venda,
+    valorVenda: Number(lv.valor_venda) || 0,
+    diasEntre: lv.dias_entre
+  }));
 
   state.clientesImportacoes = (d.clientesImportacoes || []).map(r => ({
     filialId: r.filial_id,

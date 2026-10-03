@@ -38,6 +38,8 @@ export const state = {
   produtosMes: [],
   clientesImportacoes: [],
   vendasItens: [],
+  ligacoes: [],
+  ligacoesVendas: [],
   acoesTratadas: {},
   _historico: {},
   _produtosSnap: null,

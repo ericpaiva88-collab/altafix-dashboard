@@ -26,6 +26,7 @@ import {
 } from './views/clientes.js';
 
 import { renderProdutos, imprimirProdutos } from './views/produtos.js';
+import { renderLigacoes, abrirModalLigacao } from './views/ligacoes.js';
 
 import {
   renderComparativo, renderCidades, renderFabricantes,
@@ -326,6 +327,9 @@ function setupTabs() {
       const t = document.getElementById('tab-' + b.dataset.tab);
       if (t) t.classList.add('active');
 
+      if (b.dataset.tab === 'ligacoes') {
+        setTimeout(() => { try { renderLigacoes(); } catch (e) {} }, 50);
+      }
       if (b.dataset.tab === 'analise') {
         setTimeout(() => {
           try { renderChartYoY(); } catch (e) {}
@@ -646,6 +650,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupFiliais();
     setupGeral();
     setupClientesNovos();
+
+    const btnNovaLig = document.getElementById('btn-nova-ligacao');
+    if (btnNovaLig) btnNovaLig.onclick = () => abrirModalLigacao();
 
     // 9. Collapse dos headers de seção
     setupCollapse('hdr-historico', 'body-historico');
