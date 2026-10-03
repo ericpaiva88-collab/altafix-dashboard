@@ -433,6 +433,18 @@ function setupFiltros() {
   const oc = document.getElementById('filtro-ocultar-nao-cad');
   if (oc) oc.onchange = renderCidades;
 
+    // Filtros da aba Ligações
+  const flBusca = document.getElementById('filtro-lig-busca');
+  if (flBusca) flBusca.oninput = () => renderLigacoes();
+  const flVend = document.getElementById('filtro-lig-vend');
+  if (flVend) flVend.onchange = () => renderLigacoes();
+  const flStatus = document.getElementById('filtro-lig-status');
+  if (flStatus) flStatus.onchange = () => renderLigacoes();
+  const flConv = document.getElementById('filtro-lig-conversao');
+  if (flConv) flConv.onchange = () => renderLigacoes();
+  const flPeriodo = document.getElementById('filtro-lig-periodo');
+  if (flPeriodo) flPeriodo.onchange = () => renderLigacoes();
+  
   // Comparativo
   const cfv = document.getElementById('comp-filtro-vendedor');
   if (cfv) cfv.onchange = e => { ui.filtroCompVendedor = e.target.value; renderComparativo(); };
