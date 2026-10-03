@@ -65,7 +65,7 @@ export const ui = {
   filtroClienteBusca: '',
   filtroClienteVend: '',
   filtroClienteCidade: '',
-  filtroClienteStatus: 'todos',
+  filtroClienteStatus: 'ativos',
   filtroClienteRFM: '',
   filtroClientePeriodo: 'tudo',
   filtroClienteDataIni: '',

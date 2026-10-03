@@ -378,8 +378,15 @@ function renderKPIs(filtrados, clsBase, periodo) {
   );
   const perdidos = clsBase.filter(c => c.diasSemComprar >= EM_RISCO_ATE);
 
-  const valorEmRisco = emRisco.reduce((s, c) => s + (c.valorMedioMensal || 0), 0);
-  const valorAcum = filtrados.reduce((s, c) => s + (c.valorTotal || 0), 0);
+  const valorEmRisco = emRisco.reduce((s, c) => {
+    // Ajusta o valor pelo tempo parado (mesma regra das ações)
+    let fator = 1.0;
+    if (c.diasSemComprar >= 180) fator = 0.3;
+    else if (c.diasSemComprar >= 90) fator = 0.6;
+    return s + ((c.valorMedioMensal || 0) * fator);
+  }, 0);
+
+  const ativos = clsBase.filter(c => c.diasSemComprar < 30);
 
   let valorPeriodo = 0;
   if (periodo) {
@@ -388,7 +395,7 @@ function renderKPIs(filtrados, clsBase, periodo) {
       valorPeriodo += vp.valor;
     });
   } else {
-    valorPeriodo = valorAcum;
+    valorPeriodo = filtrados.reduce((s, c) => s + (c.valorTotal || 0), 0);
   }
 
   const labelPeriodo = periodo ? ('em ' + periodo.nome.toLowerCase()) : 'acumulado total';
@@ -396,22 +403,18 @@ function renderKPIs(filtrados, clsBase, periodo) {
   k.innerHTML =
     '<div class="kpi"><div class="label">Clientes</div>' +
     '<div class="value">' + filtrados.length + '</div>' +
-    '<div class="hint">de ' + clsBase.length + '</div></div>' +
-    '<div class="kpi"><div class="label">Valor acumulado</div>' +
-    '<div class="value">' + fmtBRL(valorAcum) + '</div></div>' +
-    '<div class="kpi"><div class="label">Valor no período</div>' +
+    '<div class="hint">' + ativos.length + ' ativos (30d) · de ' + clsBase.length + '</div></div>' +
+    '<div class="kpi"><div class="label">Faturado no período</div>' +
     '<div class="value">' + fmtBRL(valorPeriodo) + '</div>' +
     '<div class="hint">' + labelPeriodo + '</div></div>' +
     '<div class="kpi" style="border-left:4px solid #f59e0b;">' +
     '<div class="label">Em risco (30-180d)</div>' +
     '<div class="value">' + emRisco.length + '</div>' +
-    '<div class="hint">' + fmtBRL(valorEmRisco) + '/mês</div></div>' +
+    '<div class="hint">' + fmtBRL(valorEmRisco) + '/mês recuperáveis</div></div>' +
     '<div class="kpi" style="border-left:4px solid #64748b;">' +
     '<div class="label">Perdidos (180d+)</div>' +
-    '<div class="value">' + perdidos.length + '</div></div>' +
-    '<div class="kpi negativo"><div class="label">Valor em risco real</div>' +
-    '<div class="value">' + fmtBRL(valorEmRisco) + '</div>' +
-    '<div class="hint">só os recuperáveis</div></div>';
+    '<div class="value">' + perdidos.length + '</div>' +
+    '<div class="hint">fora do radar</div></div>';
 }
 
 // ============================================================
@@ -468,7 +471,10 @@ function renderTabela(filtrados, classificados, usaPeriodo, periodo) {
   const mostraFilial = parseEscopo(ui.escopoAtual).tipo !== 'filial';
   const mapaCidade = construirMapaCidade();
 
-  const st = filtrados.slice().sort((a, b) => (b.valorTotal || 0) - (a.valorTotal || 0));
+  // Ordena por valor médio mensal (quanto vale hoje, não histórico)
+  const st = filtrados.slice().sort((a, b) =>
+    (b.valorMedioMensal || 0) - (a.valorMedioMensal || 0)
+  );
 
   if (st.length === 0) {
     te.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:20px;color:#64748b;">' +
@@ -517,6 +523,10 @@ function renderTabela(filtrados, classificados, usaPeriodo, periodo) {
     const vp = valorNoPeriodo(c, periodo);
     const periodoTxt = periodo ? fmtBRL(vp.valor) : '<span style="color:#94a3b8;">—</span>';
 
+    // Última compra em data legível
+    const ultimaTxt = c.ultimaCompra ? fmtDataBR(c.ultimaCompra).slice(0, 5) : '—';
+    const diasTxt = c.diasSemComprar < 9999 ? ' (' + c.diasSemComprar + 'd)' : '';
+
     return '<tr class="' + clsSuspeito + '">' +
       '<td>' + nomeTxt + '</td>' +
       '<td>' + escapeHtml(c.cidade || (mapaCidade[normalizarNomeCliente(c.nome)] || {}).cidade || '—') + '</td>' +
@@ -524,11 +534,11 @@ function renderTabela(filtrados, classificados, usaPeriodo, periodo) {
       '<td><span class="badge badge-rfm ' + c.rfm_segmento + '">' +
         rfmLabel(c.rfm_segmento) + '</span></td>' +
       '<td><span class="badge badge-' + c.abcCliente + '">' + c.abcCliente + '</span></td>' +
-      '<td class="num">' + fmtBRL(c.valorTotal) + '</td>' +
+      '<td class="num"><strong>' + fmtBRL(c.valorMedioMensal || 0) + '</strong></td>' +
       '<td class="num">' + periodoTxt + '</td>' +
       '<td class="num">' + c.numCompras + '</td>' +
       '<td class="num">' + fmtBRL(ticket) + '</td>' +
-      '<td class="num">' + (c.diasSemComprar < 9999 ? c.diasSemComprar + 'd' : '—') + '</td>' +
+      '<td class="num" style="font-size:11px;">' + ultimaTxt + diasTxt + '</td>' +
       '<td>' + bd + '</td></tr>';
   }).join('');
 }

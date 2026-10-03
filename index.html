@@ -198,6 +198,7 @@
         <select id="filtro-cliente-cidade"><option value="">Todas cidades</option></select>
         <select id="filtro-cliente-status">
           <option value="todos">Status: todos</option>
+          <option value="ativos" selected>Ativos (30d)</option>
           <option value="ativos">Ativos (até 30d)</option>
           <option value="inativos">Inativos (30+)</option>
           <option value="criticos">Críticos (90+)</option>
@@ -228,8 +229,8 @@
         <table class="tabela">
           <thead><tr>
             <th>Cliente</th><th>Cidade</th><th>Vendedor</th><th>Segmento</th><th>ABC</th>
-            <th class="num">Acum.</th><th class="num">Período</th><th class="num">Compras</th><th class="num">Ticket</th>
-            <th class="num">Dias</th><th>Risco</th>
+            <th class="num">Vale/mês</th><th class="num">Período</th><th class="num">Compras</th><th class="num">Ticket</th>
+            <th class="num">Última</th><th>Risco</th>
           </tr></thead>
           <tbody id="tbody-clientes"></tbody>
         </table>
