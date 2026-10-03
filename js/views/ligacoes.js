@@ -3,8 +3,10 @@
 // ============================================================
 
 import { state, ui, session } from '../state.js';
-import { fmtBRL, escapeHtml, isoDate, diffDias, fmtDataBR, toast, copiarTexto } from '../utils.js';
-import { filialNoEscopo, parseEscopo, escopoNome } from '../calc.js';
+import {
+  fmtBRL, escapeHtml, isoDate, diffDias, fmtDataBR, toast
+} from '../utils.js';
+import { filialNoEscopo, parseEscopo } from '../calc.js';
 import { sbCarregarTudo, aplicarDadosDoBanco } from '../supabase.js';
 
 const STATUS = {
@@ -32,7 +34,7 @@ function vendasAtribuidasMap() {
 }
 
 function calcularPeriodo() {
-  const preset = document.getElementById('filtro-lig-periodo')?.value || 'tudo';
+  const preset = document.getElementById('filtro-lig-periodo')?.value || 'mes_atual';
   if (preset === 'tudo') return null;
   const hj = new Date();
   let ini, fim;
@@ -54,6 +56,29 @@ function calcularPeriodo() {
   return { ini: isoDate(ini), fim: isoDate(fim) };
 }
 
+function ehAtiva(l) {
+  return l.status !== 'venda' && l.status !== 'sem_interesse';
+}
+
+function aplicarUrgencia(l, urgencia, hj) {
+  if (!urgencia) return true;
+  if (!l.proximo) return false;
+  if (!ehAtiva(l)) return false;
+
+  if (urgencia === 'atrasados') {
+    const limite = new Date(); limite.setDate(limite.getDate() - 90);
+    return l.proximo < hj && l.proximo >= isoDate(limite);
+  }
+  if (urgencia === 'hoje') {
+    return l.proximo === hj;
+  }
+  if (urgencia === 'semana') {
+    const limite = new Date(); limite.setDate(limite.getDate() + 7);
+    return l.proximo >= hj && l.proximo <= isoDate(limite);
+  }
+  return true;
+}
+
 // ============================================================
 // RENDER PRINCIPAL
 // ============================================================
@@ -66,6 +91,8 @@ export function renderLigacoes() {
 
   const base = ligacoesNoEscopo();
   const mapaVendas = vendasAtribuidasMap();
+  const hj = isoDate(new Date());
+  const urgencia = ui.filtroLigUrgencia || '';
 
   popularSelectVendedor(base);
 
@@ -75,10 +102,15 @@ export function renderLigacoes() {
   const filtroStatus = document.getElementById('filtro-lig-status')?.value || '';
   const filtroConv = document.getElementById('filtro-lig-conversao')?.value || '';
 
-  const filtradas = base.filter(l => {
-    if (periodo) {
-      if (!l.data || l.data < periodo.ini || l.data > periodo.fim) return false;
-    }
+  // Primeiro passa pelo período (base para KPIs)
+  const noPeriodo = base.filter(l => {
+    if (periodo && (!l.data || l.data < periodo.ini || l.data > periodo.fim)) return false;
+    return true;
+  });
+
+  // Filtros de lista
+  const filtradas = noPeriodo.filter(l => {
+    if (!aplicarUrgencia(l, urgencia, hj)) return false;
     if (filtroVend && l.vendedor !== filtroVend) return false;
     if (filtroStatus && l.status !== filtroStatus) return false;
 
@@ -87,33 +119,47 @@ export function renderLigacoes() {
     if (filtroConv === 'nao' && temVenda) return false;
 
     if (busca) {
-      const alvo = [l.empresa, l.cidade, l.codigo, l.obs, l.contato].filter(Boolean).join(' ').toUpperCase();
+      const alvo = [l.empresa, l.cidade, l.codigo, l.obs, l.contato]
+        .filter(Boolean).join(' ').toUpperCase();
       if (alvo.indexOf(busca) < 0) return false;
     }
     return true;
   });
 
-  // KPIs
-  const totalLig = filtradas.length;
-  const ligComVenda = filtradas.filter(l => mapaVendas[l.id]);
+  // KPIs do período (não filtrados por urgência/status/conversão)
+  const totalLig = noPeriodo.length;
+  const ligComVenda = noPeriodo.filter(l => mapaVendas[l.id]);
   const valorAtribuido = ligComVenda.reduce((s, l) => s + (mapaVendas[l.id].valorVenda || 0), 0);
   const taxaConversao = totalLig > 0 ? (ligComVenda.length / totalLig) * 100 : 0;
   const valorMedioVenda = ligComVenda.length > 0 ? valorAtribuido / ligComVenda.length : 0;
 
+  const diasMedio = ligComVenda.length > 0
+    ? ligComVenda.reduce((s, l) => s + (mapaVendas[l.id].diasEntre || 0), 0) / ligComVenda.length
+    : 0;
+
   kpisEl.innerHTML =
     '<div class="kpi"><div class="label">Ligações</div>' +
     '<div class="value">' + totalLig + '</div>' +
-    '<div class="hint">de ' + base.length + ' no total</div></div>' +
+    '<div class="hint">' + (periodo ? 'no período' : 'no total') + '</div></div>' +
     '<div class="kpi positivo"><div class="label">Vendas atribuídas</div>' +
     '<div class="value">' + ligComVenda.length + '</div>' +
     '<div class="hint">via ligação (30d)</div></div>' +
     '<div class="kpi positivo"><div class="label">Valor atribuído</div>' +
     '<div class="value">' + fmtBRL(valorAtribuido) + '</div>' +
     '<div class="hint">ticket médio ' + fmtBRL(valorMedioVenda) + '</div></div>' +
-    '<div class="kpi ' + (taxaConversao >= 20 ? 'positivo' : 'negativo') + '">' +
+    '<div class="kpi ' + (taxaConversao >= 20 ? 'positivo' : taxaConversao >= 10 ? '' : 'negativo') + '">' +
     '<div class="label">Conversão</div>' +
     '<div class="value">' + taxaConversao.toFixed(1) + '%</div>' +
-    '<div class="hint">ligações que viraram venda</div></div>';
+    '<div class="hint">ligações que viraram venda</div></div>' +
+    '<div class="kpi"><div class="label">Tempo médio</div>' +
+    '<div class="value">' + diasMedio.toFixed(1) + 'd</div>' +
+    '<div class="hint">entre ligação e venda</div></div>';
+
+  // Distribuição por status
+  renderDistribuicaoStatus(noPeriodo);
+
+  // Atalhos de urgência
+  renderUrgencia(base, hj, mapaVendas);
 
   countEl.textContent = filtradas.length + ' ligações';
 
@@ -136,6 +182,16 @@ export function renderLigacoes() {
         ' (' + lv.diasEntre + ' dias após)">✓ ' + fmtBRL(lv.valorVenda) + '</span>'
       : '<span style="color:#94a3b8;">—</span>';
 
+    const proxVencido = l.proximo && l.proximo < hj && ehAtiva(l);
+    const proxHoje = l.proximo === hj && ehAtiva(l);
+    const proxHTML = l.proximo
+      ? (proxVencido
+          ? '<span style="color:#dc2626;font-weight:700;">' + fmtDataBR(l.proximo) + '</span>'
+          : proxHoje
+            ? '<span style="color:#f59e0b;font-weight:700;">' + fmtDataBR(l.proximo) + '</span>'
+            : fmtDataBR(l.proximo))
+      : '—';
+
     return '<tr>' +
       '<td>' + fmtDataBR(l.data) + '</td>' +
       '<td>' + (v ? escapeHtml(v.nome) : '—') + '</td>' +
@@ -147,7 +203,7 @@ export function renderLigacoes() {
         st.emoji + ' ' + st.label + '</span></td>' +
       '<td class="num">' + (l.valor > 0 ? fmtBRL(l.valor) : '—') + '</td>' +
       '<td>' + convHTML + '</td>' +
-      '<td style="font-size:11px;">' + (l.proximo ? fmtDataBR(l.proximo) : '—') + '</td>' +
+      '<td style="font-size:11px;">' + proxHTML + '</td>' +
       '<td><button class="btn btn-sm" data-editar-lig="' + escapeHtml(l.id) + '">✏️</button></td>' +
       '</tr>';
   }).join('');
@@ -155,6 +211,75 @@ export function renderLigacoes() {
   tbody.querySelectorAll('[data-editar-lig]').forEach(b => {
     b.onclick = () => abrirModalLigacao(b.dataset.editarLig);
   });
+}
+
+// ============================================================
+// DISTRIBUIÇÃO POR STATUS
+// ============================================================
+
+function renderDistribuicaoStatus(noPeriodo) {
+  const el = document.getElementById('ligacoes-status-dist');
+  if (!el) return;
+
+  const counts = {};
+  Object.keys(STATUS).forEach(k => { counts[k] = 0; });
+  noPeriodo.forEach(l => { counts[l.status] = (counts[l.status] || 0) + 1; });
+
+  const total = noPeriodo.length || 1;
+
+  el.innerHTML = Object.keys(STATUS).map(k => {
+    const st = STATUS[k];
+    const n = counts[k] || 0;
+    const pct = (n / total * 100).toFixed(0);
+    return '<div style="display:flex;align-items:center;gap:6px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:6px 12px;font-size:12px;">' +
+      '<span style="font-weight:700;color:' + st.cor + ';">' + st.emoji + ' ' + st.label + '</span>' +
+      '<strong style="font-size:14px;">' + n + '</strong>' +
+      '<span style="color:#94a3b8;">(' + pct + '%)</span>' +
+      '</div>';
+  }).join('');
+}
+
+// ============================================================
+// ATALHOS DE URGÊNCIA
+// ============================================================
+
+function renderUrgencia(base, hj, mapaVendas) {
+  // Contadores: aplicar período pra não contar coisas antigas
+  const periodo = calcularPeriodo();
+  const noPeriodo = base.filter(l => {
+    if (periodo && (!l.data || l.data < periodo.ini || l.data > periodo.fim)) return false;
+    return true;
+  });
+
+  const nAtrasados = noPeriodo.filter(l => aplicarUrgencia(l, 'atrasados', hj)).length;
+  const nHoje = noPeriodo.filter(l => aplicarUrgencia(l, 'hoje', hj)).length;
+  const nSemana = noPeriodo.filter(l => aplicarUrgencia(l, 'semana', hj)).length;
+
+  const nEl = document.getElementById('urg-atrasados-n');
+  if (nEl) nEl.textContent = nAtrasados > 0 ? '(' + nAtrasados + ')' : '';
+  const hEl = document.getElementById('urg-hoje-n');
+  if (hEl) hEl.textContent = nHoje > 0 ? '(' + nHoje + ')' : '';
+  const sEl = document.getElementById('urg-semana-n');
+  if (sEl) sEl.textContent = nSemana > 0 ? '(' + nSemana + ')' : '';
+
+  // Marcar botão ativo
+  const atual = ui.filtroLigUrgencia || '';
+  ['', 'atrasados', 'hoje', 'semana'].forEach(u => {
+    const btn = document.querySelector('[data-urgencia="' + u + '"]');
+    if (btn) btn.classList.toggle('btn-primary', atual === u);
+  });
+
+  // Cores nos contadores se > 0
+  const bA = document.getElementById('urg-atrasados');
+  if (bA) {
+    bA.style.borderColor = nAtrasados > 0 ? '#dc2626' : '';
+    bA.style.color = nAtrasados > 0 && atual !== 'atrasados' ? '#dc2626' : '';
+  }
+  const bH = document.getElementById('urg-hoje');
+  if (bH) {
+    bH.style.borderColor = nHoje > 0 ? '#f59e0b' : '';
+    bH.style.color = nHoje > 0 && atual !== 'hoje' ? '#f59e0b' : '';
+  }
 }
 
 // ============================================================
@@ -247,7 +372,6 @@ export function abrirModalLigacao(ligacaoId) {
 
   html += '</div>';
 
-  // Reaproveita o modal de help mas cria um próprio
   let modal = document.getElementById('lig-modal');
   if (!modal) {
     modal = document.createElement('div');

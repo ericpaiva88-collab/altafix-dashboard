@@ -444,7 +444,14 @@ function setupFiltros() {
   if (flConv) flConv.onchange = () => renderLigacoes();
   const flPeriodo = document.getElementById('filtro-lig-periodo');
   if (flPeriodo) flPeriodo.onchange = () => renderLigacoes();
-  
+
+  document.querySelectorAll('[data-urgencia]').forEach(btn => {
+    btn.onclick = () => {
+      ui.filtroLigUrgencia = btn.dataset.urgencia || '';
+      renderLigacoes();
+    };
+  });
+
   // Comparativo
   const cfv = document.getElementById('comp-filtro-vendedor');
   if (cfv) cfv.onchange = e => { ui.filtroCompVendedor = e.target.value; renderComparativo(); };

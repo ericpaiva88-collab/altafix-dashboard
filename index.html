@@ -247,6 +247,18 @@
     <section id="tab-ligacoes">
     <div class="kpi-grid" id="ligacoes-kpis"></div>
 
+    <div id="ligacoes-status-dist" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;"></div>
+
+    <div class="card" style="border-left:4px solid #0f172a;padding:12px 14px;">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        <strong style="font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-right:4px;">Fila:</strong>
+        <button class="btn btn-sm" data-urgencia="" id="urg-todos">📋 Todos</button>
+        <button class="btn btn-sm" data-urgencia="atrasados" id="urg-atrasados">🔴 Atrasados <span id="urg-atrasados-n"></span></button>
+        <button class="btn btn-sm" data-urgencia="hoje" id="urg-hoje">🟡 Hoje <span id="urg-hoje-n"></span></button>
+        <button class="btn btn-sm" data-urgencia="semana" id="urg-semana">🟢 Semana <span id="urg-semana-n"></span></button>
+      </div>
+    </div>
+
     <div class="card">
       <h2>📞 Ligações <span class="sub" id="ligacoes-count"></span></h2>
       <div class="filtros-bar">
@@ -266,7 +278,8 @@
           <option value="nao">✗ Só sem venda atribuída</option>
         </select>
         <select id="filtro-lig-periodo">
-          <option value="tudo" selected>📅 Todo o período</option>
+          <option value="mes_atual" selected>📅 Este mês</option>
+          <option value="tudo">📅 Todo o período</option>
           <option value="mes_atual">📅 Este mês</option>
           <option value="mes_passado">📅 Mês passado</option>
           <option value="30d">📅 Últimos 30 dias</option>

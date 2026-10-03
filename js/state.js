@@ -76,6 +76,7 @@ export const ui = {
   filtroCidadeBusca: '',
   filtroCidadeVend: '',
   filtroCompVendedor: '',
+  filtroLigUrgencia: '',
   simuladorCenario: {},
   charts: {}
 };

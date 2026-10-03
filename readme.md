@@ -145,6 +145,43 @@ Para clientes com menos de 90 dias de histórico, o cálculo cai no antigo (tota
 
 Isso é recalculado **a cada importação de 324**. Se quiser forçar um recálculo sem reimportar, rode o SQL de recálculo (ver seção Bugs/Notas).
 
+### Aba Ligações — o que faz
+Tela dedicada a acompanhar a operação de televendas. Migrada do TeleVendas original (Google Sheets).
+
+**O que mostra:**
+- **5 KPIs** do período filtrado: total de ligações, vendas atribuídas, valor atribuído, taxa de conversão e tempo médio entre ligação e venda
+- **Distribuição por status** — quantas em cada estado (prospecção / retornar / aguardando / venda / sem interesse)
+- **Fila de trabalho** (atalhos no topo):
+  - 🔴 **Atrasados** — próximos contatos que já venceram (últimos 90 dias)
+  - 🟡 **Hoje** — agendados para hoje
+  - 🟢 **Semana** — próximos 7 dias
+- **Tabela** com filtros de busca, vendedor, status, conversão e período
+
+**Default:** abre em "Este mês" com filtro de urgência vazio (mostra tudo do mês).
+
+### Como funciona o cruzamento automático ligação → venda
+A coluna "Conversão" de cada ligação não depende do vendedor preencher. Roda automaticamente:
+
+1. Toda vez que um **324 é importado**, o app grava os clientes em `clientes_importacoes`
+2. Um trigger do Postgres roda a função `recalcular_ligacoes_vendas()`
+3. A função procura **a ligação mais recente do mesmo cliente**, feita **até 30 dias antes** da compra
+4. Se encontra, cria um registro em `ligacoes_vendas` pareando os dois
+
+**Regra de atribuição:** última ligação antes da compra, janela de 30 dias. Não importa o status que o vendedor marcou — se o cliente comprou, a ligação gerou a venda.
+
+**Limitação conhecida:** importações diárias (set/2026 pra frente) têm data exata da venda. Importações mensais (mar/2026 a ago/2026) caem no dia 1 do mês, então ligações feitas no meio do mês podem não ser atribuídas. Reimportar os 324 diários antigos recalcula tudo automaticamente.
+
+### Tabelas novas
+- `ligacoes` — cada registro de ligação feita (empresa, contato, status, valor, próximo contato, obs)
+- `ligacoes_vendas` — pareamento entre ligação e venda, preenchido automaticamente
+- `migracao_colab_map` — tabela temporária de mapeamento entre IDs do TeleVendas e vendedores do Alta Fix (só usada durante a migração)
+
+### Migração do TeleVendas
+- 2001 ligações migradas do Google Sheets em 03/10/2026
+- Diego, Kalifer e Joyce nunca usaram o TeleVendas (0 registros)
+- André Luis teve ~120 registros, redirecionados para Romulo (não está mais ativo)
+- Script de migração: export CSV → staging table → transform → insert final
+
 
 ### Clientes — colunas e ordenação
 A tabela mostra **Vale/mês** (valor médio mensal do cliente) e ordena por ela, não pelo acumulado histórico. Motivo: cliente que gastou R$ 1M em 2022 mas sumiu desde então não vale mais R$ 1M — vale zero. Ordenar pelo valor mensal coloca no topo quem está ativo e vale mais **agora**.
