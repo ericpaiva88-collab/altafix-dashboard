@@ -30,6 +30,20 @@ export function calcDiasUteisNoMes(a, m) {
   return c;
 }
 
+export function calcDiasUteisDecorridos(a, m) {
+  const hj = new Date();
+  const inicioMes = new Date(a, m, 1);
+  if (hj < inicioMes) return 0;
+  if (hj.getFullYear() > a || (hj.getFullYear() === a && hj.getMonth() > m)) {
+    return calcDiasUteisNoMes(a, m);
+  }
+  let count = 0;
+  for (let d = 1; d <= hj.getDate(); d++) {
+    if (ehDiaUtil(a, m, d)) count++;
+  }
+  return count;
+}
+
 export function contarFeriadosNoMes(a, m) {
   const ultimo = new Date(a, m + 1, 0).getDate();
   let c = 0;
@@ -209,9 +223,10 @@ export function calcVendedor(v, a, m) {
 
   const du = calcDiasUteisNoMes(a, m);
   const dt = calcDiasComLancamento(a, m, v.id, null);
-  const df = Math.max(0, du - dt);
+  const diasDecorridos = calcDiasUteisDecorridos(a, m);
+  const df = Math.max(0, du - diasDecorridos);
 
-  const re = meta > 0 ? meta * (dt / du) : 0;
+  const re = meta > 0 ? meta * (diasDecorridos / du) : 0;
   const md = (df > 0 && meta > 0) ? (meta - fat) / df : 0;
   const pr = dt > 0 ? (fat / dt) * du : 0;
   const st = v.supervisor
@@ -277,9 +292,10 @@ export function calcFilial(a, m, escopoAtual) {
 
   const du = calcDiasUteisNoMes(a, m);
   const dt = calcDiasComLancamento(a, m, null, escopoAtual);
-  const df = Math.max(0, du - dt);
+  const diasDecorridos = calcDiasUteisDecorridos(a, m);
+  const df = Math.max(0, du - diasDecorridos);
 
-  const re = mt > 0 ? mt * (dt / du) : 0;
+  const re = mt > 0 ? mt * (diasDecorridos / du) : 0;
   const pr = dt > 0 ? (ft / dt) * du : 0;
 
   const fl = Math.max(0, mt - ftComMeta);
