@@ -84,7 +84,10 @@ export function imprimirRanking() {
 // ============================================================
 
 export function gerarAcoes(a, m) {
+  const DIAS_ACAO = 180;
+  const DIAS_ARQUIVADO = 365;
   const acoes = [];
+  let arquivadosCount = 0;
   const hj = isoDate(new Date());
 
   let clientes = clientesNoEscopo(ui.escopoAtual);
@@ -94,26 +97,34 @@ export function gerarAcoes(a, m) {
 
   clientes.forEach(c => {
     if (!c.ultimaCompra || !c.numCompras || c.numCompras < 2) return;
-
     const vrm = c.valorMedioMensal || 0;
     if (vrm < 100) return;
 
     const dias = diffDias(c.ultimaCompra, hj);
+    if (dias < 30) return;
+
+    if (dias >= DIAS_ARQUIVADO) {
+      arquivadosCount++;
+      return;
+    }
+
     const intervalo = Math.max(7, c.intervaloMedio || 30);
     const fator = dias / intervalo;
-
-    if (fator < 1.5) return;
-
     const v = state.vendedores.find(x => x.id === c.vendedor);
 
-    // Categoria baseada em quanto passou do ciclo
+    // Valor ajustado por decaimento temporal
+    let fatorValor = 1.0;
+    if (dias >= 180) fatorValor = 0.3;
+    else if (dias >= 90) fatorValor = 0.6;
+    const valorAjustado = vrm * fatorValor;
+
     let categoria, statusEmoji, statusLabel, peso;
 
-    if (fator >= 6) {
-      categoria = 'perdido';
-      statusEmoji = '💀';
-      statusLabel = 'Provavelmente perdido';
-      peso = 'medio';
+    if (dias >= DIAS_ACAO) {
+      categoria = 'lento';
+      statusEmoji = '⏳';
+      statusLabel = 'Recuperação lenta';
+      peso = 'baixo';
     } else if (fator >= 4) {
       categoria = 'sumido';
       statusEmoji = '💤';
@@ -131,7 +142,6 @@ export function gerarAcoes(a, m) {
       peso = 'medio';
     }
 
-    // Ciclo em texto
     let cicloTxt;
     if (intervalo <= 15) cicloTxt = 'semanal';
     else if (intervalo <= 45) cicloTxt = 'mensal';
@@ -140,15 +150,13 @@ export function gerarAcoes(a, m) {
     else if (intervalo <= 200) cicloTxt = 'semestral';
     else cicloTxt = 'anual';
 
-    // Quando fora do ciclo há muito, o cliente "costumava comprar", não "compra"
     const prefixoCiclo = fator >= 3 ? 'costumava ' + cicloTxt : 'ciclo ' + cicloTxt;
 
     const descricao = dias + 'd sem comprar · ' + prefixoCiclo +
-      ' (a cada ' + intervalo + 'd) · ' + fmtBRL(vrm) + '/mês' +
+      ' (a cada ' + intervalo + 'd) · ' + fmtBRL(valorAjustado) + '/mês' +
       (v ? ' · resp. ' + v.nome : '');
 
-    // Score: prioriza valor × urgência (com teto)
-    const score = vrm * Math.min(fator - 1, 4);
+    const score = valorAjustado * Math.min(fator - 1, 4);
 
     acoes.push({
       id: 'cli_' + c.id,
@@ -159,13 +167,14 @@ export function gerarAcoes(a, m) {
       statusLabel,
       titulo: c.nome + (c.cidade ? ' (' + c.cidade + ')' : ''),
       descricao,
-      valorRisco: vrm,
+      valorRisco: valorAjustado,
       score,
       vendedor: v,
       _dias: dias,
       _intervalo: intervalo,
       _fator: fator,
-      _ciclo: cicloTxt
+      _ciclo: cicloTxt,
+      _valorOriginal: vrm
     });
   });
 
@@ -201,18 +210,22 @@ export function gerarAcoes(a, m) {
   const tratadas = state.acoesTratadas || {};
   const limite = Date.now() - (7 * 24 * 60 * 60 * 1000);
 
-  return acoes.filter(ac => {
+  const filtradas = acoes.filter(ac => {
     const t = tratadas[ac.id];
     if (!t) return true;
     const ts = typeof t === 'number' ? t : (t.ts || 0);
     return ts < limite;
-  }).slice(0, 30);
+  });
+
+  window._arquivadosCount = arquivadosCount;
+
+  return filtradas.slice(0, 30);
 }
 
 export function gerarAcoesAgrupadas(a, m) {
   const todas = gerarAcoes(a, m);
   const vendedores = todas.filter(ac => ac.tipo === 'vendedor');
-  const outras = todas.filter(ac => ac.tipo !== 'vendedor');
+  const outras = todas.filter(ac => ac.tipo !== 'vendedor' && ac.categoria !== 'lento');
 
   if (vendedores.length > 0) {
     const somaRisco = vendedores.reduce((s, ac) => s + ac.valorRisco, 0);
@@ -870,33 +883,18 @@ export function gerarRelatorioMatinal() {
 
   if (vModo) {
     const c = calcVendedor(vModo, a, m);
-    faturado = c.faturado;
-    meta = c.meta;
-    pctMeta = c.pctMeta || 0;
-    falta = Math.max(0, meta - faturado);
-    diasFaltam = c.diasFaltam;
-    diasTrab = c.diasTrab;
-    porDia = c.metaDia;
-    projecao = c.projecao;
-    pedidos = c.pedidos;
-    ticket = c.ticket;
-    metaTicket = c.metaTicket;
+    faturado = c.faturado; meta = c.meta; pctMeta = c.pctMeta || 0;
+    falta = Math.max(0, meta - faturado); diasFaltam = c.diasFaltam;
+    diasTrab = c.diasTrab; porDia = c.metaDia; projecao = c.projecao;
+    pedidos = c.pedidos; ticket = c.ticket; metaTicket = c.metaTicket;
     ritmoEsperado = c.ritmoEsperado;
     titulo = '☀️ *Alta Fix* — ' + vModo.nome + ' · ' + escopoNome(ui.escopoAtual);
   } else {
     const f = calcFilial(a, m, ui.escopoAtual);
-    faturado = f.faturadoTotal;
-    meta = f.metaTotal;
-    pctMeta = f.pctMeta;
-    falta = f.falta;
-    diasFaltam = f.diasFaltam;
-    diasTrab = f.diasTrab;
-    porDia = f.porDia;
-    projecao = f.projecao;
-    pedidos = f.pedidosTotal;
-    ticket = f.ticketMedio;
-    metaTicket = 0;
-    ritmoEsperado = f.ritmoEsperado;
+    faturado = f.faturadoTotal; meta = f.metaTotal; pctMeta = f.pctMeta;
+    falta = f.falta; diasFaltam = f.diasFaltam; diasTrab = f.diasTrab;
+    porDia = f.porDia; projecao = f.projecao; pedidos = f.pedidosTotal;
+    ticket = f.ticketMedio; metaTicket = 0; ritmoEsperado = f.ritmoEsperado;
     titulo = '☀️ *Alta Fix* — ' + escopoNome(ui.escopoAtual);
   }
 
@@ -906,7 +904,7 @@ export function gerarRelatorioMatinal() {
     MESES_NOME[m] + '/' + a + '_');
   linhas.push('');
 
-  // ===== SITUAÇÃO =====
+  // SITUAÇÃO
   linhas.push('📊 *SITUAÇÃO*');
   if (meta > 0) {
     linhas.push('Faturado: *' + fmtBRL(faturado) + '* de *' + fmtBRL(meta) +
@@ -918,28 +916,19 @@ export function gerarRelatorioMatinal() {
     linhas.push('Faltam *' + fmtBRL(falta) + '* em *' + diasFaltam + ' dias*');
   } else if (falta <= 0 && meta > 0) {
     linhas.push('🎉 *META BATIDA!*');
-  } else if (diasFaltam <= 0) {
-    linhas.push('⚠️ Sem dias úteis restantes');
   }
-
-  // Gap vs esperado
   if (ritmoEsperado > 0 && diasTrab > 0) {
     const diff = faturado - ritmoEsperado;
-    if (diff >= 0) {
-      linhas.push('📌 Está *' + fmtBRL(diff) + '* acima do esperado');
-    } else {
-      linhas.push('📌 Está *' + fmtBRL(Math.abs(diff)) + '* abaixo do esperado');
-    }
+    linhas.push('📌 Está *' + fmtBRL(Math.abs(diff)) + '* ' +
+      (diff >= 0 ? 'acima' : 'abaixo') + ' do esperado');
   }
 
-  // ===== RITMO =====
+  // RITMO
   const ritmoAtual = diasTrab > 0 ? faturado / diasTrab : 0;
   linhas.push('');
   const avisoAmostra = (diasTrab > 0 && diasTrab <= 4)
-    ? ' (amostra: ' + diasTrab + ' dia' + (diasTrab > 1 ? 's' : '') + ')'
-    : '';
+    ? ' (amostra: ' + diasTrab + ' dia' + (diasTrab > 1 ? 's' : '') + ')' : '';
   linhas.push('📈 Ritmo atual: ' + fmtBRL(ritmoAtual) + '/dia' + avisoAmostra);
-
   if (falta > 0 && diasFaltam > 0) {
     linhas.push('🎯 Ritmo necessário: ' + fmtBRL(porDia) + '/dia');
     if (ritmoAtual > 0 && porDia > ritmoAtual) {
@@ -947,32 +936,27 @@ export function gerarRelatorioMatinal() {
       linhas.push('⚠️ Precisa subir *' + fmtPct(precisa, 0) + '* no ritmo');
     }
   }
-
   if (projecao > 0) {
     linhas.push('🔮 Projeção: ' + fmtBRL(projecao) +
       (meta > 0 && projecao >= meta ? ' ✅' : ''));
   }
 
-  // ===== TICKET =====
+  // TICKET
   if (ticket > 0) {
     if (metaTicket > 0) {
       const ratio = ticket / metaTicket;
-      let avisoTicket = '';
-      if (ratio < 0.5) avisoTicket = ' — muito abaixo';
-      else if (ratio < 0.8) avisoTicket = ' — abaixo';
+      let aviso = '';
+      if (ratio < 0.5) aviso = ' — muito abaixo';
+      else if (ratio < 0.8) aviso = ' — abaixo';
       linhas.push('🎫 Ticket: ' + fmtBRL(ticket) +
-        ' (meta ' + fmtBRL(metaTicket) + ')' + avisoTicket);
+        ' (meta ' + fmtBRL(metaTicket) + ')' + aviso);
     } else {
       linhas.push('🎫 Ticket: ' + fmtBRL(ticket));
     }
   }
+  if (pedidos > 0) linhas.push('📦 Pedidos: ' + pedidos);
 
-  // ===== PEDIDOS =====
-  if (pedidos > 0) {
-    linhas.push('📦 Pedidos: ' + pedidos);
-  }
-
-  // ===== COMPARATIVO =====
+  // COMPARATIVO
   const mesAnt = new Date(a, m - 1, 1);
   const prefixAnt = mesAnt.getFullYear() + '-' + String(mesAnt.getMonth() + 1).padStart(2, '0');
   const hoje = new Date();
@@ -987,7 +971,7 @@ export function gerarRelatorioMatinal() {
     fatMesAnt += (l.valor || 0);
   });
 
-    if (fatMesAnt > 0 && diasTrab > 0) {
+  if (fatMesAnt > 0 && diasTrab > 0) {
     const dv = ((faturado - fatMesAnt) / fatMesAnt) * 100;
     const seta = dv >= 2 ? '📈 +' : dv <= -2 ? '📉 ' : '▬ ';
     if (Math.abs(dv) >= 500) {
@@ -999,20 +983,21 @@ export function gerarRelatorioMatinal() {
     }
   }
 
-  // ===== AÇÕES =====
+  // AÇÕES
   const acoes = gerarAcoes(a, m);
+  const reativar = acoes.filter(x => x.categoria === 'reativar');
+  const sumidos = acoes.filter(x => x.categoria === 'sumido');
+  const recompra = acoes.filter(x => x.categoria === 'recompra');
+  const lento = acoes.filter(x => x.categoria === 'lento');
+  const ritmo = acoes.filter(x => x.categoria === 'ritmo');
+  const arquivados = window._arquivadosCount || 0;
+
   linhas.push('');
   linhas.push('🎯 *PRIORIDADES DE HOJE*');
 
-  if (acoes.length === 0) {
+  if (reativar.length === 0 && sumidos.length === 0 && recompra.length === 0 && ritmo.length === 0) {
     linhas.push('✓ Nada urgente. Bom trabalho.');
   } else {
-    const reativar = acoes.filter(x => x.categoria === 'reativar');
-    const sumidos = acoes.filter(x => x.categoria === 'sumido');
-    const perdidos = acoes.filter(x => x.categoria === 'perdido');
-    const recompra = acoes.filter(x => x.categoria === 'recompra');
-    const ritmo = acoes.filter(x => x.categoria === 'ritmo');
-
     if (reativar.length > 0) {
       linhas.push('');
       linhas.push('*🚨 Reativar* (' + reativar.length + ')');
@@ -1024,7 +1009,7 @@ export function gerarRelatorioMatinal() {
 
     if (sumidos.length > 0) {
       linhas.push('');
-      linhas.push('*💤 Sumidos há muito* (' + sumidos.length + ') — vale tentar?');
+      linhas.push('*💤 Sumidos* (' + sumidos.length + ')');
       sumidos.slice(0, 3).forEach(x => {
         linhas.push('• *' + x.titulo + '*');
         linhas.push('  ' + x.descricao);
@@ -1049,11 +1034,19 @@ export function gerarRelatorioMatinal() {
       });
     }
 
-    if (perdidos.length > 0) {
+    if (lento.length > 0) {
       linhas.push('');
-      linhas.push('💀 *' + perdidos.length +
-        ' cliente(s) provavelmente perdido(s)*');
+      linhas.push('*⏳ Recuperação lenta* (' + lento.length +
+        ' — 180d+) — vale tentar?');
+      lento.slice(0, 3).forEach(x => {
+        linhas.push('• ' + x.titulo + ' — ' + x._dias + 'd');
+      });
     }
+  }
+
+  if (arquivados > 0) {
+    linhas.push('');
+    linhas.push('💀 *' + arquivados + ' arquivado(s)* (365d+ sem comprar)');
   }
 
   linhas.push('');
