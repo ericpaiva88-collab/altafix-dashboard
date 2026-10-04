@@ -17,7 +17,7 @@ import {
   renderPainel, renderHistorico, aplicarMinimizaveis,
   toggleTodosMinimizaveis, imprimirRanking, resetarSimulador,
   copiarCenario, gerarRelatorioMatinal, gerarRelatorioFechamento,
-  renderSemana
+  renderSemana, marcarAcaoTratada
 } from './views/painel.js';
 
 import {
@@ -156,7 +156,8 @@ function escapeAttr(s) {
 }
 
 // Registra pro config.js usar via window
-window._popularEscopoSelect = popularEscopoSelect;
+window._abrirModalLigacao = abrirModalLigacao;
+window._marcarAcaoTratada = marcarAcaoTratada;
 window._popularModoVendedor = popularModoVendedor;
 
 // ============================================================

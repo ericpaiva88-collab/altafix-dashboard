@@ -306,45 +306,53 @@ function popularSelectVendedor(base) {
 // MODAL — registrar/editar ligação
 // ============================================================
 
-export function abrirModalLigacao(ligacaoId) {
+export function abrirModalLigacao(ligacaoId, prefill) {
   const existente = ligacaoId ? state.ligacoes.find(l => l.id === ligacaoId) : null;
+  prefill = prefill || {};
 
   let html = '<div class="card" style="margin:0;border:none;">';
   html += '<h2>' + (existente ? '✏️ Editar ligação' : '📞 Nova ligação') + '</h2>';
+
+  if (prefill.acaoId) {
+    html += '<div class="aviso info" style="margin-bottom:12px;font-size:12px;">' +
+      '✓ Ao salvar, a ação será marcada como tratada automaticamente.</div>';
+  }
 
   html += '<div class="form-row">';
   html += '<div><label>Vendedor</label><select id="ml-vend">';
   state.vendedores.filter(v => v.ativo && v.papel !== 'administrativo' && v.papel !== 'diretor')
     .forEach(v => {
-      html += '<option value="' + escapeHtml(v.id) + '"' +
-        (existente && existente.vendedor === v.id ? ' selected' : '') +
-        (ui.modoVendedor === v.id ? ' selected' : '') + '>' + escapeHtml(v.nome) + '</option>';
+      const sel = (existente && existente.vendedor === v.id) ||
+                  (prefill.vendedor && prefill.vendedor === v.id) ||
+                  (!existente && !prefill.vendedor && ui.modoVendedor === v.id);
+      html += '<option value="' + escapeHtml(v.id) + '"' + (sel ? ' selected' : '') + '>' +
+        escapeHtml(v.nome) + '</option>';
     });
   html += '</select></div>';
 
-  html += '<div><label>Data</label><input type="date" id="ml-data" value="' +
-    (existente ? existente.data : isoDate(new Date())) + '"></div>';
+  const dataDefault = existente ? existente.data : isoDate(new Date());
+  html += '<div><label>Data</label><input type="date" id="ml-data" value="' + dataDefault + '"></div>';
   html += '</div>';
 
+  const codigoVal = existente ? (existente.codigo || '') : (prefill.codigo || '');
+  const empresaVal = existente ? (existente.empresa || '') : (prefill.empresa || '');
   html += '<div class="form-row">';
-  html += '<div><label>Código</label><input type="text" id="ml-codigo" value="' +
-    (existente ? escapeHtml(existente.codigo || '') : '') + '"></div>';
-  html += '<div><label>Empresa *</label><input type="text" id="ml-empresa" value="' +
-    (existente ? escapeHtml(existente.empresa || '') : '') + '"></div>';
+  html += '<div><label>Código</label><input type="text" id="ml-codigo" value="' + escapeHtml(codigoVal) + '"></div>';
+  html += '<div><label>Empresa *</label><input type="text" id="ml-empresa" value="' + escapeHtml(empresaVal) + '"></div>';
   html += '</div>';
 
+  const contatoVal = existente ? (existente.contato || '') : (prefill.contato || '');
+  const telefoneVal = existente ? (existente.telefone || '') : (prefill.telefone || '');
   html += '<div class="form-row">';
-  html += '<div><label>Contato</label><input type="text" id="ml-contato" value="' +
-    (existente ? escapeHtml(existente.contato || '') : '') + '"></div>';
-  html += '<div><label>Telefone</label><input type="tel" id="ml-telefone" value="' +
-    (existente ? escapeHtml(existente.telefone || '') : '') + '"></div>';
+  html += '<div><label>Contato</label><input type="text" id="ml-contato" value="' + escapeHtml(contatoVal) + '"></div>';
+  html += '<div><label>Telefone</label><input type="tel" id="ml-telefone" value="' + escapeHtml(telefoneVal) + '"></div>';
   html += '</div>';
 
+  const cidadeVal = existente ? (existente.cidade || '') : (prefill.cidade || '');
+  const estadoVal = existente ? (existente.estado || 'PA') : (prefill.estado || 'PA');
   html += '<div class="form-row">';
-  html += '<div><label>Cidade</label><input type="text" id="ml-cidade" value="' +
-    (existente ? escapeHtml(existente.cidade || '') : '') + '"></div>';
-  html += '<div><label>UF</label><input type="text" id="ml-estado" maxlength="2" value="' +
-    (existente ? escapeHtml(existente.estado || '') : 'PA') + '"></div>';
+  html += '<div><label>Cidade</label><input type="text" id="ml-cidade" value="' + escapeHtml(cidadeVal) + '"></div>';
+  html += '<div><label>UF</label><input type="text" id="ml-estado" maxlength="2" value="' + escapeHtml(estadoVal) + '"></div>';
   html += '</div>';
 
   html += '<div class="form-row">';
@@ -382,13 +390,12 @@ export function abrirModalLigacao(ligacaoId) {
   }
   modal.querySelector('.modal-content').innerHTML = html;
   modal.classList.add('show');
+  modal._acaoId = prefill.acaoId || null;
 
-  modal.onclick = e => {
-    if (e.target.id === 'lig-modal') modal.classList.remove('show');
-  };
-
+  modal.onclick = e => { if (e.target.id === 'lig-modal') modal.classList.remove('show'); };
   document.getElementById('ml-cancelar').onclick = () => modal.classList.remove('show');
   document.getElementById('ml-salvar').onclick = () => salvarLigacao(existente);
+  setTimeout(() => document.getElementById('ml-obs')?.focus(), 100);
 }
 
 // ============================================================
@@ -445,8 +452,15 @@ async function salvarLigacao(existente) {
 
     if (resultado.error) throw new Error(resultado.error.message);
 
-    document.getElementById('lig-modal').classList.remove('show');
+    const modal = document.getElementById('lig-modal');
+    const acaoId = modal ? modal._acaoId : null;
+    modal.classList.remove('show');
+
     toast('✓ Ligação ' + (existente ? 'atualizada' : 'registrada') + '!', 2500);
+
+    if (acaoId && window._marcarAcaoTratada) {
+      window._marcarAcaoTratada(acaoId);
+    }
 
     const dados = await sbCarregarTudo();
     aplicarDadosDoBanco(dados);

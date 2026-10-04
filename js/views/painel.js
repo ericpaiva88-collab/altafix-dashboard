@@ -163,6 +163,7 @@ export function gerarAcoes(a, m) {
       tipo: 'cliente',
       categoria,
       peso,
+      _cliente: c,
       statusEmoji,
       statusLabel,
       titulo: c.nome + (c.cidade ? ' (' + c.cidade + ')' : ''),
@@ -332,14 +333,16 @@ export function renderAcoesPainel() {
       h += '</div>';
     } else {
       const podeWhats = !!ac.vendedor;
+      const podeTrabalhar = ac.tipo === 'cliente' && ac._cliente;
       h += '<div class="acao-linha ' + ac.peso + '">' +
         '<span class="ic">' + icone + '</span>' +
         '<div class="txt"><div class="ttl">' + escapeHtml(ac.titulo) + '</div>' +
         '<div class="dsc">' + escapeHtml(ac.descricao) + '</div></div>' +
         '<span class="val">' + fmtBRL(ac.valorRisco) + '</span>' +
         '<div class="btns">' +
-        (podeWhats ? '<button class="btn btn-sm btn-primary" data-acao-whats="' + i + '">📱</button>' : '') +
-        '<button class="btn btn-sm" data-acao-tratar="' + escapeHtml(ac.id) + '">✓</button>' +
+        (podeTrabalhar ? '<button class="btn btn-sm btn-primary" data-acao-trabalhar="' + i + '" title="Registrar ligação">📞</button>' : '') +
+        (podeWhats ? '<button class="btn btn-sm" data-acao-whats="' + i + '" title="WhatsApp">📱</button>' : '') +
+        '<button class="btn btn-sm" data-acao-tratar="' + escapeHtml(ac.id) + '" title="Marcar tratada sem ligar">✓</button>' +
         '</div></div>';
     }
   });
@@ -352,6 +355,15 @@ export function renderAcoesPainel() {
   });
   el.querySelectorAll('[data-acao-tratar]').forEach(b => {
     b.onclick = () => marcarAcaoTratada(b.dataset.acaoTratar);
+  });
+  el.querySelectorAll('[data-acao-trabalhar]').forEach(b => {
+    b.onclick = (e) => {
+      e.stopPropagation();
+      const idx = parseInt(b.dataset.acaoTrabalhar, 10);
+      const ac = window._acoesCache[idx];
+      if (!ac || !ac._cliente) return;
+      trabalharAcao(ac);
+    };
   });
   el.querySelectorAll('[data-whats-grupo]').forEach(b => {
     b.onclick = e => {
@@ -1186,6 +1198,8 @@ if (c.diasTrab === 0) {
   if (duasCol) duasCol.style.gridTemplateColumns = '1fr';
 
   renderAcoesPainel();
+  renderProximosContatos();
+  renderLigacoesVendedor(v, a, m);
   renderVendedorExtras(v, a, m);
 
   // Esconde cards admin
@@ -1763,7 +1777,141 @@ export function renderPainel() {
 
   renderSimulador();
   renderAcoesPainel();
+  renderProximosContatos();
   renderGraficos(a, m, f);
   renderHistorico();
   renderSemana();
+}
+// ============================================================
+// TRABALHAR AÇÃO → abre modal de ligação pré-preenchido
+// ============================================================
+
+function trabalharAcao(ac) {
+  if (!window._abrirModalLigacao) {
+    toast('Recarregue a página — módulo de ligações não carregado.', 3000);
+    return;
+  }
+  const c = ac._cliente;
+  const prefill = {
+    empresa: c.nome,
+    codigo: c.codigo || '',
+    cidade: c.cidade || '',
+    estado: c.uf || 'PA',
+    vendedor: c.vendedor || ui.modoVendedor || '',
+    acaoId: ac.id
+  };
+  window._abrirModalLigacao(null, prefill);
+}
+
+// ============================================================
+// PRÓXIMOS CONTATOS — agenda de follow-up no painel
+// ============================================================
+
+export function renderProximosContatos() {
+  const el = document.getElementById('proximos-container');
+  const sub = document.getElementById('proximos-sub');
+  if (!el) return;
+
+  const hj = isoDate(new Date());
+  const limite = new Date();
+  limite.setDate(limite.getDate() + 7);
+  const limiteIso = isoDate(limite);
+
+  let ligs = (state.ligacoes || []).filter(l => filialNoEscopo(l.filialId, ui.escopoAtual));
+  if (ui.modoVendedor) {
+    ligs = ligs.filter(l => l.vendedor === ui.modoVendedor);
+  }
+
+  const ativas = ligs.filter(l => {
+    if (!l.proximo) return false;
+    if (l.status === 'venda' || l.status === 'sem_interesse') return false;
+    return l.proximo <= limiteIso;
+  });
+
+  const atrasados = ativas.filter(l => l.proximo < hj).sort((a, b) => a.proximo.localeCompare(b.proximo));
+  const hoje = ativas.filter(l => l.proximo === hj);
+  const futuros = ativas.filter(l => l.proximo > hj && l.proximo <= limiteIso).sort((a, b) => a.proximo.localeCompare(b.proximo));
+  const lista = atrasados.concat(hoje, futuros);
+
+  if (sub) {
+    sub.textContent = atrasados.length > 0
+      ? atrasados.length + ' atrasado(s) · ' + hoje.length + ' hoje · ' + futuros.length + ' na semana'
+      : (hoje.length > 0 ? hoje.length + ' hoje · ' + futuros.length + ' na semana'
+                         : futuros.length + ' nos próximos 7 dias');
+  }
+
+  if (lista.length === 0) {
+    el.innerHTML = '<div class="acao-linha vazio">✓ Nada agendado. Bom trabalho.</div>';
+    return;
+  }
+
+  el.innerHTML = lista.slice(0, 15).map(l => {
+    const v = state.vendedores.find(x => x.id === l.vendedor);
+    const vencido = l.proximo < hj;
+    const praHoje = l.proximo === hj;
+    const cor = vencido ? '#dc2626' : praHoje ? '#f59e0b' : '#16a34a';
+    const quando = vencido ? 'Atrasado (' + diffDias(l.proximo, hj) + 'd)'
+                  : praHoje ? 'Hoje' : fmtDataBR(l.proximo);
+
+    return '<div class="acao-linha">' +
+      '<span class="ic" style="color:' + cor + ';">📞</span>' +
+      '<div class="txt">' +
+      '<div class="ttl">' + escapeHtml(l.empresa || '—') + '</div>' +
+      '<div class="dsc">' + escapeHtml(l.cidade || '—') + (v ? ' · ' + escapeHtml(v.nome) : '') + '</div>' +
+      '</div>' +
+      '<span class="val" style="color:' + cor + ';font-size:12px;">' + quando + '</span>' +
+      '<div class="btns">' +
+      '<button class="btn btn-sm btn-primary" data-trabalhar-lig="' + escapeHtml(l.id) + '">📞</button>' +
+      '</div></div>';
+  }).join('') +
+    (lista.length > 15
+      ? '<div style="text-align:center;padding:8px;font-size:12px;color:#64748b;">+ ' +
+        (lista.length - 15) + ' mais · <a href="#" id="proximos-ver-todos" style="color:#dc2626;">ver todos</a></div>'
+      : '');
+
+  el.querySelectorAll('[data-trabalhar-lig]').forEach(b => {
+    b.onclick = () => { if (window._abrirModalLigacao) window._abrirModalLigacao(b.dataset.trabalharLig); };
+  });
+
+  const verTodos = document.getElementById('proximos-ver-todos');
+  if (verTodos) {
+    verTodos.onclick = e => {
+      e.preventDefault();
+      ui.filtroLigUrgencia = 'semana';
+      document.querySelector('#main-tabs [data-tab="ligacoes"]')?.click();
+    };
+  }
+}
+
+// ============================================================
+// KPI DE LIGAÇÕES NO PAINEL DO VENDEDOR
+// ============================================================
+
+function renderLigacoesVendedor(v, a, m) {
+  const el = document.getElementById('painel-ligacoes-vend');
+  if (!el) return;
+
+  el.style.display = '';
+
+  const prefix = a + '-' + String(m + 1).padStart(2, '0');
+
+  const ligs = (state.ligacoes || []).filter(l =>
+    l.vendedor === v.id && l.data && l.data.startsWith(prefix)
+  );
+
+  const vendasLigMap = {};
+  (state.ligacoesVendas || []).forEach(lv => { vendasLigMap[lv.ligacaoId] = lv; });
+
+  const comVenda = ligs.filter(l => vendasLigMap[l.id]);
+  const valorGerado = comVenda.reduce((s, l) => s + (vendasLigMap[l.id].valorVenda || 0), 0);
+  const taxa = ligs.length > 0 ? (comVenda.length / ligs.length) * 100 : 0;
+
+  el.innerHTML =
+    '<div class="kpi"><div class="label">📞 Ligações no mês</div>' +
+    '<div class="value">' + ligs.length + '</div></div>' +
+    '<div class="kpi positivo"><div class="label">✓ Vendas por ligação</div>' +
+    '<div class="value">' + comVenda.length + '</div>' +
+    '<div class="hint">' + taxa.toFixed(1) + '% conversão</div></div>' +
+    '<div class="kpi positivo"><div class="label">💰 Valor gerado</div>' +
+    '<div class="value">' + fmtBRL(valorGerado) + '</div></div>';
 }
