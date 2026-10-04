@@ -15,6 +15,7 @@ import {
   calcRFMScores, calcABCClientes, filialNoEscopo
 } from '../calc.js';
 
+
 // ============================================================
 // HELPERS DE IMPRESSÃO (usado por outras views também)
 // ============================================================
@@ -1822,13 +1823,20 @@ export function renderProximosContatos() {
     ligs = ligs.filter(l => l.vendedor === ui.modoVendedor);
   }
 
+  const limiteAtraso = new Date();
+  limiteAtraso.setDate(limiteAtraso.getDate() - 30);
+  const limiteAtrasoIso = isoDate(limiteAtraso);
+
   const ativas = ligs.filter(l => {
     if (!l.proximo) return false;
     if (l.status === 'venda' || l.status === 'sem_interesse') return false;
+    if (l.status === 'prospeccao') return false;
     return l.proximo <= limiteIso;
   });
 
-  const atrasados = ativas.filter(l => l.proximo < hj).sort((a, b) => a.proximo.localeCompare(b.proximo));
+  const atrasados = ativas
+    .filter(l => l.proximo < hj && l.proximo >= limiteAtrasoIso)
+    .sort((a, b) => a.proximo.localeCompare(b.proximo));
   const hoje = ativas.filter(l => l.proximo === hj);
   const futuros = ativas.filter(l => l.proximo > hj && l.proximo <= limiteIso).sort((a, b) => a.proximo.localeCompare(b.proximo));
   const lista = atrasados.concat(hoje, futuros);

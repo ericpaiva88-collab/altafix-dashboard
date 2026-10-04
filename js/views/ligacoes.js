@@ -65,8 +65,11 @@ function aplicarUrgencia(l, urgencia, hj) {
   if (!l.proximo) return false;
   if (!ehAtiva(l)) return false;
 
+  // Atrasado só considera o que venceu nos últimos 30 dias.
+  // Mais velho que isso = fora do radar (cemitério).
   if (urgencia === 'atrasados') {
-    const limite = new Date(); limite.setDate(limite.getDate() - 90);
+    if (l.status === 'prospeccao') return false;
+    const limite = new Date(); limite.setDate(limite.getDate() - 30);
     return l.proximo < hj && l.proximo >= isoDate(limite);
   }
   if (urgencia === 'hoje') {
