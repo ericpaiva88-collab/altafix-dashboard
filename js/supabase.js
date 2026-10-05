@@ -550,7 +550,7 @@ export async function sbUpsertProdutos(lista, filialId) {
 
     return {
       filial_id: filialId, codigo: p.codigo,
-      descricao: pmInfo.descricao || p.descricao,   // 361 preferencial, 324 fallback
+      descricao: p.descricao,   // 324 sempre — é o produto que foi vendido
       fabricante: pmInfo.fabricante || (ant && ant.fabricante) || p.fabricante || null,
       curva: pmInfo.curva || (ant && ant.curva) || p.curva || null,
       qtd_vendida: p.qtdVendida || 0,
