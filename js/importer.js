@@ -895,15 +895,7 @@ export function processar361(wb) {
       break;
     }
   }
-  // DEBUG TEMPORÁRIO — remover depois
-  console.log('=== DEBUG 361 ===');
-  console.log('header detectado na linha:', hi);
-  console.log('mapa de colunas:', cm);
-  if (hi >= 0) {
-    console.log('header cru:', rows[hi]);
-    console.log('1ª linha de dados:', rows[hi + 1]);
-    console.log('2ª linha de dados:', rows[hi + 2]);
-  }
+
 
   if (hi < 0) return { itens: [], periodoInicio: '', periodoFim: '' };
 

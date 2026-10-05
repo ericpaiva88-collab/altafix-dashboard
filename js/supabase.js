@@ -500,15 +500,17 @@ export async function sbUpsertProdutos(lista, filialId) {
     }
   });
 
-  // Busca fabricante/curva de produtos_mes COM PAGINAÇÃO (corrige o bug dos 1000)
+  // Busca descrição/fabricante/curva de produtos_mes COM PAGINAÇÃO
+  // A descrição do 361 (cadastro) tem prioridade sobre a do 324 (pedido do vendedor)
   const pm = await sbFetchAll('produtos_mes', {
-    select: 'codigo, fabricante, curva',
+    select: 'codigo, descricao, fabricante, curva',
     eq: { filial_id: filialId },
     order: { column: 'mes', options: { ascending: false } }
   });
   const mapaPM = {};
   (pm.data || []).forEach(p => {
-    if (!mapaPM[p.codigo]) mapaPM[p.codigo] = { fabricante: null, curva: null };
+    if (!mapaPM[p.codigo]) mapaPM[p.codigo] = { descricao: null, fabricante: null, curva: null };
+    if (p.descricao && !mapaPM[p.codigo].descricao) mapaPM[p.codigo].descricao = p.descricao;
     if (p.fabricante && !mapaPM[p.codigo].fabricante) mapaPM[p.codigo].fabricante = p.fabricante;
     if (p.curva && !mapaPM[p.codigo].curva) mapaPM[p.codigo].curva = p.curva;
   });
@@ -527,7 +529,8 @@ export async function sbUpsertProdutos(lista, filialId) {
     const pmInfo = mapaPM[k] || {};
 
     return {
-      filial_id: filialId, codigo: p.codigo, descricao: p.descricao,
+      filial_id: filialId, codigo: p.codigo,
+      descricao: pmInfo.descricao || p.descricao,   // 361 preferencial, 324 fallback
       fabricante: pmInfo.fabricante || (ant && ant.fabricante) || p.fabricante || null,
       curva: pmInfo.curva || (ant && ant.curva) || p.curva || null,
       qtd_vendida: p.qtdVendida || 0,
