@@ -77,7 +77,7 @@ export async function sbSessaoAtual() {
 
 export async function sbFetchAll(table, opts) {
   opts = opts || {};
-  const pageSize = 1000;
+  const pageSize = 10000;
   let all = [];
   let from = 0;
 
