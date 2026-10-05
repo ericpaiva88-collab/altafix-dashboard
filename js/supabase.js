@@ -78,26 +78,44 @@ export async function sbSessaoAtual() {
 export async function sbFetchAll(table, opts) {
   opts = opts || {};
   const pageSize = 10000;
-  let all = [];
-  let from = 0;
 
-  while (true) {
+  // Primeira chamada: pega total + primeira página
+  let q0 = session.sb
+    .from(table)
+    .select(opts.select || '*', { count: 'exact' })
+    .range(0, pageSize - 1);
+
+  if (opts.order) q0 = q0.order(opts.order.column, opts.order.options || {});
+  if (opts.eq) Object.keys(opts.eq).forEach(k => { q0 = q0.eq(k, opts.eq[k]); });
+
+  const r0 = await q0;
+  if (r0.error) throw new Error(table + ': ' + r0.error.message);
+  if (!r0.data || r0.data.length === 0) return { data: [], error: null };
+
+  const total = r0.count != null ? r0.count : r0.data.length;
+  if (r0.data.length < pageSize || total <= pageSize) {
+    return { data: r0.data, error: null };
+  }
+
+  // Demais páginas em paralelo
+  const numPaginas = Math.ceil(total / pageSize);
+  const promessas = [];
+  for (let i = 1; i < numPaginas; i++) {
     let q = session.sb
       .from(table)
       .select(opts.select || '*')
-      .range(from, from + pageSize - 1);
-
+      .range(i * pageSize, (i + 1) * pageSize - 1);
     if (opts.order) q = q.order(opts.order.column, opts.order.options || {});
     if (opts.eq) Object.keys(opts.eq).forEach(k => { q = q.eq(k, opts.eq[k]); });
-
-    const r = await q;
-    if (r.error) throw new Error(table + ': ' + r.error.message);
-    if (!r.data || r.data.length === 0) break;
-
-    all = all.concat(r.data);
-    if (r.data.length < pageSize) break;
-    from += pageSize;
+    promessas.push(q);
   }
+
+  const resultados = await Promise.all(promessas);
+  let all = r0.data.slice();
+  resultados.forEach(r => {
+    if (r.error) throw new Error(table + ': ' + r.error.message);
+    if (r.data) all = all.concat(r.data);
+  });
 
   return { data: all, error: null };
 }
