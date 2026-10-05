@@ -376,8 +376,10 @@ export async function sbUpsertClientes(lista, filialId, vendedoresMap) {
 
     for (let i = 0; i < payload.length; i += 500) {
       const chunk = payload.slice(i, i + 500);
-      const r = await session.sb.from('clientes_importacoes').insert(chunk);
-      if (r.error) throw new Error('clientes_importacoes insert: ' + r.error.message);
+      const r = await session.sb.from('clientes_importacoes').upsert(chunk, {
+        onConflict: 'filial_id,periodo_ini,periodo_fim,cliente_norm'
+      });
+      if (r.error) throw new Error('clientes_importacoes upsert: ' + r.error.message);
     }
   }
 
@@ -581,38 +583,38 @@ export async function sbUpsertLancamentos(lista, filialId, vendedoresMap) {
   const datas = [];
   lista.forEach(l => { if (datas.indexOf(l.data) < 0) datas.push(l.data); });
 
-  const ex = await session.sb.from('lancamentos')
-    .select('id, vendedor_id, data')
+  // Delete dos lançamentos dessas datas (substituição, não soma)
+  const del = await session.sb.from('lancamentos')
+    .delete()
     .eq('filial_id', filialId)
     .in('data', datas);
+  if (del.error) throw new Error('lancamentos delete: ' + del.error.message);
 
-  const mapa = {};
-  (ex.data || []).forEach(l => { mapa[l.vendedor_id + '|' + l.data] = l.id; });
-
-  const paraUpsert = [];
+  // Insert limpo, sem id (deixa o default gerar)
+  const paraInserir = [];
   lista.forEach(l => {
     const vid = vendedoresMap[l.vendedor] || l.vendedor;
     if (!vid) return;
-    const payload = {
-      filial_id: filialId, vendedor_id: vid, data: l.data,
-      valor: l.valor || 0, pedidos: l.pedidos || 0,
-      desconto: l.desconto || 0, obs: l.obs || null
-    };
-    const chave = vid + '|' + l.data;
-    if (mapa[chave]) payload.id = mapa[chave];
-    paraUpsert.push(payload);
+    paraInserir.push({
+      filial_id: filialId,
+      vendedor_id: vid,
+      data: l.data,
+      valor: l.valor || 0,
+      pedidos: l.pedidos || 0,
+      desconto: l.desconto || 0,
+      obs: l.obs || null
+    });
   });
 
   let total = 0;
-  for (let i = 0; i < paraUpsert.length; i += 500) {
-    const chunk = paraUpsert.slice(i, i + 500);
-    const r = await session.sb.from('lancamentos').upsert(chunk, { onConflict: 'id' });
-    if (r.error) throw new Error('lancamentos: ' + r.error.message);
+  for (let i = 0; i < paraInserir.length; i += 500) {
+    const chunk = paraInserir.slice(i, i + 500);
+    const r = await session.sb.from('lancamentos').insert(chunk);
+    if (r.error) throw new Error('lancamentos insert: ' + r.error.message);
     total += chunk.length;
   }
   return total;
 }
-
 // ------------------------------------------------------------
 // CIDADES (mensal)
 // ------------------------------------------------------------
