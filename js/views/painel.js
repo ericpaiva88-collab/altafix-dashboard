@@ -5,7 +5,8 @@
 import { state, ui, session } from '../state.js';
 import {
   fmtBRL, fmtNum, fmtPct, parseValorBR, isoDate, fmtDataBR,
-  inicioSemana, diffDias, escapeHtml, toast, copiarTexto
+  inicioSemana, diffDias, escapeHtml, toast, copiarTexto,
+  normalizarNomeCliente
 } from '../utils.js';
 import {
   ehFeriado, ehDiaUtil, calcDiasUteisNoMes, contarFeriadosNoMes,
@@ -113,7 +114,6 @@ export function gerarAcoes(a, m) {
     const fator = dias / intervalo;
     const v = state.vendedores.find(x => x.id === c.vendedor);
 
-    // Valor ajustado por decaimento temporal
     let fatorValor = 1.0;
     if (dias >= 180) fatorValor = 0.3;
     else if (dias >= 90) fatorValor = 0.6;
@@ -246,7 +246,8 @@ export function gerarAcoesAgrupadas(a, m) {
 
 export function marcarAcaoTratada(id) {
   state.acoesTratadas[id] = Date.now();
-  renderAcoesPainel();
+  // ▼▼▼ FILA DE HOJE: agora re-renderiza a fila unificada
+  renderFilaHoje();
   renderHistorico();
 
   if (session.user && session.sb) {
@@ -390,6 +391,198 @@ export function renderAcoesPainel() {
 }
 
 // ============================================================
+// ▼▼▼ FILA DE HOJE — unifica "Próximos contatos" + "Ações de hoje"
+// ============================================================
+
+function gerarFilaHoje(a, m) {
+  const hj = isoDate(new Date());
+  const limite7 = new Date();
+  limite7.setDate(limite7.getDate() + 7);
+  const limite7Iso = isoDate(limite7);
+  const limiteAtraso = new Date();
+  limiteAtraso.setDate(limiteAtraso.getDate() - 30);
+  const limiteAtrasoIso = isoDate(limiteAtraso);
+
+  const fila = [];
+  const vistos = {};
+
+  // Fonte 1: agenda (ligações com proximo)
+  let ligs = (state.ligacoes || []).filter(l => filialNoEscopo(l.filialId, ui.escopoAtual));
+  if (ui.modoVendedor) ligs = ligs.filter(l => l.vendedor === ui.modoVendedor);
+
+  const agendas = ligs.filter(l => {
+    if (!l.proximo) return false;
+    if (l.status === 'venda' || l.status === 'sem_interesse') return false;
+    if (l.status === 'prospeccao') return false;
+    return l.proximo <= limite7Iso;
+  });
+
+  agendas.forEach(l => {
+    const v = state.vendedores.find(x => x.id === l.vendedor);
+    const vencido = l.proximo < hj && l.proximo >= limiteAtrasoIso;
+    const hoje = l.proximo === hj;
+    const futuro = l.proximo > hj && l.proximo <= limite7Iso;
+
+    let prioridade;
+    if (vencido) prioridade = 1;
+    else if (hoje) prioridade = 2;
+    else if (futuro) prioridade = 4;
+    else return;
+
+    const chave = normalizarNomeCliente(l.empresa || '');
+    if (vistos[chave]) return;
+    vistos[chave] = true;
+
+    const cli = state.clientes.find(c =>
+      normalizarNomeCliente(c.nome) === chave && filialNoEscopo(c.filialId, ui.escopoAtual)
+    );
+    const valorEstimado = cli ? (cli.valorMedioMensal || 0) : (l.valor || 0);
+
+    const quando = vencido
+      ? '⚠️ Atrasado (' + diffDias(l.proximo, hj) + 'd)'
+      : hoje ? '📅 Hoje' : '📅 ' + fmtDataBR(l.proximo);
+
+    fila.push({
+      id: 'lig_' + l.id,
+      prioridade,
+      emoji: vencido ? '🔴' : hoje ? '🟡' : '🟢',
+      tipo: 'agenda',
+      titulo: l.empresa || '—',
+      descricao: quando + ' · ' + (l.cidade || '—') + (v ? ' · ' + v.nome : ''),
+      valor: valorEstimado,
+      ligacaoId: l.id,
+      clienteNorm: chave
+    });
+  });
+
+  // Fonte 2: ações por RFM (gerarAcoes)
+  const acoes = gerarAcoes(a, m);
+  acoes.forEach(ac => {
+    if (ac.tipo !== 'cliente' || !ac._cliente) return;
+    const chave = normalizarNomeCliente(ac._cliente.nome);
+    if (vistos[chave]) return;
+    vistos[chave] = true;
+
+    let prioridade;
+    if (ac.categoria === 'reativar' || ac.categoria === 'sumido') prioridade = 3;
+    else if (ac.categoria === 'recompra') prioridade = 3;
+    else prioridade = 5;
+
+    fila.push({
+      id: ac.id,
+      prioridade,
+      emoji: ac.statusEmoji || '⚠️',
+      tipo: 'risco',
+      titulo: ac.titulo,
+      descricao: ac.descricao,
+      valor: ac.valorRisco || 0,
+      clienteNorm: chave,
+      _cliente: ac._cliente
+    });
+  });
+
+  fila.sort((x, y) => {
+    if (x.prioridade !== y.prioridade) return x.prioridade - y.prioridade;
+    return (y.valor || 0) - (x.valor || 0);
+  });
+
+  const tratadas = state.acoesTratadas || {};
+  const limiteTrat = Date.now() - (7 * 24 * 60 * 60 * 1000);
+  return fila.filter(f => {
+    const t = tratadas[f.id];
+    if (!t) return true;
+    const ts = typeof t === 'number' ? t : (t.ts || 0);
+    return ts < limiteTrat;
+  });
+}
+
+export function renderFilaHoje() {
+  const ref = mesRefAtual(ui.escopoAtual);
+  const a = ref.ano, m = ref.mes;
+
+  const cAcoes = document.getElementById('acoes-container');
+  const cProx = document.getElementById('proximos-container');
+  const cardAcoes = cAcoes ? cAcoes.closest('.card') : null;
+  const cardProx = cProx ? cProx.closest('.card') : null;
+
+  // Injetar card novo antes do primeiro, se não existir ainda
+  let cardFila = document.getElementById('card-painel-fila');
+  if (!cardFila && cardProx && cardProx.parentNode) {
+    const html = '<div class="card minimizavel" id="card-painel-fila" style="border-left:4px solid #dc2626;">' +
+      '<h2>🎯 Fila de hoje <span class="sub" id="fila-sub"></span></h2>' +
+      '<div class="min-conteudo"><div id="fila-container"></div></div>' +
+      '</div>';
+    cardProx.insertAdjacentHTML('beforebegin', html);
+    cardFila = document.getElementById('card-painel-fila');
+  }
+
+  // Esconder cards antigos
+  if (cardAcoes) cardAcoes.style.display = 'none';
+  if (cardProx) cardProx.style.display = 'none';
+
+  if (!cardFila) return;
+
+  const fila = gerarFilaHoje(a, m);
+  const el = document.getElementById('fila-container');
+  const sub = document.getElementById('fila-sub');
+  if (!el) return;
+
+  const totalValor = fila.reduce((s, f) => s + (f.valor || 0), 0);
+  if (sub) {
+    sub.textContent = fila.length === 0
+      ? '✓ Nada urgente'
+      : fila.length + ' · ' + fmtBRL(totalValor) + ' em jogo';
+  }
+
+  if (fila.length === 0) {
+    el.innerHTML = '<div class="acao-linha vazio">✓ Nada urgente. Bom trabalho.</div>';
+    return;
+  }
+
+  let h = '';
+  fila.forEach(f => {
+    h += '<div class="acao-linha">' +
+      '<span class="ic">' + f.emoji + '</span>' +
+      '<div class="txt">' +
+        '<div class="ttl">' + escapeHtml(f.titulo) + '</div>' +
+        '<div class="dsc">' + escapeHtml(f.descricao) + '</div>' +
+      '</div>' +
+      '<span class="val">' + fmtBRL(f.valor || 0) + '</span>' +
+      '<div class="btns">' +
+        '<button class="btn btn-sm btn-primary" data-fila-ligar="' + escapeHtml(f.id) + '">📞</button>' +
+      '</div>' +
+    '</div>';
+  });
+
+  el.innerHTML = h;
+
+  el.querySelectorAll('[data-fila-ligar]').forEach(b => {
+    b.onclick = e => {
+      e.stopPropagation();
+      const id = b.dataset.filaLigar;
+      const item = fila.find(x => x.id === id);
+      if (!item || !window._abrirModalLigacao) return;
+
+      if (item.tipo === 'agenda') {
+        window._abrirModalLigacao(item.ligacaoId);
+      } else if (item._cliente) {
+        const c = item._cliente;
+        window._abrirModalLigacao(null, {
+          empresa: c.nome,
+          codigo: c.codigo || '',
+          cidade: c.cidade || '',
+          estado: c.uf || 'PA',
+          vendedor: c.vendedor || ui.modoVendedor || '',
+          acaoId: item.id
+        });
+      }
+    };
+  });
+
+  aplicarMinimizaveis();
+}
+
+// ============================================================
 // HISTÓRICO DE AÇÕES TRATADAS
 // ============================================================
 
@@ -432,7 +625,8 @@ export function renderHistorico() {
     b.onclick = () => {
       delete state.acoesTratadas[b.dataset.reabrir];
       renderHistorico();
-      renderAcoesPainel();
+      // ▼▼▼ FILA DE HOJE: re-renderiza a fila unificada
+      renderFilaHoje();
       toast('✓ Reaberta');
     };
   });
@@ -458,7 +652,6 @@ export function renderGraficos(a, m, f) {
 
   const lancs = lancamentosNoEscopo(ui.escopoAtual);
 
-  // Gráfico 1: faturamento diário últimos 30 dias
   const ctx1 = document.getElementById('chart-diario');
   if (ctx1) {
     const labels = [];
@@ -494,7 +687,6 @@ export function renderGraficos(a, m, f) {
     });
   }
 
-  // Gráfico 2: acumulado vs meta
   const ctx2 = document.getElementById('chart-meta');
   if (ctx2) {
     const dias = new Date(a, m + 1, 0).getDate();
@@ -844,6 +1036,10 @@ export function aplicarMinimizaveis() {
 
     if (estado[id] === true) card.classList.add('minimizado');
 
+    // Evita duplicar handler se a fila re-injetar
+    if (h2.dataset.minHandler === '1') return;
+    h2.dataset.minHandler = '1';
+
     h2.addEventListener('click', e => {
       if (e.target.tagName === 'BUTTON' || e.target.tagName === 'A' ||
           e.target.tagName === 'SELECT' || e.target.tagName === 'INPUT') return;
@@ -917,7 +1113,6 @@ export function gerarRelatorioMatinal() {
     MESES_NOME[m] + '/' + a + '_');
   linhas.push('');
 
-  // SITUAÇÃO
   linhas.push('📊 *SITUAÇÃO*');
   if (meta > 0) {
     linhas.push('Faturado: *' + fmtBRL(faturado) + '* de *' + fmtBRL(meta) +
@@ -936,7 +1131,6 @@ export function gerarRelatorioMatinal() {
       (diff >= 0 ? 'acima' : 'abaixo') + ' do esperado');
   }
 
-  // RITMO
   const ritmoAtual = diasTrab > 0 ? faturado / diasTrab : 0;
   linhas.push('');
   const avisoAmostra = (diasTrab > 0 && diasTrab <= 4)
@@ -954,7 +1148,6 @@ export function gerarRelatorioMatinal() {
       (meta > 0 && projecao >= meta ? ' ✅' : ''));
   }
 
-  // TICKET
   if (ticket > 0) {
     if (metaTicket > 0) {
       const ratio = ticket / metaTicket;
@@ -969,7 +1162,6 @@ export function gerarRelatorioMatinal() {
   }
   if (pedidos > 0) linhas.push('📦 Pedidos: ' + pedidos);
 
-  // COMPARATIVO
   const mesAnt = new Date(a, m - 1, 1);
   const prefixAnt = mesAnt.getFullYear() + '-' + String(mesAnt.getMonth() + 1).padStart(2, '0');
   const hoje = new Date();
@@ -996,7 +1188,6 @@ export function gerarRelatorioMatinal() {
     }
   }
 
-  // AÇÕES
   const acoes = gerarAcoes(a, m);
   const reativar = acoes.filter(x => x.categoria === 'reativar');
   const sumidos = acoes.filter(x => x.categoria === 'sumido');
@@ -1123,17 +1314,16 @@ export function renderPainelVendedor(v, a, m) {
     'Restantes: <strong>' + c.diasFaltam + '</strong>';
 
   const stEl = document.getElementById('painel-status');
-if (c.diasTrab === 0) {
+  if (c.diasTrab === 0) {
     stEl.innerHTML = '<span class="badge" style="background:#e2e8f0;color:#475569;">— SEM DADOS AINDA</span>';
-} else if (c.pctMeta == null) {
+  } else if (c.pctMeta == null) {
     stEl.innerHTML = '';
-} else if (c.faturado >= c.ritmoEsperado) {
+  } else if (c.faturado >= c.ritmoEsperado) {
     stEl.innerHTML = '<span class="badge badge-ok">✓ ACIMA</span>';
-} else {
+  } else {
     stEl.innerHTML = '<span class="badge badge-risco">⚠ ABAIXO</span>';
-}
+  }
 
-  // Número grande: FATURADO (com % da meta inline)
   const pct = c.pctMeta != null ? c.pctMeta : 0;
   const cls = pct >= 100 ? 'ok' : pct >= 80 ? 'alerta' : '';
   const pctEl = document.getElementById('painel-pct');
@@ -1149,7 +1339,6 @@ if (c.diasTrab === 0) {
   barraEl.style.width = Math.min(100, pct) + '%';
   barraEl.className = cls;
 
-  // Resumo
   const falta = Math.max(0, c.meta - c.faturado);
   const resumo = document.getElementById('painel-resumo');
   resumo.innerHTML =
@@ -1166,7 +1355,6 @@ if (c.diasTrab === 0) {
     '<div class="val">' + fmtBRL(c.ticket) + '</div>' +
     '<div class="hint">meta ' + fmtBRL(c.metaTicket) + '</div></div>';
 
-  // Frase
   const fr = document.getElementById('painel-frase');
   fr.style.display = 'block';
   if (c.meta > 0 && c.faturado < c.meta && c.diasFaltam > 0) {
@@ -1179,7 +1367,6 @@ if (c.diasTrab === 0) {
     fr.style.display = 'none';
   }
 
-  // Botões personalizados pro vendedor
   const botoes = document.querySelector('.painel-hero-botoes');
   botoes.innerHTML =
     '<button class="btn btn-primary btn-sm" id="btn-relatorio-matinal">📱 Meu relatório</button>' +
@@ -1192,18 +1379,16 @@ if (c.diasTrab === 0) {
   const bmax = document.getElementById('btn-max-todos');
   if (bmax) bmax.onclick = () => toggleTodosMinimizaveis(false);
 
-  // Ações full width — esconde ranking admin
   const cardRank = document.getElementById('card-painel-rank');
   if (cardRank) cardRank.style.display = 'none';
   const duasCol = document.querySelector('.painel-duas-colunas');
   if (duasCol) duasCol.style.gridTemplateColumns = '1fr';
 
-  renderAcoesPainel();
-  renderProximosContatos();
+  // ▼▼▼ FILA DE HOJE: substituiu renderAcoesPainel() + renderProximosContatos()
+  renderFilaHoje();
   renderLigacoesVendedor(v, a, m);
   renderVendedorExtras(v, a, m);
 
-  // Esconde cards admin
   const gc = document.getElementById('card-painel-graficos');
   if (gc) gc.style.display = 'none';
   const sc = document.getElementById('card-painel-semana');
@@ -1223,7 +1408,6 @@ export function renderVendedorExtras(v, a, m) {
   const meses = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
     'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
-  // 1) Novidades
   const cardNov = document.getElementById('card-vend-novidade');
   if (cardNov) {
     const clientesNovos = state.clientes.filter(c =>
@@ -1260,7 +1444,6 @@ export function renderVendedorExtras(v, a, m) {
     }
   }
 
-  // 2) Evolução do mês
   const cardEvo = document.getElementById('card-vend-evolucao');
   if (cardEvo) {
     cardEvo.style.display = 'block';
@@ -1308,7 +1491,6 @@ export function renderVendedorExtras(v, a, m) {
     }
   }
 
-  // 3) Últimos 6 meses
   const cardHist = document.getElementById('card-vend-historico');
   if (cardHist) {
     cardHist.style.display = 'block';
@@ -1353,7 +1535,6 @@ export function renderVendedorExtras(v, a, m) {
     }
   }
 
-  // 4) Top produtos
   const cardTopP = document.getElementById('card-vend-top-produtos');
   if (cardTopP) {
     const produtosVend = {};
@@ -1397,7 +1578,6 @@ export function renderVendedorExtras(v, a, m) {
     }
   }
 
-  // 5) Melhores clientes
   const cardCli = document.getElementById('card-vend-clientes');
   if (cardCli) {
     const clientesDoVend = state.clientes.filter(c => c.vendedor === v.id);
@@ -1426,7 +1606,6 @@ export function renderVendedorExtras(v, a, m) {
     }
   }
 
-  // 6) Clientes em risco
   const cardRisco = document.getElementById('card-vend-em-risco');
   if (cardRisco) {
     const hj = isoDate(new Date());
@@ -1469,7 +1648,6 @@ export function renderVendedorExtras(v, a, m) {
     }
   }
 
-  // 7) Ranking pessoal
   const cardRank = document.getElementById('card-vend-rank');
   if (cardRank) {
     const colegas = state.vendedores.filter(x =>
@@ -1567,7 +1745,6 @@ export function renderPainel() {
     return;
   }
 
-  // Reset layout admin
   const cardRank = document.getElementById('card-painel-rank');
   if (cardRank) cardRank.style.display = '';
   const duasCol = document.querySelector('.painel-duas-colunas');
@@ -1579,7 +1756,6 @@ export function renderPainel() {
   const sca = document.getElementById('card-painel-simulador');
   if (sca) sca.style.display = '';
 
-  // Restaura botões admin
   const botoes = document.querySelector('.painel-hero-botoes');
   botoes.innerHTML =
     '<button class="btn btn-primary btn-sm" id="btn-relatorio-matinal">📱 Relatório matinal</button>' +
@@ -1617,8 +1793,9 @@ export function renderPainel() {
     document.getElementById('painel-barra').firstElementChild.style.width = '0%';
     document.getElementById('painel-resumo').innerHTML = '';
     document.getElementById('painel-frase').style.display = 'none';
-    document.getElementById('acoes-container').innerHTML =
-      '<div class="acao-linha vazio">Sem dados. Importe o 324.</div>';
+    // ▼▼▼ FILA DE HOJE: quando sem dados, limpa a fila
+    const fC = document.getElementById('fila-container');
+    if (fC) fC.innerHTML = '<div class="acao-linha vazio">Sem dados. Importe o 324.</div>';
     document.getElementById('rank-container').innerHTML =
       '<div class="empty"><h3>—</h3></div>';
     destruirGraficos();
@@ -1628,13 +1805,12 @@ export function renderPainel() {
 
   if (f.diasTrab === 0) {
     st.innerHTML = '<span class="badge" style="background:#e2e8f0;color:#475569;">— SEM DADOS AINDA</span>';
-} else if (f.status === 'ACIMA') {
+  } else if (f.status === 'ACIMA') {
     st.innerHTML = '<span class="badge badge-ok">✓ ACIMA DO RITMO</span>';
-} else {
+  } else {
     st.innerHTML = '<span class="badge badge-risco">⚠ ABAIXO DO RITMO</span>';
-}
+  }
 
-  // Hero: FATURADO grande + % da meta inline
   const pct = f.pctMeta || 0;
   const cls = pct >= 100 ? 'ok' : pct >= 80 ? 'alerta' : '';
   const pctEl = document.getElementById('painel-pct');
@@ -1645,7 +1821,6 @@ export function renderPainel() {
   barraEl.style.width = Math.min(100, pct) + '%';
   barraEl.className = cls;
 
-  // Hero: resumo
   function dH(atual, passado) {
     if (passado <= 0) return '';
     const d = ((atual - passado) / passado) * 100;
@@ -1695,7 +1870,6 @@ export function renderPainel() {
     fr.style.display = 'none';
   }
 
-  // Ranking
   const ord = f.dados.slice().sort((x, y) => (y.pctMeta || 0) - (x.pctMeta || 0));
   let rows = '';
   const mostraFilial = parseEscopo(ui.escopoAtual).tipo !== 'filial';
@@ -1747,7 +1921,6 @@ export function renderPainel() {
   document.getElementById('rank-sub').textContent =
     f.diasTrab + ' de ' + f.diasUteisTotal + ' dias com dados';
 
-  // Botão ver completo
   const btnVerTodos = document.getElementById('btn-rank-ver-todos');
   const temMais = ord.length + ordAdmin.filter(d => d.faturado > 0).length > 5;
   if (btnVerTodos) {
@@ -1762,7 +1935,6 @@ export function renderPainel() {
     };
   }
 
-  // Oculta cards vendedor
   ['card-vend-evolucao', 'card-vend-historico', 'card-vend-clientes',
    'card-vend-em-risco', 'card-vend-top-produtos', 'card-vend-novidade',
    'card-vend-rank'].forEach(id => {
@@ -1777,12 +1949,13 @@ export function renderPainel() {
   if (cardSimAdmin) cardSimAdmin.style.display = 'block';
 
   renderSimulador();
-  renderAcoesPainel();
-  renderProximosContatos();
+  // ▼▼▼ FILA DE HOJE: substituiu renderAcoesPainel() + renderProximosContatos()
+  renderFilaHoje();
   renderGraficos(a, m, f);
   renderHistorico();
   renderSemana();
 }
+
 // ============================================================
 // TRABALHAR AÇÃO → abre modal de ligação pré-preenchido
 // ============================================================
@@ -1805,7 +1978,8 @@ function trabalharAcao(ac) {
 }
 
 // ============================================================
-// PRÓXIMOS CONTATOS — agenda de follow-up no painel
+// PRÓXIMOS CONTATOS — MANTIDA POR COMPATIBILIDADE
+// (não é mais chamada pelo render; a fila unificada cuida disso)
 // ============================================================
 
 export function renderProximosContatos() {
