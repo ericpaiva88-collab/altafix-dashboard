@@ -16,7 +16,6 @@ import {
   calcRFMScores, calcABCClientes, filialNoEscopo
 } from '../calc.js';
 
-
 // ============================================================
 // HELPERS DE IMPRESSÃO (usado por outras views também)
 // ============================================================
@@ -246,7 +245,6 @@ export function gerarAcoesAgrupadas(a, m) {
 
 export function marcarAcaoTratada(id) {
   state.acoesTratadas[id] = Date.now();
-  // ▼▼▼ FILA DE HOJE: agora re-renderiza a fila unificada
   renderFilaHoje();
   renderHistorico();
 
@@ -391,7 +389,7 @@ export function renderAcoesPainel() {
 }
 
 // ============================================================
-// ▼▼▼ FILA DE HOJE — unifica "Próximos contatos" + "Ações de hoje"
+// FILA DE HOJE — unifica "Próximos contatos" + "Ações de hoje"
 // ============================================================
 
 function gerarFilaHoje(a, m) {
@@ -406,7 +404,6 @@ function gerarFilaHoje(a, m) {
   const fila = [];
   const vistos = {};
 
-  // Fonte 1: agenda (ligações com proximo)
   let ligs = (state.ligacoes || []).filter(l => filialNoEscopo(l.filialId, ui.escopoAtual));
   if (ui.modoVendedor) ligs = ligs.filter(l => l.vendedor === ui.modoVendedor);
 
@@ -455,7 +452,6 @@ function gerarFilaHoje(a, m) {
     });
   });
 
-  // Fonte 2: ações por RFM (gerarAcoes)
   const acoes = gerarAcoes(a, m);
   acoes.forEach(ac => {
     if (ac.tipo !== 'cliente' || !ac._cliente) return;
@@ -505,7 +501,6 @@ export function renderFilaHoje() {
   const cardAcoes = cAcoes ? cAcoes.closest('.card') : null;
   const cardProx = cProx ? cProx.closest('.card') : null;
 
-  // Injetar card novo antes do primeiro, se não existir ainda
   let cardFila = document.getElementById('card-painel-fila');
   if (!cardFila && cardProx && cardProx.parentNode) {
     const html = '<div class="card minimizavel" id="card-painel-fila" style="border-left:4px solid #dc2626;">' +
@@ -516,7 +511,6 @@ export function renderFilaHoje() {
     cardFila = document.getElementById('card-painel-fila');
   }
 
-  // Esconder cards antigos
   if (cardAcoes) cardAcoes.style.display = 'none';
   if (cardProx) cardProx.style.display = 'none';
 
@@ -625,7 +619,6 @@ export function renderHistorico() {
     b.onclick = () => {
       delete state.acoesTratadas[b.dataset.reabrir];
       renderHistorico();
-      // ▼▼▼ FILA DE HOJE: re-renderiza a fila unificada
       renderFilaHoje();
       toast('✓ Reaberta');
     };
@@ -1036,7 +1029,6 @@ export function aplicarMinimizaveis() {
 
     if (estado[id] === true) card.classList.add('minimizado');
 
-    // Evita duplicar handler se a fila re-injetar
     if (h2.dataset.minHandler === '1') return;
     h2.dataset.minHandler = '1';
 
@@ -1353,7 +1345,11 @@ export function renderPainelVendedor(v, a, m) {
     '<div class="val">' + c.pedidos + '</div></div>' +
     '<div class="item"><div class="lbl">Ticket</div>' +
     '<div class="val">' + fmtBRL(c.ticket) + '</div>' +
-    '<div class="hint">meta ' + fmtBRL(c.metaTicket) + '</div></div>';
+    '<div class="hint">meta ' + fmtBRL(c.metaTicket) + '</div></div>' +
+    '<div class="item"><div class="lbl">Projeção</div>' +
+    '<div class="val" style="color:' + (c.projecao >= c.meta ? '#16a34a' : '#dc2626') + ';">' +
+    fmtBRL(c.projecao) + '</div>' +
+    '<div class="hint">' + (c.projecao >= c.meta ? '✓ Bater' : 'Abaixo') + '</div></div>';
 
   const fr = document.getElementById('painel-frase');
   fr.style.display = 'block';
@@ -1384,7 +1380,6 @@ export function renderPainelVendedor(v, a, m) {
   const duasCol = document.querySelector('.painel-duas-colunas');
   if (duasCol) duasCol.style.gridTemplateColumns = '1fr';
 
-  // ▼▼▼ FILA DE HOJE: substituiu renderAcoesPainel() + renderProximosContatos()
   renderFilaHoje();
   renderLigacoesVendedor(v, a, m);
   renderVendedorExtras(v, a, m);
@@ -1414,14 +1409,13 @@ export function renderVendedorExtras(v, a, m) {
       c.vendedor === v.id && c.primeiraCompra && c.primeiraCompra.indexOf(prefix) === 0
     );
 
+    // ▼▼▼ FIX: produtos distintos que ESSE vendedor vendeu no mês
+    // (antes usava vi.mes que não existe, e filtrava por dono do cliente)
     const produtosDistintos = {};
     state.vendasItens.forEach(vi => {
-      if (vi.mes !== prefix) return;
-      if (vi.filialId !== v.filialId) return;
-      const cli = state.clientes.find(c =>
-        c.nome && c.vendedor === v.id
-      );
-      if (cli) produtosDistintos[vi.produtoCodigo] = true;
+      if (vi.vendedor !== v.id) return;
+      if (!vi.periodoIni || vi.periodoIni.indexOf(prefix) !== 0) return;
+      produtosDistintos[vi.produtoCodigo] = true;
     });
     const numProdutos = Object.keys(produtosDistintos).length;
 
@@ -1537,19 +1531,17 @@ export function renderVendedorExtras(v, a, m) {
 
   const cardTopP = document.getElementById('card-vend-top-produtos');
   if (cardTopP) {
+    // ▼▼▼ FIX: usa vendedor_id + periodoIni (antes era vi.mes inexistente)
     const produtosVend = {};
-    const mapaCliente = {};
-    state.clientes.filter(c => c.vendedor === v.id).forEach(c => {
-      if (c.nome) mapaCliente[c.nome.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')] = true;
-    });
-
     state.vendasItens.forEach(vi => {
-      if (vi.mes !== prefix) return;
-      if (vi.filialId !== v.filialId) return;
-      const key = vi.clienteNorm.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-      if (!mapaCliente[key]) return;
+      if (vi.vendedor !== v.id) return;
+      if (!vi.periodoIni || vi.periodoIni.indexOf(prefix) !== 0) return;
       if (!produtosVend[vi.produtoCodigo]) {
-        produtosVend[vi.produtoCodigo] = { codigo: vi.produtoCodigo, descricao: vi.produtoDescricao, valor: 0, qtd: 0 };
+        produtosVend[vi.produtoCodigo] = {
+          codigo: vi.produtoCodigo,
+          descricao: vi.produtoDescricao,
+          valor: 0, qtd: 0
+        };
       }
       produtosVend[vi.produtoCodigo].valor += vi.valor;
       produtosVend[vi.produtoCodigo].qtd += vi.qtd;
@@ -1793,7 +1785,6 @@ export function renderPainel() {
     document.getElementById('painel-barra').firstElementChild.style.width = '0%';
     document.getElementById('painel-resumo').innerHTML = '';
     document.getElementById('painel-frase').style.display = 'none';
-    // ▼▼▼ FILA DE HOJE: quando sem dados, limpa a fila
     const fC = document.getElementById('fila-container');
     if (fC) fC.innerHTML = '<div class="acao-linha vazio">Sem dados. Importe o 324.</div>';
     document.getElementById('rank-container').innerHTML =
@@ -1949,7 +1940,6 @@ export function renderPainel() {
   if (cardSimAdmin) cardSimAdmin.style.display = 'block';
 
   renderSimulador();
-  // ▼▼▼ FILA DE HOJE: substituiu renderAcoesPainel() + renderProximosContatos()
   renderFilaHoje();
   renderGraficos(a, m, f);
   renderHistorico();
@@ -1979,7 +1969,6 @@ function trabalharAcao(ac) {
 
 // ============================================================
 // PRÓXIMOS CONTATOS — MANTIDA POR COMPATIBILIDADE
-// (não é mais chamada pelo render; a fila unificada cuida disso)
 // ============================================================
 
 export function renderProximosContatos() {

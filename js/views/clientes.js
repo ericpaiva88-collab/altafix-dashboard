@@ -684,12 +684,18 @@ export function copiarSegmento() {
 export function imprimirClientes() {
   const lista = window._clientesFiltrados || [];
   if (lista.length === 0) { copiarTexto('Nada para imprimir'); return; }
+
+  const periodo = calcularPeriodo();
+
   let h = '<table><thead><tr>' +
     '<th>Cliente</th><th>Cidade</th><th>Vendedor</th><th>Segmento</th>' +
     '<th>ABC</th><th class="num">Valor</th><th class="num">Compras</th>' +
     '<th class="num">Dias</th></tr></thead><tbody>';
+
   lista.slice(0, 1000).forEach(c => {
     const v = state.vendedores.find(x => x.id === c.vendedor);
+    const vp = valorNoPeriodo(c, periodo);
+
     h += '<tr><td>' + escapeHtml(c.nome) + '</td>' +
       '<td>' + escapeHtml(c.cidade || '—') + '</td>' +
       '<td>' + escapeHtml(v ? v.nome : '—') + '</td>' +
@@ -699,6 +705,7 @@ export function imprimirClientes() {
       '<td class="num">' + (periodo ? (vp.compras || 0) : c.numCompras) + '</td>' +
       '<td class="num">' + (c.diasSemComprar < 9999 ? c.diasSemComprar + 'd' : '—') + '</td></tr>';
   });
+
   h += '</tbody></table>';
   imprimirHTML('Lista de Clientes', lista.length + ' clientes', h);
 }
