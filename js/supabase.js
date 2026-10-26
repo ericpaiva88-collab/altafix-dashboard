@@ -77,7 +77,7 @@ export async function sbSessaoAtual() {
 
 export async function sbFetchAll(table, opts) {
   opts = opts || {};
-  const pageSize = 10000;
+  const pageSize = 1000; // <-- AQUI ESTÁ A CORREÇÃO (antes era 10000)
 
   // Primeira chamada: pega total + primeira página
   let q0 = session.sb
@@ -93,6 +93,8 @@ export async function sbFetchAll(table, opts) {
   if (!r0.data || r0.data.length === 0) return { data: [], error: null };
 
   const total = r0.count != null ? r0.count : r0.data.length;
+  
+  // Se a primeira página já tem tudo ou o total é menor que o limite, retorna
   if (r0.data.length < pageSize || total <= pageSize) {
     return { data: r0.data, error: null };
   }
