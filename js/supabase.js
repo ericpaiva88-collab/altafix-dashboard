@@ -136,19 +136,19 @@ export async function sbCarregarTudo() {
     sbFetchAll('filiais', { order: { column: 'nome' } }),
     sbFetchAll('grupos', { order: { column: 'nome' } }),
     sbFetchAll('vendedores', { order: { column: 'nome' } }),
-    sbFetchAll('clientes'),
-    sbFetchAll('produtos'),
+    sbFetchAll('clientes', { order: { column: 'nome' } }),
+    sbFetchAll('produtos', { order: { column: 'codigo' } }),
     sbFetchAll('lancamentos', { order: { column: 'data', options: { ascending: false } } }),
     sbFetchAll('comparativo'),
     sbFetchAll('cidades'),
     sbFetchAll('acoes_tratadas'),
     sbFetchAll('config'),
     sbFetchAll('metas'),
-    sbFetchAll('produtos_mes'),
-    sbFetchAll('vendas_itens'),
+    sbFetchAll('produtos_mes', { order: { column: 'mes', options: { ascending: false } } }),
+    sbFetchAll('vendas_itens', { order: { column: 'periodo_fim', options: { ascending: false } } }),
     sbFetchAll('ligacoes'),
     sbFetchAll('ligacoes_vendas'),
-    sbFetchAll('clientes_importacoes')
+    sbFetchAll('clientes_importacoes', { order: { column: 'periodo_fim', options: { ascending: false } } })
   ]);
 
   if (q[0].data) out.filiais = q[0].data;
@@ -241,13 +241,13 @@ export function aplicarDadosDoBanco(d) {
   }));
 
   state.vendasItens = (d.vendasItens || []).map(v => ({
-  filialId: v.filial_id,
-  periodoIni: v.periodo_ini, periodoFim: v.periodo_fim,
-  clienteNorm: v.cliente_norm,
-  produtoCodigo: v.produto_codigo, produtoDescricao: v.produto_descricao,
-  vendedor: v.vendedor_id,
-  valor: Number(v.valor) || 0, qtd: Number(v.qtd) || 0
-}));
+    filialId: v.filial_id,
+    periodoIni: v.periodo_ini, periodoFim: v.periodo_fim,
+    clienteNorm: v.cliente_norm,
+    produtoCodigo: v.produto_codigo, produtoDescricao: v.produto_descricao,
+    vendedor: v.vendedor_id,
+    valor: Number(v.valor) || 0, qtd: Number(v.qtd) || 0
+  }));
 
   state.ligacoes = (d.ligacoes || []).map(l => ({
     id: l.id,
@@ -384,7 +384,10 @@ export async function sbUpsertClientes(lista, filialId, vendedoresMap) {
   }
 
   // Rebuild clientes agregado
-  const todas = await sbFetchAll('clientes_importacoes', { eq: { filial_id: filialId } });
+  const todas = await sbFetchAll('clientes_importacoes', { 
+    eq: { filial_id: filialId },
+    order: { column: 'periodo_fim', options: { ascending: false } } 
+  });
 
   const agregado = {};
   (todas.data || []).forEach(row => {
