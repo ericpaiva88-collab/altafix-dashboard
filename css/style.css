@@ -346,3 +346,158 @@ tr.inativo td{opacity:.6}
     padding: 18px 20px;
   }
 }
+/* =========================================
+   RESPONSIVIDADE MOBILE (Telas até 768px)
+   ========================================= */
+@media (max-width: 768px) {
+  
+  /* 1. Header e Topo */
+  header .header-top {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    padding: 12px;
+  }
+  
+  .brand {
+    text-align: center;
+  }
+  
+  header .header-top > div {
+    width: 100%;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  
+  .escopo-select {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  /* 2. Navegação (Abas) com rolagem lateral */
+  nav.tabs {
+    display: flex;
+    overflow-x: auto;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 4px;
+  }
+  
+  nav.tabs::-webkit-scrollbar {
+    display: none; /* Esconde a barra de rolagem no Chrome/Safari */
+  }
+  
+  nav.tabs button {
+    flex: 0 0 auto;
+    padding: 10px 16px;
+  }
+
+  /* 3. Painel Hero */
+  .painel-hero-top {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  
+  .painel-hero-numero {
+    flex-direction: column;
+    text-align: center;
+    padding: 15px 0;
+  }
+  
+  .numero-grande {
+    font-size: 38px !important;
+  }
+
+  .painel-duas-colunas {
+    grid-template-columns: 1fr; /* Transforma as duas colunas em uma */
+  }
+
+  /* 4. Grid de KPIs (Fica 2 colunas no celular) */
+  .kpi-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px;
+  }
+  
+  .kpi-grid > div {
+    padding: 10px;
+  }
+
+  /* 5. Filtros (Empilhados) */
+  .filtros-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .filtros-bar input,
+  .filtros-bar select,
+  .filtros-bar button {
+    width: 100% !important;
+    min-width: 0;
+    margin-bottom: 6px;
+  }
+
+  /* 6. Tabelas "Card" (A Mágica acontece aqui) */
+  /* Esconde o cabeçalho da tabela */
+  .tabela thead {
+    display: none;
+  }
+  
+  /* Transforma a tabela e suas linhas em blocos */
+  .tabela, .tabela tbody, .tabela tr, .tabela td {
+    display: block;
+    width: 100%;
+  }
+  
+  /* Transforma cada linha em um card */
+  .tabela tr {
+    margin-bottom: 15px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    padding: 8px 12px;
+  }
+  
+  /* Transforma cada célula em uma linha do card */
+  .tabela td {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border: none;
+    border-bottom: 1px dashed #f1f5f9;
+    text-align: right; /* Alinha o valor à direita */
+  }
+  
+  .tabela td:last-child {
+    border-bottom: none;
+  }
+  
+  /* Cria o rótulo (nome da coluna) na esquerda */
+  .tabela td::before {
+    content: attr(data-label);
+    font-weight: 600;
+    font-size: 12px;
+    color: #64748b;
+    text-align: left;
+    padding-right: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  /* Ajuste para o conteúdo da célula não quebrar */
+  .tabela td > * {
+    text-align: right;
+  }
+
+  /* 7. Gráficos */
+  .chart-wrap {
+    height: 220px !important; /* Diminui a altura dos gráficos no celular */
+  }
+  
+  /* 8. Desabilita o sticky header (já que virou card) */
+  .tabela th {
+    position: static;
+  }
+}

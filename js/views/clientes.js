@@ -528,18 +528,18 @@ function renderTabela(filtrados, classificados, usaPeriodo, periodo) {
     const diasTxt = c.diasSemComprar < 9999 ? ' (' + c.diasSemComprar + 'd)' : '';
 
     return '<tr class="' + clsSuspeito + '">' +
-      '<td>' + nomeTxt + '</td>' +
-      '<td>' + escapeHtml(c.cidade || (mapaCidade[normalizarNomeCliente(c.nome)] || {}).cidade || '—') + '</td>' +
-      '<td>' + vendTxt + '</td>' +
-      '<td><span class="badge badge-rfm ' + c.rfm_segmento + '">' +
+      '<td data-label="Cliente">' + nomeTxt + '</td>' +
+      '<td data-label="Cidade">' + escapeHtml(c.cidade || (mapaCidade[normalizarNomeCliente(c.nome)] || {}).cidade || '—') + '</td>' +
+      '<td data-label="Vendedor">' + vendTxt + '</td>' +
+      '<td data-label="Segmento"><span class="badge badge-rfm ' + c.rfm_segmento + '">' +
         rfmLabel(c.rfm_segmento) + '</span></td>' +
-      '<td><span class="badge badge-' + c.abcCliente + '">' + c.abcCliente + '</span></td>' +
-      '<td class="num"><strong>' + fmtBRL(c.valorMedioMensal || 0) + '</strong></td>' +
-      '<td class="num">' + periodoTxt + '</td>' +
-      '<td class="num">' + c.numCompras + '</td>' +
-      '<td class="num">' + fmtBRL(ticket) + '</td>' +
-      '<td class="num" style="font-size:11px;">' + ultimaTxt + diasTxt + '</td>' +
-      '<td>' + bd + '</td></tr>';
+      '<td data-label="ABC"><span class="badge badge-' + c.abcCliente + '">' + c.abcCliente + '</span></td>' +
+      '<td class="num" data-label="Vale/mês"><strong>' + fmtBRL(c.valorMedioMensal || 0) + '</strong></td>' +
+      '<td class="num" data-label="Período">' + periodoTxt + '</td>' +
+      '<td class="num" data-label="Compras">' + c.numCompras + '</td>' +
+      '<td class="num" data-label="Ticket">' + fmtBRL(ticket) + '</td>' +
+      '<td class="num" data-label="Última" style="font-size:11px;">' + ultimaTxt + diasTxt + '</td>' +
+      '<td data-label="Risco">' + bd + '</td></tr>';
   }).join('');
 }
 
@@ -633,12 +633,12 @@ function renderResumoNovosReativados(filtrados, classificados, periodo, usaPerio
     const pct = totalValor > 0 ? (x.valor / totalValor) * 100 : 0;
     const cls = x.sem ? 'style="color:#dc2626;"' : '';
     h += '<tr ' + cls + '>';
-    h += '<td><strong>' + escapeHtml(x.nome) + '</strong></td>';
-    h += '<td class="num">' + x.qtd + '</td>';
-    h += '<td class="num">' + fmtBRL(x.valor) + '</td>';
-    h += '<td class="num">' + x.compras + '</td>';
-    h += '<td class="num">' + fmtBRL(x.ticket) + '</td>';
-    h += '<td class="num">' + fmtPct(pct, 1) + '</td>';
+    h += '<td data-label="Vendedor"><strong>' + escapeHtml(x.nome) + '</strong></td>';
+    h += '<td class="num" data-label="Clientes">' + x.qtd + '</td>';
+    h += '<td class="num" data-label="Faturado">' + fmtBRL(x.valor) + '</td>';
+    h += '<td class="num" data-label="Compras">' + x.compras + '</td>';
+    h += '<td class="num" data-label="Ticket">' + fmtBRL(x.ticket) + '</td>';
+    h += '<td class="num" data-label="% do total">' + fmtPct(pct, 1) + '</td>';
     h += '</tr>';
   });
 
@@ -696,14 +696,14 @@ export function imprimirClientes() {
     const v = state.vendedores.find(x => x.id === c.vendedor);
     const vp = valorNoPeriodo(c, periodo);
 
-    h += '<tr><td>' + escapeHtml(c.nome) + '</td>' +
-      '<td>' + escapeHtml(c.cidade || '—') + '</td>' +
-      '<td>' + escapeHtml(v ? v.nome : '—') + '</td>' +
-      '<td>' + rfmLabel(c.rfm_segmento) + '</td>' +
-      '<td>' + c.abcCliente + '</td>' +
-      '<td class="num">' + fmtBRL(c.valorTotal) + '</td>' +
-      '<td class="num">' + (periodo ? (vp.compras || 0) : c.numCompras) + '</td>' +
-      '<td class="num">' + (c.diasSemComprar < 9999 ? c.diasSemComprar + 'd' : '—') + '</td></tr>';
+    h += '<tr><td data-label="Cliente">' + escapeHtml(c.nome) + '</td>' +
+      '<td data-label="Cidade">' + escapeHtml(c.cidade || '—') + '</td>' +
+      '<td data-label="Vendedor">' + escapeHtml(v ? v.nome : '—') + '</td>' +
+      '<td data-label="Segmento">' + rfmLabel(c.rfm_segmento) + '</td>' +
+      '<td data-label="ABC">' + c.abcCliente + '</td>' +
+      '<td class="num" data-label="Valor">' + fmtBRL(c.valorTotal) + '</td>' +
+      '<td class="num" data-label="Compras">' + (periodo ? (vp.compras || 0) : c.numCompras) + '</td>' +
+      '<td class="num" data-label="Dias">' + (c.diasSemComprar < 9999 ? c.diasSemComprar + 'd' : '—') + '</td></tr>';
   });
 
   h += '</tbody></table>';
