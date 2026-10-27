@@ -38,6 +38,7 @@
     <button data-tab="ligacoes">📞 Ligações</button>
     <button data-tab="produtos">📦 Produtos</button>
     <button data-tab="analise">📊 Análise</button>
+    <button data-tab="diagnostico">🧠 Diagnóstico</button>
     <button data-tab="config">⚙️ Config</button>
   </nav>
 </header>
@@ -509,6 +510,89 @@
               <th class="num">% Total</th>
             </tr></thead>
             <tbody id="tbody-fabricantes"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- NOVA ABA: DIAGNÓSTICO -->
+  <section id="tab-diagnostico">
+    <!-- Filtros do Cockpit -->
+    <div class="periodo-bar" style="background:#f8fafc; padding:12px; border-radius:8px; border:1px solid #e2e8f0; display:flex; gap:12px; flex-wrap:wrap; margin-bottom: 20px;">
+      <div>
+        <label style="font-size:11px; font-weight:600; color:#64748b;">MÊS DE ANÁLISE</label>
+        <select id="diag-mes" class="escopo-select"></select>
+      </div>
+      <div>
+        <label style="font-size:11px; font-weight:600; color:#64748b;">VENDEDOR</label>
+        <select id="diag-vendedor" class="escopo-select"><option value="">Selecione um vendedor...</option></select>
+      </div>
+    </div>
+
+    <div id="diag-conteudo" style="display:none;">
+      <!-- Topo: Health Score e Forecast -->
+      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap:16px; margin-bottom:16px;">
+        
+        <!-- Health Score -->
+        <div class="card" style="display:flex; align-items:center; gap:20px; border-left:4px solid #0ea5e9;">
+          <div id="diag-health-circle" style="position:relative; width:100px; height:100px; border-radius:50%; background:conic-gradient(#0ea5e9 0%, #e2e8f0 0); display:flex; align-items:center; justify-content:center;">
+            <div style="width:80px; height:80px; background:#fff; border-radius:50%; display:flex; align-items:center; justify-content:center; flex-direction:column;">
+              <strong style="font-size:24px; color:#0f172a;" id="diag-health-score">0</strong>
+              <span style="font-size:10px; color:#64748b; font-weight:700;">SCORE</span>
+            </div>
+          </div>
+          <div>
+            <h3 style="margin:0 0 4px 0; font-size:15px; color:#0f172a;">Saúde do Vendedor</h3>
+            <p style="margin:0; font-size:12px; color:#64748b;" id="diag-health-desc">Calculando...</p>
+          </div>
+        </div>
+
+        <!-- Forecast -->
+        <div class="card" style="border-left:4px solid #16a34a;">
+          <h3 style="margin:0 0 8px 0; font-size:13px; color:#64748b; text-transform:uppercase;">Projeção de Fechamento</h3>
+          <div style="display:flex; justify-content:space-between; align-items:flex-end;">
+            <div>
+              <div style="font-size:24px; font-weight:700; color:#0f172a;" id="diag-forecast-valor">R$ 0</div>
+              <div style="font-size:12px; color:#64748b; margin-top:4px;" id="diag-forecast-meta">Meta: R$ 0</div>
+            </div>
+            <div id="diag-forecast-badge" style="padding:4px 8px; border-radius:4px; font-size:12px; font-weight:bold;">—</div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Meio: Alertas e Waterfall -->
+      <div style="display:grid; grid-template-columns: 1fr 2fr; gap:16px; margin-bottom:16px;">
+        
+        <!-- Alertas do Cérebro -->
+        <div class="card" style="background:#fff;">
+          <h2>🚨 Alertas do Gestor</h2>
+          <div id="diag-alertas" style="display:flex; flex-direction:column; gap:10px;"></div>
+        </div>
+
+        <!-- Cascata (Waterfall) -->
+        <div class="card">
+          <h2>🌊 Causa Raiz da Variação <span class="sub">Mês atual vs Mês anterior</span></h2>
+          <div class="chart-wrap" style="height:260px;"><canvas id="chart-waterfall"></canvas></div>
+        </div>
+      </div>
+
+      <!-- Base: Tabela de Prioridades -->
+      <div class="card">
+        <h2>🎯 Prioridades de Ação <span class="sub">Clientes da carteira que precisam de atenção</span></h2>
+        <div style="overflow-x:auto;">
+          <table class="tabela">
+            <thead>
+              <tr>
+                <th>Cliente</th>
+                <th class="num">Vale/mês</th>
+                <th class="num">Dias sem comprar</th>
+                <th>Status</th>
+                <th>Ação Sugerida</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-diag-prioridades"></tbody>
           </table>
         </div>
       </div>

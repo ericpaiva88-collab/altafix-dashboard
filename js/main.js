@@ -39,6 +39,9 @@ import {
   renderDiagnostico, reconstruirCruzamentos
 } from './views/config.js';
 
+// Nova View de Diagnóstico
+import { renderDiagnostico as renderDiagVendedor } from './views/diagnostico.js';
+
 // ============================================================
 // HELPERS GLOBAIS
 // ============================================================
@@ -244,7 +247,8 @@ function ajustarUIUsuario() {
   if (papel !== 'diretor') {
     ui.modoVendedor = session.vendedor.id;
     document.querySelectorAll('#main-tabs button').forEach(b => {
-      if (b.dataset.tab === 'analise' || b.dataset.tab === 'config') {
+      // Esconde Análise, Config e Diagnóstico para quem não é diretor
+      if (b.dataset.tab === 'analise' || b.dataset.tab === 'config' || b.dataset.tab === 'diagnostico') {
         b.style.display = 'none';
       }
     });
@@ -336,6 +340,19 @@ function setupTabs() {
           try { renderChartYoY(); } catch (e) {}
           try { renderGraficoEvolucao(); } catch (e) {}
         }, 50);
+      }
+      if (b.dataset.tab === 'diagnostico') {
+        const selMes = document.getElementById('diag-mes');
+        if (selMes && selMes.options.length === 0) {
+          const hoje = new Date();
+          for (let i = 0; i < 6; i++) {
+            const d = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
+            const val = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+            const label = d.toLocaleString('pt-BR', { month: 'long', year: 'numeric' });
+            selMes.innerHTML += `<option value="${val}">${label.toUpperCase()}</option>`;
+          }
+        }
+        setTimeout(() => { try { renderDiagVendedor(); } catch (e) { console.error(e); } }, 50);
       }
     };
   });
@@ -477,6 +494,12 @@ function setupFiltros() {
   };
   const sce = document.getElementById('cidade-filtro-evolucao');
   if (sce) sce.onchange = renderGraficoEvolucao;
+
+  // Diagnóstico
+  const diagMes = document.getElementById('diag-mes');
+  if (diagMes) diagMes.onchange = () => { try { renderDiagVendedor(); } catch (e) { console.error(e); } };
+  const diagVend = document.getElementById('diag-vendedor');
+  if (diagVend) diagVend.onchange = () => { try { renderDiagVendedor(); } catch (e) { console.error(e); } };
 }
 
 // ============================================================
