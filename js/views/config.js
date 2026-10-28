@@ -1,5 +1,5 @@
 // ============================================================
-// views/config.js — Importação, Metas, Lançamentos, Filiais e Geral
+// views/config.js — Importação, Metas, Lançamentos e Geral
 // ============================================================
 
 import { state, ui, session, basesPreview, salvar } from '../state.js';
@@ -21,10 +21,10 @@ import {
   aplicarDadosDoBanco
 } from '../supabase.js';
 
-import { renderPainel, renderHistorico, renderAcoesPainel, renderSemana } from './painel.js';
+// Importações limpas para o novo Cockpit
+import { renderPainel } from './painel.js';
 import { renderClientes } from './clientes.js';
 import { renderProdutos } from './produtos.js';
-import { renderComparativo, renderCidades, renderFabricantes } from './analise.js';
 
 const MESES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -257,16 +257,6 @@ async function salvarMetasServidor() {
     if(btn) { btn.disabled = false; btn.textContent = '☁️ Salvar no Servidor'; }
   }
 }
-
-// ============================================================
-// FUNÇÕES LEGADAS (Mantidas para não quebrar o resto do app)
-// ============================================================
-
-export function setupImports() { setupConfig(); }
-export function setupLancar() {}
-export function setupMetas() {}
-export function setupFiliais() {}
-export function setupGeral() {}
 
 export function renderTudo() {
   try { renderPainel(); } catch (e) { console.error('renderPainel', e); }
