@@ -176,20 +176,46 @@
       
     </section>
 
-    <!-- ABA AGENDA / OPERAÇÃO (Casca) -->
+        <!-- ABA AGENDA / OPERAÇÃO -->
     <section id="tab-agenda" class="tab-content">
-      <div class="page-header">
-        <h2>Operação / Agenda</h2>
-        <p>Fila de trabalho diário, ligações e agendamentos.</p>
+      <div class="page-header" style="display:flex; justify-content:space-between; align-items:flex-end;">
+        <div>
+          <h2>Operação / Agenda</h2>
+          <p>Quem contatar hoje: retornos agendados, clientes no ciclo de recompra e clientes para reativar.</p>
+        </div>
+        <button class="btn btn-primary" id="btn-nova-ligacao-agenda">+ Nova Ligação</button>
       </div>
-      <div class="card-painel" style="padding:20px;">
-        <!-- Aqui vai a lógica da fila de hoje que já existia -->
-        <div id="fila-hoje-container">
-          <p class="text-muted">Carregando fila de ações...</p>
+
+      <div class="grid-kpis" id="agenda-kpis" style="margin-bottom:24px; grid-template-columns: repeat(4, 1fr);">
+        <!-- KPIs preenchidos via JS -->
+      </div>
+
+      <div class="card-painel">
+        <div class="card-title-row" style="padding:16px 20px; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center;">
+          <h3>Todas as tarefas</h3>
+          <span class="text-xs text-muted" id="agenda-count">0 itens</span>
+        </div>
+        
+        <div style="overflow-x:auto;">
+          <table class="tabela-cockpit">
+            <thead>
+              <tr>
+                <th>TIPO</th>
+                <th>CLIENTE</th>
+                <th>CONTEXTO</th>
+                <th>VENDEDOR</th>
+                <th class="num">VALE/MÊS</th>
+                <th style="width: 100px; text-align:center;">AÇÃO</th>
+              </tr>
+            </thead>
+            <tbody id="agenda-tbody">
+              <!-- Preenchido via JS -->
+            </tbody>
+          </table>
         </div>
       </div>
     </section>
-
+    
     <!-- ABA EQUIPE (Casca) -->
     <section id="tab-equipe" class="tab-content">
       <div class="page-header">

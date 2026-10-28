@@ -11,6 +11,7 @@ import {
 } from './supabase.js';
 
 import { renderPainel, renderFilaHoje, renderEquipe } from './views/painel.js';
+import { renderAgenda } from './views/agenda.js'; // FIX: Nova importação da Agenda
 import { renderClientes, copiarInativos, copiarSegmento, imprimirClientes } from './views/clientes.js';
 import { renderProdutos, imprimirProdutos } from './views/produtos.js';
 import { renderLigacoes, abrirModalLigacao } from './views/ligacoes.js';
@@ -185,7 +186,8 @@ function setupTabs() {
       const t = document.getElementById('tab-' + b.dataset.tab);
       if (t) t.classList.add('active');
 
-      if (b.dataset.tab === 'agenda') setTimeout(() => { try { renderFilaHoje(); } catch (e) {} }, 50);
+      // Renderizações sob demanda
+      if (b.dataset.tab === 'agenda') setTimeout(() => { try { renderAgenda(); } catch (e) {} }, 50); // FIX: Chama a Agenda
       if (b.dataset.tab === 'equipe') setTimeout(() => { try { renderEquipe(); } catch (e) {} }, 50);
       if (b.dataset.tab === 'clientes') setTimeout(() => { try { renderClientes(); } catch (e) {} }, 50);
       if (b.dataset.tab === 'produtos') setTimeout(() => { try { renderProdutos(); } catch (e) {} }, 50);
@@ -229,6 +231,14 @@ function setupBotoes() {
     ui.mesPainelSelecionado = e.target.value;
     renderPainel();
   };
+
+  // FIX: Botão de Nova Ligação dentro da Agenda
+  const btnNovaLigAgenda = document.getElementById('btn-nova-ligacao-agenda');
+  if (btnNovaLigAgenda) {
+    btnNovaLigAgenda.onclick = () => {
+      if (window._abrirModalLigacao) window._abrirModalLigacao();
+    };
+  }
 }
 
 // ============================================================
@@ -267,7 +277,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     ajustarUIUsuario();
     
-    // A MÁGICA ACONTECE AQUI: Popula os selects ANTES de renderizar o painel
     popularEscopoSelect();
     popularModoVendedor();
 
@@ -275,7 +284,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupFiltros();
     setupBotoes();
 
-    // Render Inicial
     renderPainel();
 
     toast('✓ Pronto');
