@@ -15,21 +15,31 @@ import {
 // ============================================================
 
 export function renderPainel() {
+  const meses = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+  const selMes = document.getElementById('painel-mes-select');
+
+  // FIX: Auto-selecionar o último mês com dados
+  if (selMes) {
+    let mesesComDados = new Set();
+    state.lancamentos.forEach(l => { if (l.data) mesesComDados.add(l.data.slice(0, 7)); });
+    const listaMeses = Array.from(mesesComDados).sort().reverse(); // Do mais recente pro mais antigo
+
+    // Se não tem nada selecionado, pega o mês mais recente que tem dados
+    if (!ui.mesPainelSelecionado) {
+      ui.mesPainelSelecionado = listaMeses.length > 0 ? listaMeses[0] : (new Date().getFullYear() + '-' + String(new Date().getMonth() + 1).padStart(2, '0'));
+    }
+
+    // Popula o select
+    selMes.innerHTML = listaMeses.map(m => {
+      const p = m.split('-');
+      return `<option value="${m}">${meses[parseInt(p[1]) - 1].slice(0, 3)}/${p[0]}</option>`;
+    }).join('');
+    
+    selMes.value = ui.mesPainelSelecionado;
+  }
+
   const ref = mesRefAtual(ui.escopoAtual);
   const a = ref.ano, m = ref.mes;
-  const meses = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-
-  // 1. Preenche o Select de Mês (se estiver vazio)
-  const selMes = document.getElementById('painel-mes-select');
-  if (selMes && selMes.options.length === 0) {
-    const hoje = new Date();
-    for (let i = 0; i < 6; i++) {
-      const d = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
-      const val = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
-      selMes.innerHTML += `<option value="${val}">${meses[d.getMonth()].slice(0,3)}/${d.getFullYear()}</option>`;
-    }
-    if (ui.mesPainelSelecionado) selMes.value = ui.mesPainelSelecionado;
-  }
 
   // Se estiver no modo vendedor, podemos adaptar (aqui simplificado para o admin)
   const f = calcFilial(a, m, ui.escopoAtual);
@@ -199,10 +209,15 @@ function renderTabelaEquipe(a, m, f) {
   const tbody = document.getElementById('painel-equipe-container');
   if (!tbody) return;
 
-  let vendedores = f.dados.filter(d => d.vendedor.papel === 'vendedor');
+  let vendedores = f.dados ? f.dados.filter(d => d.vendedor.papel === 'vendedor') : [];
   
   // Ordena por % de meta
   vendedores.sort((x, y) => (y.pctMeta || 0) - (x.pctMeta || 0));
+
+  if(vendedores.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px; color:#888;">Nenhum vendedor com dados neste mês.</td></tr>';
+    return;
+  }
 
   tbody.innerHTML = vendedores.map(d => {
     const v = d.vendedor;
@@ -253,7 +268,9 @@ function renderAtencaoAgora(a, m) {
 
   // 1. Vendedores abaixo do ritmo
   const f = calcFilial(a, m, ui.escopoAtual);
-  f.dados.filter(d => d.vendedor.papel === 'vendedor').forEach(d => {
+  const dadosVendedores = f.dados || [];
+  
+  dadosVendedores.filter(d => d.vendedor.papel === 'vendedor').forEach(d => {
     const gap = d.meta * (calcDiasUteisDecorridos(a, m) / calcDiasUteisNoMes(a, m));
     if (d.faturado < gap && d.faturado > 0) {
       const falta = gap - d.faturado;
@@ -266,8 +283,7 @@ function renderAtencaoAgora(a, m) {
     }
   });
 
-  // 2. Clientes em risco alto (simulação simplificada)
-  // Pega top clientes que sumiram recentemente
+  // 2. Clientes em risco alto
   let clientesRisco = state.clientes
     .filter(c => filialNoEscopo(c.filialId, ui.escopoAtual) && c.diasSemComprar > 30 && c.valorMedioMensal > 5000)
     .sort((a, b) => b.valorMedioMensal - a.valorMedioMensal)
@@ -306,13 +322,11 @@ function renderAtencaoAgora(a, m) {
 // FUNÇÕES LEGADAS (Para não quebrar o resto do app)
 // ============================================================
 export function renderFilaHoje() {
-  // Mock básico para a aba Agenda não quebrar
   const el = document.getElementById('fila-hoje-container');
   if(el) el.innerHTML = '<p>Em breve: Lista de ligações integrada.</p>';
 }
 
 export function renderEquipe() {
-  // Mock básico para a aba Equipe não quebrar
   const el = document.getElementById('equipe-cards-container');
   if(el) el.innerHTML = '<p>Em breve: Cards de vendedores.</p>';
 }

@@ -10,17 +10,10 @@ import {
   sbCarregarTudo, aplicarDadosDoBanco
 } from './supabase.js';
 
-import {
-  renderPainel, renderFilaHoje, renderEquipe
-} from './views/painel.js';
-
-import {
-  renderClientes, copiarInativos, copiarSegmento, imprimirClientes
-} from './views/clientes.js';
-
+import { renderPainel, renderFilaHoje, renderEquipe } from './views/painel.js';
+import { renderClientes, copiarInativos, copiarSegmento, imprimirClientes } from './views/clientes.js';
 import { renderProdutos, imprimirProdutos } from './views/produtos.js';
 import { renderLigacoes, abrirModalLigacao } from './views/ligacoes.js';
-import { renderComparativo, renderCidades, renderFabricantes } from './views/analise.js';
 
 // Helpers
 export function parseEscopo(str) {
@@ -50,7 +43,7 @@ function popularEscopoSelect() {
 
   let opts = '<option value="ALL">🌐 Todas</option>';
 
-  if (state.grupos.length > 0) {
+  if (state.grupos && state.grupos.length > 0) {
     opts += '<optgroup label="Grupos">';
     state.grupos.forEach(g => {
       const fs = state.filiais.filter(f => f.grupoId === g.id && f.ativo);
@@ -61,23 +54,15 @@ function popularEscopoSelect() {
   }
 
   opts += '<optgroup label="Filiais">';
-  state.filiais.filter(f => f.ativo).forEach(f => {
-    opts += '<option value="FILIAL:' + f.id + '">🏢 ' + f.nome + '</option>';
-  });
+  if (state.filiais) {
+    state.filiais.filter(f => f.ativo).forEach(f => {
+      opts += '<option value="FILIAL:' + f.id + '">🏢 ' + f.nome + '</option>';
+    });
+  }
   opts += '</optgroup>';
 
   sel.innerHTML = opts;
   sel.value = ui.escopoAtual;
-
-  const e = parseEscopo(ui.escopoAtual);
-  const banner = document.getElementById('escopo-banner');
-  if (banner) {
-    if (e.tipo === 'all') banner.style.display = 'none';
-    else {
-      banner.style.display = 'block';
-      banner.innerHTML = 'Visualizando: <strong>' + escopoNome(ui.escopoAtual) + '</strong>';
-    }
-  }
 }
 
 function popularModoVendedor() {
@@ -85,24 +70,16 @@ function popularModoVendedor() {
   if (!sel) return;
 
   let opts = '<option value="">👁️ Modo: Filial</option>';
-  state.vendedores
-    .filter(v => v.ativo && v.papel === 'vendedor')
-    .forEach(v => {
-      opts += '<option value="' + v.id + '">👤 ' + v.nome + '</option>';
-    });
+  if (state.vendedores) {
+    state.vendedores
+      .filter(v => v.ativo && v.papel === 'vendedor')
+      .forEach(v => {
+        opts += '<option value="' + v.id + '">👤 ' + v.nome + '</option>';
+      });
+  }
 
   sel.innerHTML = opts;
   sel.value = ui.modoVendedor;
-
-  const banner = document.getElementById('banner-modo-vendedor');
-  const v = ui.modoVendedor ? state.vendedores.find(x => x.id === ui.modoVendedor) : null;
-
-  if (v && banner) {
-    document.getElementById('banner-modo-nome').textContent = v.nome;
-    banner.style.display = 'block';
-  } else if (banner) {
-    banner.style.display = 'none';
-  }
 }
 
 window._popularEscopoSelect = popularEscopoSelect;
@@ -154,18 +131,23 @@ function mostrarLogin() {
 function ajustarUIUsuario() {
   const papel = session.vendedor ? session.vendedor.papel : 'vendedor';
 
-  document.getElementById('user-nome').textContent = session.vendedor ? session.vendedor.nome : '—';
-  document.getElementById('user-papel').textContent = papel === 'diretor' ? 'Diretor' : 'Vendedor';
+  const nomeEl = document.getElementById('user-nome');
+  const papelEl = document.getElementById('user-papel');
+  
+  if (nomeEl) nomeEl.textContent = session.vendedor ? session.vendedor.nome : '—';
+  if (papelEl) papelEl.textContent = papel === 'diretor' ? 'Diretor' : 'Vendedor';
 
-  document.getElementById('btn-logout').onclick = async () => {
-    if (!confirm('Sair da conta?')) return;
-    await sbLogout();
-    location.reload();
-  };
+  const btnLogout = document.getElementById('btn-logout');
+  if (btnLogout) {
+    btnLogout.onclick = async () => {
+      if (!confirm('Sair da conta?')) return;
+      await sbLogout();
+      location.reload();
+    };
+  }
 
-  if (papel !== 'diretor') {
+  if (papel !== 'diretor' && session.vendedor) {
     ui.modoVendedor = session.vendedor.id;
-    // Esconde abas de admin
     document.querySelectorAll('.sidebar-nav button').forEach(b => {
       if (['analise', 'config', 'equipe'].includes(b.dataset.tab)) {
         b.style.display = 'none';
@@ -194,7 +176,6 @@ function setupTabs() {
 
   document.querySelectorAll('.sidebar-nav button').forEach(b => {
     b.onclick = () => {
-      // Fecha menu no mobile
       if (window.innerWidth <= 768) sidebar.classList.remove('open');
 
       document.querySelectorAll('.sidebar-nav button').forEach(x => x.classList.remove('active'));
@@ -204,7 +185,6 @@ function setupTabs() {
       const t = document.getElementById('tab-' + b.dataset.tab);
       if (t) t.classList.add('active');
 
-      // Renderizações sob demanda
       if (b.dataset.tab === 'agenda') setTimeout(() => { try { renderFilaHoje(); } catch (e) {} }, 50);
       if (b.dataset.tab === 'equipe') setTimeout(() => { try { renderEquipe(); } catch (e) {} }, 50);
       if (b.dataset.tab === 'clientes') setTimeout(() => { try { renderClientes(); } catch (e) {} }, 50);
@@ -223,9 +203,6 @@ function setupFiltros() {
 
   const fcv = document.getElementById('filtro-cliente-vend');
   if (fcv) fcv.onchange = e => { ui.filtroClienteVend = e.target.value; renderClientes(); };
-
-  const fcs = document.getElementById('filtro-cliente-status');
-  if (fcs) fcs.onchange = e => { ui.filtroClienteStatus = e.target.value; renderClientes(); };
 }
 
 function setupBotoes() {
@@ -238,14 +215,12 @@ function setupBotoes() {
   const escopo = document.getElementById('escopo-select');
   if (escopo) escopo.onchange = e => {
     ui.escopoAtual = e.target.value;
-    popularEscopoSelect();
-    renderPainel(); // Atualiza só o painel para ser rápido
+    renderPainel(); 
   };
 
   const mv = document.getElementById('modo-vendedor');
   if (mv) mv.onchange = e => {
     ui.modoVendedor = e.target.value;
-    popularModoVendedor();
     renderPainel();
   };
 
@@ -282,6 +257,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     toast('⏳ Carregando dados...');
     const dados = await sbCarregarTudo().catch(e => {
+      console.error(e);
       toast('❌ Erro ao carregar: ' + e.message);
       return { vendedores: [], clientes: [], produtos: [], lancamentos: [], cidades: [], comparativo: [] };
     });
@@ -290,6 +266,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     derivarHistorico();
 
     ajustarUIUsuario();
+    
+    // A MÁGICA ACONTECE AQUI: Popula os selects ANTES de renderizar o painel
     popularEscopoSelect();
     popularModoVendedor();
 
@@ -297,7 +275,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupFiltros();
     setupBotoes();
 
-    // Render Inicial (Apenas o Painel)
+    // Render Inicial
     renderPainel();
 
     toast('✓ Pronto');
