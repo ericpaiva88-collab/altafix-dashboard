@@ -1,6 +1,5 @@
 // ============================================================
-// main.js — Ponto de entrada do app
-// Inicializa Supabase, liga eventos, coordena views
+// main.js — Ponto de entrada do app (Cockpit v3)
 // ============================================================
 
 import { state, ui, session, carregar, salvar } from './state.js';
@@ -10,42 +9,20 @@ import {
   sbInit, sbLogin, sbLogout, sbSessaoAtual, sbCarregarPerfil,
   sbCarregarTudo, aplicarDadosDoBanco
 } from './supabase.js';
-import { inicioSemana } from './utils.js';
 
-// Views
 import {
-  renderPainel, renderHistorico, aplicarMinimizaveis,
-  toggleTodosMinimizaveis, imprimirRanking, resetarSimulador,
-  copiarCenario, gerarRelatorioMatinal, gerarRelatorioFechamento,
-  renderSemana, marcarAcaoTratada
+  renderPainel, renderFilaHoje, renderEquipe
 } from './views/painel.js';
 
 import {
-  renderClientes, copiarInativos, copiarSegmento, imprimirClientes,
-  setupClientesNovos
+  renderClientes, copiarInativos, copiarSegmento, imprimirClientes
 } from './views/clientes.js';
 
 import { renderProdutos, imprimirProdutos } from './views/produtos.js';
 import { renderLigacoes, abrirModalLigacao } from './views/ligacoes.js';
+import { renderComparativo, renderCidades, renderFabricantes } from './views/analise.js';
 
-import {
-  renderComparativo, renderCidades, renderFabricantes,
-  copiarCidades, imprimirCidades, renderChartYoY, renderGraficoEvolucao
-} from './views/analise.js';
-
-import {
-  renderTudo, setupImports, setupLancar, setupMetas, setupFiliais,
-  setupGeral, renderMetas, salvarBases, exportarJSON, importarJSON,
-  renderDiagnostico, reconstruirCruzamentos
-} from './views/config.js';
-
-// Nova View de Diagnóstico
-import { renderDiagnostico as renderDiagVendedor } from './views/diagnostico.js';
-
-// ============================================================
-// HELPERS GLOBAIS
-// ============================================================
-
+// Helpers
 export function parseEscopo(str) {
   if (!str || str === 'ALL') return { tipo: 'all' };
   const p = str.split(':');
@@ -64,7 +41,7 @@ export function escopoNome(escopoAtual) {
 }
 
 // ============================================================
-// POPULAR SELECTS DO HEADER
+// POPULAR SELECTS DO TOPO
 // ============================================================
 
 function popularEscopoSelect() {
@@ -78,16 +55,14 @@ function popularEscopoSelect() {
     state.grupos.forEach(g => {
       const fs = state.filiais.filter(f => f.grupoId === g.id && f.ativo);
       if (fs.length === 0) return;
-      opts += '<option value="GRUPO:' + escapeAttr(g.id) + '">📁 ' +
-        escapeAttr(g.nome) + ' (' + fs.length + ')</option>';
+      opts += '<option value="GRUPO:' + g.id + '">📁 ' + g.nome + ' (' + fs.length + ')</option>';
     });
     opts += '</optgroup>';
   }
 
   opts += '<optgroup label="Filiais">';
   state.filiais.filter(f => f.ativo).forEach(f => {
-    opts += '<option value="FILIAL:' + escapeAttr(f.id) + '">🏢 ' +
-      escapeAttr(f.nome) + '</option>';
+    opts += '<option value="FILIAL:' + f.id + '">🏢 ' + f.nome + '</option>';
   });
   opts += '</optgroup>';
 
@@ -100,23 +75,7 @@ function popularEscopoSelect() {
     if (e.tipo === 'all') banner.style.display = 'none';
     else {
       banner.style.display = 'block';
-      banner.innerHTML = (e.tipo === 'grupo' ? '📁 ' : '🏢 ') +
-        'Visualizando: <strong>' + escapeAttr(escopoNome(ui.escopoAtual)) + '</strong>';
-    }
-  }
-
-  const bs = document.getElementById('brand-sub');
-  if (bs) bs.textContent = 'Gestão Comercial — ' + escopoNome(ui.escopoAtual);
-
-  const av = document.getElementById('import-filial-aviso');
-  if (av) {
-    if (e.tipo === 'filial') {
-      av.className = 'aviso info';
-      av.innerHTML = '✓ Importando para: <strong>' +
-        escapeAttr(escopoNome(ui.escopoAtual)) + '</strong>';
-    } else {
-      av.className = 'aviso';
-      av.innerHTML = '⚠ Selecione uma Filial no topo antes de importar.';
+      banner.innerHTML = 'Visualizando: <strong>' + escopoNome(ui.escopoAtual) + '</strong>';
     }
   }
 }
@@ -127,20 +86,16 @@ function popularModoVendedor() {
 
   let opts = '<option value="">👁️ Modo: Filial</option>';
   state.vendedores
-    .filter(v => v.ativo && v.papel !== 'administrativo')
+    .filter(v => v.ativo && v.papel === 'vendedor')
     .forEach(v => {
-      const f = state.filiais.find(x => x.id === v.filialId);
-      opts += '<option value="' + escapeAttr(v.id) + '">👤 ' +
-        escapeAttr(v.nome) + (f ? ' · ' + escapeAttr(f.nome) : '') + '</option>';
+      opts += '<option value="' + v.id + '">👤 ' + v.nome + '</option>';
     });
 
   sel.innerHTML = opts;
   sel.value = ui.modoVendedor;
 
   const banner = document.getElementById('banner-modo-vendedor');
-  const v = ui.modoVendedor
-    ? state.vendedores.find(x => x.id === ui.modoVendedor)
-    : null;
+  const v = ui.modoVendedor ? state.vendedores.find(x => x.id === ui.modoVendedor) : null;
 
   if (v && banner) {
     document.getElementById('banner-modo-nome').textContent = v.nome;
@@ -150,40 +105,12 @@ function popularModoVendedor() {
   }
 }
 
-function escapeAttr(s) {
-  return String(s == null ? '' : s)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-
-// Registra pro config.js usar via window
-window._abrirModalLigacao = abrirModalLigacao;
-window._marcarAcaoTratada = marcarAcaoTratada;
+window._popularEscopoSelect = popularEscopoSelect;
 window._popularModoVendedor = popularModoVendedor;
+window._abrirModalLigacao = abrirModalLigacao;
 
 // ============================================================
-// CONTROLES DE PERÍODO (Clientes)
-// ============================================================
-
-function atualizarControlesPeriodo() {
-  const selPer = document.getElementById('filtro-cliente-periodo');
-  const dIni = document.getElementById('filtro-cliente-data-ini');
-  const dFim = document.getElementById('filtro-cliente-data-fim');
-
-  if (selPer) selPer.style.display = '';
-
-  const ehPersonalizado = ui.filtroClientePeriodo === 'personalizado';
-  if (dIni) dIni.style.display = ehPersonalizado ? '' : 'none';
-  if (dFim) dFim.style.display = ehPersonalizado ? '' : 'none';
-
-  if (dIni && !dIni.value) dIni.value = ui.filtroClienteDataIni || '';
-  if (dFim && !dFim.value) dFim.value = ui.filtroClienteDataFim || '';
-}
-
-// ============================================================
-// LOGIN
+// LOGIN E UI DO USUÁRIO
 // ============================================================
 
 function mostrarLogin() {
@@ -222,21 +149,13 @@ function mostrarLogin() {
   document.getElementById('login-senha').onkeypress = e => {
     if (e.key === 'Enter') tentarLogin();
   };
-  document.getElementById('login-email').focus();
 }
 
 function ajustarUIUsuario() {
   const papel = session.vendedor ? session.vendedor.papel : 'vendedor';
 
-  const box = document.getElementById('user-box');
-  if (box) box.style.display = 'flex';
-
-  document.getElementById('user-nome').textContent =
-    session.vendedor ? session.vendedor.nome : (session.user ? session.user.email : '—');
-
-  document.getElementById('user-papel').textContent =
-    papel === 'diretor' ? '(diretor)' :
-    papel === 'administrativo' ? '(adm)' : '(vendedor)';
+  document.getElementById('user-nome').textContent = session.vendedor ? session.vendedor.nome : '—';
+  document.getElementById('user-papel').textContent = papel === 'diretor' ? 'Diretor' : 'Vendedor';
 
   document.getElementById('btn-logout').onclick = async () => {
     if (!confirm('Sair da conta?')) return;
@@ -246,9 +165,9 @@ function ajustarUIUsuario() {
 
   if (papel !== 'diretor') {
     ui.modoVendedor = session.vendedor.id;
-    document.querySelectorAll('#main-tabs button').forEach(b => {
-      // Esconde Análise, Config e Diagnóstico para quem não é diretor
-      if (b.dataset.tab === 'analise' || b.dataset.tab === 'config' || b.dataset.tab === 'diagnostico') {
+    // Esconde abas de admin
+    document.querySelectorAll('.sidebar-nav button').forEach(b => {
+      if (['analise', 'config', 'equipe'].includes(b.dataset.tab)) {
         b.style.display = 'none';
       }
     });
@@ -260,251 +179,54 @@ function ajustarUIUsuario() {
 }
 
 // ============================================================
-// EXPORTAR EXCEL
-// ============================================================
-
-function exportarExcel() {
-  if (typeof XLSX === 'undefined') { toast('SheetJS não carregado'); return; }
-
-  try {
-    const wb = XLSX.utils.book_new();
-
-    const resumo = [
-      ['Alta Fix — Export'],
-      ['Escopo: ' + escopoNome(ui.escopoAtual)],
-      [],
-      ['Vendedor', 'Filial', 'Meta', 'Meta Ticket']
-    ];
-    state.vendedores.forEach(v => {
-      const fi = state.filiais.find(x => x.id === v.filialId);
-      resumo.push([v.nome, fi ? fi.nome : '', v.meta || 0, v.metaTicket || 0]);
-    });
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(resumo), 'Vendedores');
-
-    const clientes = state.clientes.map(c => ({
-      Cliente: c.nome, Cidade: c.cidade || '', Valor: c.valorTotal,
-      Compras: c.numCompras, Ultima: c.ultimaCompra
-    }));
-    if (clientes.length > 0) {
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(clientes), 'Clientes');
-    }
-
-    const prods = state.produtos.map(p => ({
-      Codigo: p.codigo, Descricao: p.descricao,
-      Fabricante: p.fabricante || '', Curva: p.curva || '',
-      Qtd: p.qtdVendida, Valor: p.valorVendido
-    }));
-    if (prods.length > 0) {
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(prods), 'Produtos');
-    }
-
-    XLSX.writeFile(wb, 'altafix-' + isoDate(new Date()) + '.xlsx');
-    toast('✓ Excel exportado');
-  } catch (e) {
-    toast('Erro: ' + e.message);
-  }
-}
-
-// ============================================================
-// COLLAPSE
-// ============================================================
-
-function setupCollapse(hdrId, bodyId) {
-  const h = document.getElementById(hdrId);
-  const b = document.getElementById(bodyId);
-  if (!h || !b) return;
-  h.onclick = () => {
-    b.classList.toggle('collapsed');
-    h.classList.toggle('collapsed');
-  };
-}
-
-// ============================================================
-// TABS / SUBTABS
+// NAVEGAÇÃO (SIDEBAR)
 // ============================================================
 
 function setupTabs() {
-  document.querySelectorAll('#main-tabs button').forEach(b => {
+  const sidebar = document.getElementById('sidebar');
+  const mobileBtn = document.getElementById('mobile-menu-btn');
+
+  if (mobileBtn) {
+    mobileBtn.onclick = () => {
+      sidebar.classList.toggle('open');
+    };
+  }
+
+  document.querySelectorAll('.sidebar-nav button').forEach(b => {
     b.onclick = () => {
-      document.querySelectorAll('#main-tabs button').forEach(x => x.classList.remove('active'));
-      document.querySelectorAll('section').forEach(x => x.classList.remove('active'));
+      // Fecha menu no mobile
+      if (window.innerWidth <= 768) sidebar.classList.remove('open');
+
+      document.querySelectorAll('.sidebar-nav button').forEach(x => x.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(x => x.classList.remove('active'));
+      
       b.classList.add('active');
       const t = document.getElementById('tab-' + b.dataset.tab);
       if (t) t.classList.add('active');
 
-      if (b.dataset.tab === 'ligacoes') {
-        setTimeout(() => { try { renderLigacoes(); } catch (e) {} }, 50);
-      }
-      if (b.dataset.tab === 'analise') {
-        setTimeout(() => {
-          try { renderChartYoY(); } catch (e) {}
-          try { renderGraficoEvolucao(); } catch (e) {}
-        }, 50);
-      }
-      if (b.dataset.tab === 'diagnostico') {
-        const selMes = document.getElementById('diag-mes');
-        if (selMes && selMes.options.length === 0) {
-          const hoje = new Date();
-          for (let i = 0; i < 6; i++) {
-            const d = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
-            const val = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
-            const label = d.toLocaleString('pt-BR', { month: 'long', year: 'numeric' });
-            selMes.innerHTML += `<option value="${val}">${label.toUpperCase()}</option>`;
-          }
-        }
-        setTimeout(() => { try { renderDiagVendedor(); } catch (e) { console.error(e); } }, 50);
-      }
+      // Renderizações sob demanda
+      if (b.dataset.tab === 'agenda') setTimeout(() => { try { renderFilaHoje(); } catch (e) {} }, 50);
+      if (b.dataset.tab === 'equipe') setTimeout(() => { try { renderEquipe(); } catch (e) {} }, 50);
+      if (b.dataset.tab === 'clientes') setTimeout(() => { try { renderClientes(); } catch (e) {} }, 50);
+      if (b.dataset.tab === 'produtos') setTimeout(() => { try { renderProdutos(); } catch (e) {} }, 50);
     };
-  });
-
-  document.querySelectorAll('.subtabs').forEach(bar => {
-    const parent = bar.dataset.parent;
-    bar.querySelectorAll('button').forEach(btn => {
-      btn.onclick = () => {
-        bar.querySelectorAll('button').forEach(x => x.classList.remove('active'));
-        btn.classList.add('active');
-        document.querySelectorAll('#tab-' + parent + ' .subtab-content').forEach(x => {
-          x.classList.remove('active');
-        });
-        const target = document.getElementById('subtab-' + parent + '-' + btn.dataset.subtab);
-        if (target) target.classList.add('active');
-
-        if (btn.dataset.subtab === 'comparativo') setTimeout(() => { try { renderChartYoY(); } catch (e) {} }, 50);
-        if (btn.dataset.subtab === 'cidades') setTimeout(() => { try { renderCidades(); } catch (e) {} }, 50);
-        if (btn.dataset.subtab === 'fabricantes') setTimeout(() => { try { renderFabricantes(); } catch (e) {} }, 50);
-        if (btn.dataset.subtab === 'saude') { try { renderDiagnostico(); } catch (e) {} }
-      };
-    });
   });
 }
 
 // ============================================================
-// FILTROS
+// FILTROS E BOTÕES GERAIS
 // ============================================================
 
 function setupFiltros() {
-  // Produtos
-  document.querySelectorAll('.filtros-bar .chip').forEach(c => {
-    c.onclick = () => {
-      document.querySelectorAll('.filtros-bar .chip').forEach(x => x.classList.remove('active'));
-      c.classList.add('active');
-      ui.filtroCurva = c.dataset.curva;
-      renderProdutos();
-    };
-  });
-  const fp = document.getElementById('filtro-produto');
-  if (fp) fp.oninput = e => { ui.filtroTextoProd = e.target.value; renderProdutos(); };
-  const ff = document.getElementById('filtro-fabricante');
-  if (ff) ff.onchange = e => { ui.filtroFabricante = e.target.value; renderProdutos(); };
-  const fdp = document.getElementById('filtro-delta-produto');
-  if (fdp) fdp.onchange = e => { ui.filtroDeltaProduto = e.target.value; renderProdutos(); };
-
-  // Clientes — busca
   const fcb = document.getElementById('filtro-cliente-busca');
   if (fcb) fcb.oninput = e => { ui.filtroClienteBusca = e.target.value; renderClientes(); };
 
-  // Clientes — vendedor
   const fcv = document.getElementById('filtro-cliente-vend');
   if (fcv) fcv.onchange = e => { ui.filtroClienteVend = e.target.value; renderClientes(); };
 
-  // Clientes — cidade
-  const fcc = document.getElementById('filtro-cliente-cidade');
-  if (fcc) fcc.onchange = e => { ui.filtroClienteCidade = e.target.value; renderClientes(); };
-
-  // Clientes — status
   const fcs = document.getElementById('filtro-cliente-status');
-  if (fcs) fcs.onchange = e => {
-    ui.filtroClienteStatus = e.target.value;
-    atualizarControlesPeriodo();
-    renderClientes();
-  };
-
-  // Clientes — período
-  const fcp = document.getElementById('filtro-cliente-periodo');
-  if (fcp) fcp.onchange = e => {
-    ui.filtroClientePeriodo = e.target.value;
-    atualizarControlesPeriodo();
-    renderClientes();
-  };
-
-  // Clientes — datas personalizadas
-  const fcdIni = document.getElementById('filtro-cliente-data-ini');
-  if (fcdIni) fcdIni.onchange = e => {
-    ui.filtroClienteDataIni = e.target.value;
-    renderClientes();
-  };
-  const fcdFim = document.getElementById('filtro-cliente-data-fim');
-  if (fcdFim) fcdFim.onchange = e => {
-    ui.filtroClienteDataFim = e.target.value;
-    renderClientes();
-  };
-
-  // Clientes — ABC
-  const fca = document.getElementById('filtro-cliente-abc');
-  if (fca) fca.onchange = e => { ui.filtroClienteABC = e.target.value; renderClientes(); };
-
-  // Cidades
-  const fcb2 = document.getElementById('filtro-cidade-busca');
-  if (fcb2) fcb2.oninput = e => { ui.filtroCidadeBusca = e.target.value; renderCidades(); };
-  const fcv2 = document.getElementById('filtro-cidade-vend');
-  if (fcv2) fcv2.onchange = e => { ui.filtroCidadeVend = e.target.value; renderCidades(); };
-  const oc = document.getElementById('filtro-ocultar-nao-cad');
-  if (oc) oc.onchange = renderCidades;
-
-    // Filtros da aba Ligações
-  const flBusca = document.getElementById('filtro-lig-busca');
-  if (flBusca) flBusca.oninput = () => renderLigacoes();
-  const flVend = document.getElementById('filtro-lig-vend');
-  if (flVend) flVend.onchange = () => renderLigacoes();
-  const flStatus = document.getElementById('filtro-lig-status');
-  if (flStatus) flStatus.onchange = () => renderLigacoes();
-  const flConv = document.getElementById('filtro-lig-conversao');
-  if (flConv) flConv.onchange = () => renderLigacoes();
-  const flPeriodo = document.getElementById('filtro-lig-periodo');
-  if (flPeriodo) flPeriodo.onchange = () => renderLigacoes();
-
-  document.querySelectorAll('[data-urgencia]').forEach(btn => {
-    btn.onclick = () => {
-      ui.filtroLigUrgencia = btn.dataset.urgencia || '';
-      renderLigacoes();
-    };
-  });
-
-  // Comparativo
-  const cfv = document.getElementById('comp-filtro-vendedor');
-  if (cfv) cfv.onchange = e => { ui.filtroCompVendedor = e.target.value; renderComparativo(); };
-
-  // Fabricantes
-  const fms = document.getElementById('fab-mes-select');
-  if (fms) fms.onchange = renderFabricantes;
-  const fbs = document.getElementById('fab-busca');
-  if (fbs) fbs.oninput = renderFabricantes;
-  const ffd = document.getElementById('fab-filtro-delta');
-  if (ffd) ffd.onchange = renderFabricantes;
-
-  // Cidades — mês + evolução
-  const smc = document.getElementById('cidade-mes-select');
-  if (smc) smc.onchange = e => {
-    ui.mesCidadesSelecionado = e.target.value || '';
-    if (!ui.mesCidadesSelecionado) {
-      const ms = Object.keys(state._historico || {}).sort();
-      ui.mesCidadesSelecionado = ms.length ? ms[ms.length - 1] : '';
-    }
-    renderCidades();
-  };
-  const sce = document.getElementById('cidade-filtro-evolucao');
-  if (sce) sce.onchange = renderGraficoEvolucao;
-
-  // Diagnóstico
-  const diagMes = document.getElementById('diag-mes');
-  if (diagMes) diagMes.onchange = () => { try { renderDiagVendedor(); } catch (e) { console.error(e); } };
-  const diagVend = document.getElementById('diag-vendedor');
-  if (diagVend) diagVend.onchange = () => { try { renderDiagVendedor(); } catch (e) { console.error(e); } };
+  if (fcs) fcs.onchange = e => { ui.filtroClienteStatus = e.target.value; renderClientes(); };
 }
-
-// ============================================================
-// BOTÕES DIVERSOS
-// ============================================================
 
 function setupBotoes() {
   const helpBtn = document.getElementById('help-btn');
@@ -513,115 +235,25 @@ function setupBotoes() {
   const helpClose = document.getElementById('help-close');
   if (helpClose) helpClose.onclick = () => document.getElementById('help-modal').classList.remove('show');
 
-  const helpModal = document.getElementById('help-modal');
-  if (helpModal) helpModal.onclick = e => {
-    if (e.target.id === 'help-modal') e.target.classList.remove('show');
-  };
-
-  const bMin = document.getElementById('btn-min-todos');
-  if (bMin) bMin.onclick = () => toggleTodosMinimizaveis(true);
-
-  const bMax = document.getElementById('btn-max-todos');
-  if (bMax) bMax.onclick = () => toggleTodosMinimizaveis(false);
-
-  const bRelMat = document.getElementById('btn-relatorio-matinal');
-  if (bRelMat) bRelMat.onclick = () => copiarTexto(gerarRelatorioMatinal());
-
-  const bRelFec = document.getElementById('btn-relatorio-fechamento');
-  if (bRelFec) bRelFec.onclick = () => copiarTexto(gerarRelatorioFechamento());
-
-  const bSimReset = document.getElementById('btn-sim-reset');
-  if (bSimReset) bSimReset.onclick = resetarSimulador;
-
-  const bSimRel = document.getElementById('btn-sim-relatorio');
-  if (bSimRel) bSimRel.onclick = copiarCenario;
-
-  const bImpRank = document.getElementById('btn-imprimir-ranking');
-  if (bImpRank) bImpRank.onclick = imprimirRanking;
-
-  const bImpCli = document.getElementById('btn-imprimir-clientes');
-  if (bImpCli) bImpCli.onclick = imprimirClientes;
-
-  const bImpProd = document.getElementById('btn-imprimir-produtos');
-  if (bImpProd) bImpProd.onclick = imprimirProdutos;
-
-  const bImpCid = document.getElementById('btn-imprimir-cidades');
-  if (bImpCid) bImpCid.onclick = imprimirCidades;
-
-  const bCopInat = document.getElementById('btn-copiar-inativos');
-  if (bCopInat) bCopInat.onclick = copiarInativos;
-
-  const bCopSeg = document.getElementById('btn-copiar-segmento');
-  if (bCopSeg) bCopSeg.onclick = copiarSegmento;
-
-  const bCopCid = document.getElementById('btn-copiar-cidades');
-  if (bCopCid) bCopCid.onclick = copiarCidades;
-
-  const bExcel = document.getElementById('btn-export-excel');
-  if (bExcel) bExcel.onclick = exportarExcel;
-
-  const bBackup = document.getElementById('btn-backup');
-  if (bBackup) bBackup.onclick = exportarJSON;
-
-  // Escopo
   const escopo = document.getElementById('escopo-select');
   if (escopo) escopo.onchange = e => {
     ui.escopoAtual = e.target.value;
-    ui.filtroClienteVend = '';
-    ui.filtroClienteCidade = '';
-    ui.filtroCidadeVend = '';
-    ui.filtroCidadeBusca = '';
-    ui.filtroCompVendedor = '';
-
-    const sv = document.getElementById('filtro-cliente-vend');
-    if (sv) sv.value = '';
-    const sc = document.getElementById('filtro-cliente-cidade');
-    if (sc) sc.value = '';
-    const scv = document.getElementById('filtro-cidade-vend');
-    if (scv) scv.value = '';
-    const scb = document.getElementById('filtro-cidade-busca');
-    if (scb) scb.value = '';
-    const scomp = document.getElementById('comp-filtro-vendedor');
-    if (scomp) scomp.value = '';
-
     popularEscopoSelect();
-    renderTudo();
+    renderPainel(); // Atualiza só o painel para ser rápido
   };
 
-  // Modo vendedor
   const mv = document.getElementById('modo-vendedor');
   if (mv) mv.onchange = e => {
     ui.modoVendedor = e.target.value;
     popularModoVendedor();
-    renderTudo();
+    renderPainel();
   };
-  // Seletor de mês do painel
+
   const painelMesSel = document.getElementById('painel-mes-select');
   if (painelMesSel) painelMesSel.onchange = e => {
     ui.mesPainelSelecionado = e.target.value;
-    renderTudo();
+    renderPainel();
   };
-
-  const bSairModo = document.getElementById('btn-sair-modo');
-  if (bSairModo) bSairModo.onclick = () => {
-    ui.modoVendedor = '';
-    popularModoVendedor();
-    renderTudo();
-  };
-
-  // Semana
-  const sp = document.getElementById('sem-prev');
-  if (sp) sp.onclick = () => { ui.semanaRef.setDate(ui.semanaRef.getDate() - 7); renderSemana(); };
-
-  const sn = document.getElementById('sem-next');
-  if (sn) sn.onclick = () => { ui.semanaRef.setDate(ui.semanaRef.getDate() + 7); renderSemana(); };
-
-  document.querySelectorAll('#sem-tabs button').forEach(b => {
-    b.onclick = () => {
-      ui.diaSemanaMobile = parseInt(b.dataset.dia, 10);
-      renderSemana();
-    };
-  });
 }
 
 // ============================================================
@@ -630,96 +262,47 @@ function setupBotoes() {
 
 document.addEventListener('DOMContentLoaded', async () => {
   try {
-    // 1. Carrega do localStorage (cache)
     carregar();
 
-    // 2. Inicializa Supabase
     if (!sbInit()) {
-      const err = document.getElementById('login-erro');
-      if (err) {
-        err.textContent = 'Falha ao inicializar Supabase.';
-        err.style.display = 'block';
-      }
-      const tela = document.getElementById('tela-login');
-      if (tela) tela.style.display = 'flex';
+      document.getElementById('tela-login').style.display = 'flex';
+      document.getElementById('login-erro').textContent = 'Falha ao inicializar Supabase.';
       return;
     }
 
-    // 3. Verifica sessão
     const sess = await sbSessaoAtual();
     if (!sess) { mostrarLogin(); return; }
 
-    // 4. Carrega perfil
     const perfilOk = await sbCarregarPerfil();
     if (!perfilOk) {
-      const tela = document.getElementById('tela-login');
-      if (tela) tela.style.display = 'flex';
-      const erroEl = document.getElementById('login-erro');
-      if (erroEl) {
-        erroEl.textContent = 'Usuário existe no auth, mas não está vinculado a um vendedor.';
-        erroEl.style.display = 'block';
-      }
+      document.getElementById('tela-login').style.display = 'flex';
+      document.getElementById('login-erro').textContent = 'Usuário sem vínculo na tabela vendedores.';
       return;
     }
 
-    // 5. Carrega tudo do banco
     toast('⏳ Carregando dados...');
-    let dados;
-    try {
-      dados = await sbCarregarTudo();
-    } catch (e) {
+    const dados = await sbCarregarTudo().catch(e => {
       toast('❌ Erro ao carregar: ' + e.message);
-      console.error(e);
-      dados = { vendedores: [], clientes: [], produtos: [], lancamentos: [], cidades: [], comparativo: [] };
-    }
+      return { vendedores: [], clientes: [], produtos: [], lancamentos: [], cidades: [], comparativo: [] };
+    });
 
     aplicarDadosDoBanco(dados);
     derivarHistorico();
 
-    // 6. UI do usuário
     ajustarUIUsuario();
-
-    // 7. Popula selects
     popularEscopoSelect();
     popularModoVendedor();
 
-    // 8. Registra event listeners
     setupTabs();
     setupFiltros();
     setupBotoes();
-    setupImports();
-    setupLancar();
-    setupMetas();
-    setupFiliais();
-    setupGeral();
-    setupClientesNovos();
 
-    const btnNovaLig = document.getElementById('btn-nova-ligacao');
-    if (btnNovaLig) btnNovaLig.onclick = () => abrirModalLigacao();
-
-    // 9. Collapse dos headers de seção
-    setupCollapse('hdr-historico', 'body-historico');
-    setupCollapse('hdr-comp-mes', 'body-comp-mes');
-    setupCollapse('hdr-comp-vend', 'body-comp-vend');
-    setupCollapse('hdr-comp-tot', 'body-comp-tot');
-    setupCollapse('hdr-abc', 'body-abc');
-
-    // 10. Minimizáveis
-    aplicarMinimizaveis();
-
-    // 11. Controles de período (Clientes)
-    atualizarControlesPeriodo();
-
-    // 12. Render inicial
-    renderTudo();
+    // Render Inicial (Apenas o Painel)
+    renderPainel();
 
     toast('✓ Pronto');
   } catch (e) {
-    const el = document.getElementById('erro-banner');
-    if (el) {
-      el.style.display = 'block';
-      el.textContent = 'ERRO: ' + e.message + '\n' + (e.stack || '');
-    }
-    console.error(e);
+    console.error('[Alta Fix] Erro fatal:', e);
+    alert('Erro ao carregar a tela: ' + e.message);
   }
 });
