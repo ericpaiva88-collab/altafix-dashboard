@@ -10,7 +10,8 @@ import {
   sbCarregarTudo, aplicarDadosDoBanco
 } from './supabase.js';
 
-import { renderPainel, renderFilaHoje, renderEquipe } from './views/painel.js';
+import { renderPainel, renderFilaHoje } from './views/painel.js';
+import { renderEquipe } from './views/equipe.js';
 import { renderAgenda } from './views/agenda.js'; 
 import { renderClientes, copiarInativos, copiarSegmento, imprimirClientes } from './views/clientes.js';
 import { renderProdutos, imprimirProdutos } from './views/produtos.js';
