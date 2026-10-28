@@ -11,7 +11,7 @@ import {
 } from './supabase.js';
 
 import { renderPainel, renderFilaHoje, renderEquipe } from './views/painel.js';
-import { renderAgenda } from './views/agenda.js'; // FIX: Nova importação da Agenda
+import { renderAgenda } from './views/agenda.js'; 
 import { renderClientes, copiarInativos, copiarSegmento, imprimirClientes } from './views/clientes.js';
 import { renderProdutos, imprimirProdutos } from './views/produtos.js';
 import { renderLigacoes, abrirModalLigacao } from './views/ligacoes.js';
@@ -166,6 +166,7 @@ function ajustarUIUsuario() {
 // ============================================================
 
 function setupTabs() {
+  console.log('🟢 setupTabs iniciado');
   const sidebar = document.getElementById('sidebar');
   const mobileBtn = document.getElementById('mobile-menu-btn');
 
@@ -175,9 +176,17 @@ function setupTabs() {
     };
   }
 
-  document.querySelectorAll('.sidebar-nav button').forEach(b => {
+  const botoes = document.querySelectorAll('.sidebar-nav button');
+  console.log('🔍 Botões da sidebar encontrados:', botoes.length);
+
+  if (botoes.length === 0) {
+    console.error('❌ ERRO CRÍTICO: Nenhum botão da sidebar encontrado. Verifique o HTML.');
+  }
+
+  botoes.forEach(b => {
     b.onclick = () => {
-      if (window.innerWidth <= 768) sidebar.classList.remove('open');
+      console.log('🖱️ Clicou na aba:', b.dataset.tab);
+      if (window.innerWidth <= 768 && sidebar) sidebar.classList.remove('open');
 
       document.querySelectorAll('.sidebar-nav button').forEach(x => x.classList.remove('active'));
       document.querySelectorAll('.tab-content').forEach(x => x.classList.remove('active'));
@@ -187,10 +196,10 @@ function setupTabs() {
       if (t) t.classList.add('active');
 
       // Renderizações sob demanda
-      if (b.dataset.tab === 'agenda') setTimeout(() => { try { renderAgenda(); } catch (e) {} }, 50); // FIX: Chama a Agenda
-      if (b.dataset.tab === 'equipe') setTimeout(() => { try { renderEquipe(); } catch (e) {} }, 50);
-      if (b.dataset.tab === 'clientes') setTimeout(() => { try { renderClientes(); } catch (e) {} }, 50);
-      if (b.dataset.tab === 'produtos') setTimeout(() => { try { renderProdutos(); } catch (e) {} }, 50);
+      if (b.dataset.tab === 'agenda') setTimeout(() => { try { renderAgenda(); } catch (e) { console.error('Erro na Agenda:', e); } }, 50); 
+      if (b.dataset.tab === 'equipe') setTimeout(() => { try { renderEquipe(); } catch (e) { console.error('Erro na Equipe:', e); } }, 50);
+      if (b.dataset.tab === 'clientes') setTimeout(() => { try { renderClientes(); } catch (e) { console.error('Erro nos Clientes:', e); } }, 50);
+      if (b.dataset.tab === 'produtos') setTimeout(() => { try { renderProdutos(); } catch (e) { console.error('Erro nos Produtos:', e); } }, 50);
     };
   });
 }
@@ -232,7 +241,6 @@ function setupBotoes() {
     renderPainel();
   };
 
-  // FIX: Botão de Nova Ligação dentro da Agenda
   const btnNovaLigAgenda = document.getElementById('btn-nova-ligacao-agenda');
   if (btnNovaLigAgenda) {
     btnNovaLigAgenda.onclick = () => {
@@ -247,6 +255,7 @@ function setupBotoes() {
 
 document.addEventListener('DOMContentLoaded', async () => {
   try {
+    console.log('🟢 DOMContentLoaded iniciado');
     carregar();
 
     if (!sbInit()) {
@@ -277,16 +286,20 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     ajustarUIUsuario();
     
+    console.log('🟢 Populando selects');
     popularEscopoSelect();
     popularModoVendedor();
 
+    console.log('🟢 Configurando abas');
     setupTabs();
     setupFiltros();
     setupBotoes();
 
+    console.log('🟢 Renderizando Painel inicial');
     renderPainel();
 
     toast('✓ Pronto');
+    console.log('🟢 App carregado com sucesso');
   } catch (e) {
     console.error('[Alta Fix] Erro fatal:', e);
     alert('Erro ao carregar a tela: ' + e.message);

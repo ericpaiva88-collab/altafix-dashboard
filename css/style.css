@@ -364,3 +364,22 @@ body {
   .tabela-cockpit td { padding: 4px 0; border: none; display: flex; justify-content: space-between; text-align: right; }
   .tabela-cockpit td::before { content: attr(data-label); font-weight: 600; color: var(--af-t3); font-size: 11px; text-transform: uppercase; text-align: left; }
 }
+/* =========================================
+   Controle de Abas (Tabs)
+   ========================================= */
+.tab-content {
+  display: none;
+  animation: fadein 0.2s ease-in-out;
+}
+
+.tab-content.active {
+  display: block;
+}
+
+@keyframes fadein {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.main-wrapper {
+  overflow-y: auto; /* Permite rolar a página inteira */
+}
