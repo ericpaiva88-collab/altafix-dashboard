@@ -133,7 +133,58 @@
       </div>
     </section>
 
-    <section id="tab-produtos" class="tab-content"><div class="page-header"><h2>Produtos</h2><p>Em breve.</p></div></section>
+    <!-- ABA PRODUTOS -->
+    <section id="tab-produtos" class="tab-content">
+      <div class="page-header">
+        <h2>Produtos</h2>
+        <p>Dados do relatório 361 (curva ABC e estoque).</p>
+      </div>
+
+      <div class="grid-kpis" id="produtos-kpis" style="margin-bottom:24px; grid-template-columns: repeat(4, 1fr);">
+      </div>
+
+      <div class="card-painel">
+        <div class="card-title-row" style="padding:16px 20px; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center;">
+          <h3>Portfólio de Produtos</h3>
+          <span class="text-xs text-muted" id="produtos-count">0 itens</span>
+        </div>
+        
+        <div class="filtros-bar" style="padding: 16px 20px; border-bottom: 1px solid #eee; background: #FAFAFA;">
+          <input type="text" id="filtro-produto-busca" placeholder="Buscar código ou descrição..." style="flex:1; min-width:250px;">
+          
+          <select id="filtro-produto-curva">
+            <option value="TODAS">Todas as curvas</option>
+            <option value="A">Curva A</option>
+            <option value="B">Curva B</option>
+            <option value="C">Curva C</option>
+          </select>
+
+          <select id="filtro-produto-fabricante">
+            <option value="">Todos fabricantes</option>
+          </select>
+        </div>
+
+        <div style="overflow-x:auto;">
+          <table class="tabela-cockpit">
+            <thead>
+              <tr>
+                <th style="width: 60px;">CURVA</th>
+                <th>CÓDIGO</th>
+                <th>DESCRIÇÃO</th>
+                <th>FABRICANTE</th>
+                <th class="num">QTD VENDIDA</th>
+                <th class="num">FATURAMENTO</th>
+                <th class="num">ESTOQUE</th>
+                <th class="num">MÍNIMO</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-produtos">
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
     <section id="tab-analise" class="tab-content"><div class="page-header"><h2>Análise</h2><p>Em breve.</p></div></section>
     <section id="tab-config" class="tab-content"><div class="page-header"><h2>Configurações</h2><p>Em breve.</p></div></section>
   </main>
