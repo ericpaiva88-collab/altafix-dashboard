@@ -176,7 +176,7 @@
       
     </section>
 
-        <!-- ABA AGENDA / OPERAÇÃO -->
+           <!-- ABA AGENDA / OPERAÇÃO -->
     <section id="tab-agenda" class="tab-content">
       <div class="page-header" style="display:flex; justify-content:space-between; align-items:flex-end;">
         <div>
@@ -196,6 +196,24 @@
           <span class="text-xs text-muted" id="agenda-count">0 itens</span>
         </div>
         
+        <!-- BARRA DE FILTROS DA AGENDA -->
+        <div class="filtros-bar" style="padding: 16px 20px; border-bottom: 1px solid #eee; background: #FAFAFA;">
+          <input type="text" id="agenda-busca" placeholder="Buscar empresa..." style="flex:1; min-width:200px;">
+          
+          <select id="agenda-filtro-tipo">
+            <option value="todos">Todos os tipos</option>
+            <option value="atrasados">🔴 Retornos Atrasados</option>
+            <option value="hoje">🟡 Retornos Hoje</option>
+            <option value="recompra">🟢 Recompra</option>
+            <option value="reativar">⚪ Reativar</option>
+          </select>
+
+          <select id="agenda-filtro-vendedor">
+            <option value="">Todos vendedores</option>
+            <!-- Preenchido via JS -->
+          </select>
+        </div>
+
         <div style="overflow-x:auto;">
           <table class="tabela-cockpit">
             <thead>
@@ -215,7 +233,7 @@
         </div>
       </div>
     </section>
-    
+
     <!-- ABA EQUIPE (Casca) -->
     <section id="tab-equipe" class="tab-content">
       <div class="page-header">

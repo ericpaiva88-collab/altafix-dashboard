@@ -383,3 +383,78 @@ body {
 .main-wrapper {
   overflow-y: auto; /* Permite rolar a página inteira */
 }
+/* Ajuste do Botão na Tabela */
+.tabela-cockpit .btn-sm {
+  padding: 6px 14px !important;
+  font-size: 11.5px !important;
+  font-weight: 600 !important;
+  border-radius: 6px !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+/* =========================================
+   Formulário de Modal (Nova Ligação)
+   ========================================= */
+.modal-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.modal-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.modal-input-group.full-width {
+  grid-column: 1 / -1;
+}
+
+.modal-input-group label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--af-t2);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.modal-input-group input,
+.modal-input-group select,
+.modal-input-group textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--af-borda-forte);
+  border-radius: var(--radius-sm);
+  font-family: var(--fonte-texto);
+  font-size: 13px;
+  color: var(--af-t1);
+  background: var(--af-superficie);
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.modal-input-group input:focus,
+.modal-input-group select:focus,
+.modal-input-group textarea:focus {
+  border-color: var(--af-preto);
+}
+
+/* Botão da tabela sem quebrar */
+.tabela-cockpit .btn-ligar {
+  background: var(--af-preto);
+  color: #fff;
+  border: none;
+  padding: 6px 16px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.tabela-cockpit .btn-ligar:hover {
+  background: var(--af-vermelho);
+}

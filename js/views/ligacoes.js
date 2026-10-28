@@ -313,72 +313,60 @@ export function abrirModalLigacao(ligacaoId, prefill) {
   const existente = ligacaoId ? state.ligacoes.find(l => l.id === ligacaoId) : null;
   prefill = prefill || {};
 
-  let html = '<div class="card" style="margin:0;border:none;">';
-  html += '<h2>' + (existente ? '✏️ Editar ligação' : '📞 Nova ligação') + '</h2>';
+  let html = '<div style="margin:0;">';
+  html += '<h2 style="margin-bottom:20px; font-size:18px;">' + (existente ? '✏️ Editar ligação' : '📞 Nova ligação') + '</h2>';
 
-  if (prefill.acaoId) {
-    html += '<div class="aviso info" style="margin-bottom:12px;font-size:12px;">' +
-      '✓ Ao salvar, a ação será marcada como tratada automaticamente.</div>';
-  }
+  html += '<div class="modal-form-grid">';
 
-  html += '<div class="form-row">';
-  html += '<div><label>Vendedor</label><select id="ml-vend">';
-  state.vendedores.filter(v => v.ativo && v.papel !== 'administrativo' && v.papel !== 'diretor')
-    .forEach(v => {
-      const sel = (existente && existente.vendedor === v.id) ||
-                  (prefill.vendedor && prefill.vendedor === v.id) ||
-                  (!existente && !prefill.vendedor && ui.modoVendedor === v.id);
-      html += '<option value="' + escapeHtml(v.id) + '"' + (sel ? ' selected' : '') + '>' +
-        escapeHtml(v.nome) + '</option>';
-    });
+  // Vendedor e Data
+  html += '<div class="modal-input-group"><label>Vendedor</label><select id="ml-vend">';
+  state.vendedores.filter(v => v.ativo && v.papel === 'vendedor').forEach(v => {
+    const sel = (existente && existente.vendedor === v.id) || (prefill.vendedor && prefill.vendedor === v.id) || (!existente && !prefill.vendedor && ui.modoVendedor === v.id);
+    html += '<option value="' + escapeHtml(v.id) + '"' + (sel ? ' selected' : '') + '>' + escapeHtml(v.nome) + '</option>';
+  });
   html += '</select></div>';
 
   const dataDefault = existente ? existente.data : isoDate(new Date());
-  html += '<div><label>Data</label><input type="date" id="ml-data" value="' + dataDefault + '"></div>';
-  html += '</div>';
+  html += '<div class="modal-input-group"><label>Data</label><input type="date" id="ml-data" value="' + dataDefault + '"></div>';
 
+  // Código e Empresa
   const codigoVal = existente ? (existente.codigo || '') : (prefill.codigo || '');
   const empresaVal = existente ? (existente.empresa || '') : (prefill.empresa || '');
-  html += '<div class="form-row">';
-  html += '<div><label>Código</label><input type="text" id="ml-codigo" value="' + escapeHtml(codigoVal) + '"></div>';
-  html += '<div><label>Empresa *</label><input type="text" id="ml-empresa" value="' + escapeHtml(empresaVal) + '"></div>';
-  html += '</div>';
+  html += '<div class="modal-input-group"><label>Código</label><input type="text" id="ml-codigo" value="' + escapeHtml(codigoVal) + '"></div>';
+  html += '<div class="modal-input-group"><label>Empresa *</label><input type="text" id="ml-empresa" value="' + escapeHtml(empresaVal) + '"></div>';
 
+  // Contato e Telefone
   const contatoVal = existente ? (existente.contato || '') : (prefill.contato || '');
   const telefoneVal = existente ? (existente.telefone || '') : (prefill.telefone || '');
-  html += '<div class="form-row">';
-  html += '<div><label>Contato</label><input type="text" id="ml-contato" value="' + escapeHtml(contatoVal) + '"></div>';
-  html += '<div><label>Telefone</label><input type="tel" id="ml-telefone" value="' + escapeHtml(telefoneVal) + '"></div>';
-  html += '</div>';
+  html += '<div class="modal-input-group"><label>Contato</label><input type="text" id="ml-contato" value="' + escapeHtml(contatoVal) + '"></div>';
+  html += '<div class="modal-input-group"><label>Telefone</label><input type="tel" id="ml-telefone" value="' + escapeHtml(telefoneVal) + '"></div>';
 
+  // Cidade e UF
   const cidadeVal = existente ? (existente.cidade || '') : (prefill.cidade || '');
   const estadoVal = existente ? (existente.estado || 'PA') : (prefill.estado || 'PA');
-  html += '<div class="form-row">';
-  html += '<div><label>Cidade</label><input type="text" id="ml-cidade" value="' + escapeHtml(cidadeVal) + '"></div>';
-  html += '<div><label>UF</label><input type="text" id="ml-estado" maxlength="2" value="' + escapeHtml(estadoVal) + '"></div>';
-  html += '</div>';
+  html += '<div class="modal-input-group"><label>Cidade</label><input type="text" id="ml-cidade" value="' + escapeHtml(cidadeVal) + '"></div>';
+  html += '<div class="modal-input-group"><label>UF</label><input type="text" id="ml-estado" maxlength="2" value="' + escapeHtml(estadoVal) + '"></div>';
 
-  html += '<div class="form-row">';
-  html += '<div><label>Status</label><select id="ml-status">';
+  // Status e Valor
+  html += '<div class="modal-input-group"><label>Status</label><select id="ml-status">';
   Object.keys(STATUS).forEach(k => {
-    html += '<option value="' + k + '"' +
-      (existente && existente.status === k ? ' selected' : '') + '>' +
-      STATUS[k].emoji + ' ' + STATUS[k].label + '</option>';
+    html += '<option value="' + k + '"' + (existente && existente.status === k ? ' selected' : '') + '>' + STATUS[k].emoji + ' ' + STATUS[k].label + '</option>';
   });
   html += '</select></div>';
-  html += '<div><label>Valor (R$)</label><input type="text" inputmode="decimal" id="ml-valor" value="' +
-    (existente && existente.valor > 0 ? existente.valor : '') + '"></div>';
-  html += '<div><label>Próximo contato</label><input type="date" id="ml-proximo" value="' +
-    (existente && existente.proximo ? existente.proximo : '') + '"></div>';
-  html += '</div>';
 
-  html += '<div class="form-row"><div style="grid-column:1/-1;"><label>Observações</label>' +
-    '<textarea id="ml-obs" style="width:100%;min-height:80px;padding:8px;border:1px solid #cbd5e1;border-radius:6px;font-family:inherit;font-size:13px;">' +
-    (existente ? escapeHtml(existente.obs || '') : '') + '</textarea></div></div>';
+  html += '<div class="modal-input-group"><label>Valor (R$)</label><input type="text" inputmode="decimal" id="ml-valor" value="' + (existente && existente.valor > 0 ? existente.valor : '') + '"></div>';
 
-  html += '<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">';
-  html += '<button class="btn btn-primary" id="ml-salvar">✓ ' + (existente ? 'Atualizar' : 'Salvar') + '</button>';
+  // Próximo contato e Observações
+  html += '<div class="modal-input-group full-width"><label>Próximo contato</label><input type="date" id="ml-proximo" value="' + (existente && existente.proximo ? existente.proximo : '') + '"></div>';
+  
+  html += '<div class="modal-input-group full-width"><label>Observações</label>' +
+    '<textarea id="ml-obs" style="min-height:80px; resize:vertical;">' + (existente ? escapeHtml(existente.obs || '') : '') + '</textarea></div>';
+
+  html += '</div>'; // fim grid
+
+  html += '<div style="display:flex;justify-content:flex-end;gap:12px;margin-top:24px; border-top:1px solid #eee; padding-top:20px;">';
   html += '<button class="btn" id="ml-cancelar">Cancelar</button>';
+  html += '<button class="btn btn-primary" id="ml-salvar">✓ ' + (existente ? 'Atualizar' : 'Salvar') + '</button>';
   html += '</div>';
 
   html += '</div>';
@@ -388,7 +376,7 @@ export function abrirModalLigacao(ligacaoId, prefill) {
     modal = document.createElement('div');
     modal.id = 'lig-modal';
     modal.className = 'modal';
-    modal.innerHTML = '<div class="modal-content" style="max-width:600px;"></div>';
+    modal.innerHTML = '<div class="modal-content" style="max-width:600px; padding:32px;"></div>';
     document.body.appendChild(modal);
   }
   modal.querySelector('.modal-content').innerHTML = html;
@@ -398,7 +386,7 @@ export function abrirModalLigacao(ligacaoId, prefill) {
   modal.onclick = e => { if (e.target.id === 'lig-modal') modal.classList.remove('show'); };
   document.getElementById('ml-cancelar').onclick = () => modal.classList.remove('show');
   document.getElementById('ml-salvar').onclick = () => salvarLigacao(existente);
-  setTimeout(() => document.getElementById('ml-obs')?.focus(), 100);
+  setTimeout(() => document.getElementById('ml-empresa')?.focus(), 100);
 }
 
 // ============================================================
