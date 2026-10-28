@@ -18,18 +18,16 @@ export function renderPainel() {
   const meses = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
   const selMes = document.getElementById('painel-mes-select');
 
-  // FIX: Auto-selecionar o último mês com dados
+  // Auto-selecionar o último mês com dados
   if (selMes) {
     let mesesComDados = new Set();
     state.lancamentos.forEach(l => { if (l.data) mesesComDados.add(l.data.slice(0, 7)); });
-    const listaMeses = Array.from(mesesComDados).sort().reverse(); // Do mais recente pro mais antigo
+    const listaMeses = Array.from(mesesComDados).sort().reverse();
 
-    // Se não tem nada selecionado, pega o mês mais recente que tem dados
     if (!ui.mesPainelSelecionado) {
       ui.mesPainelSelecionado = listaMeses.length > 0 ? listaMeses[0] : (new Date().getFullYear() + '-' + String(new Date().getMonth() + 1).padStart(2, '0'));
     }
 
-    // Popula o select
     selMes.innerHTML = listaMeses.map(m => {
       const p = m.split('-');
       return `<option value="${m}">${meses[parseInt(p[1]) - 1].slice(0, 3)}/${p[0]}</option>`;
@@ -41,10 +39,9 @@ export function renderPainel() {
   const ref = mesRefAtual(ui.escopoAtual);
   const a = ref.ano, m = ref.mes;
 
-  // Se estiver no modo vendedor, podemos adaptar (aqui simplificado para o admin)
   const f = calcFilial(a, m, ui.escopoAtual);
 
-  // 2. Preenche KPIs do Topo
+  // Preenche KPIs do Topo
   const pctMeta = f.pctMeta || 0;
   
   document.getElementById('painel-pct').innerHTML = fmtBRL(f.faturadoTotal);
@@ -59,28 +56,20 @@ export function renderPainel() {
   document.getElementById('painel-dias-info').innerHTML = 
     `Meta: <strong>${fmtBRL(f.metaTotal)}</strong> · Faltam ${f.diasFaltam} dias úteis`;
 
-  // Falta
   document.getElementById('painel-falta').innerHTML = fmtBRL(f.falta);
   document.getElementById('painel-falta-hint').innerHTML = f.falta > 0 
     ? `Faltam ${fmtPct(100 - pctMeta, 1)} para a meta`
     : 'Meta atingida! 🎉';
 
-  // Projeção
   document.getElementById('painel-projecao').innerHTML = fmtBRL(f.projecao);
   document.getElementById('painel-projecao-hint').innerHTML = f.projecao >= f.metaTotal
     ? '<span style="color:var(--af-verde)">Projeção acima da meta</span>'
     : '<span style="color:var(--af-vermelho)">Projeção abaixo da meta</span>';
 
-  // Precisa / Dia
   document.getElementById('painel-precisadia').innerHTML = fmtBRL(f.porDia);
   
-  // 3. Renderiza Gráfico de Linha
   renderGraficoAcumulado(a, m, f);
-
-  // 4. Renderiza Tabela Equipe
   renderTabelaEquipe(a, m, f);
-
-  // 5. Renderiza Lista de Atenção (Top 5)
   renderAtencaoAgora(a, m);
 }
 
@@ -109,13 +98,11 @@ function renderGraficoAcumulado(a, m, f) {
 
   for (let d = 1; d <= diasNoMes; d++) {
     labels.push(d);
-    const isDiaUtil = new Date(a, m, d).getDay() % 6 !== 0; // Sáb/Dom false
+    const isDiaUtil = new Date(a, m, d).getDay() % 6 !== 0;
 
-    // Meta (só avança em dias úteis)
     if (isDiaUtil) metaAcumulada += metaDiaria;
     dataMetaIdeal.push(metaAcumulada);
 
-    // Realizado
     if (d <= diaCorte) {
       const iso = a + '-' + String(m + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
       state.lancamentos.forEach(l => {
@@ -125,11 +112,10 @@ function renderGraficoAcumulado(a, m, f) {
       });
       dataRealizado.push(acumulado);
     } else {
-      dataRealizado.push(null); // Não desenha o futuro
+      dataRealizado.push(null);
     }
   }
 
-  // Plugin para desenhar a linha vertical do "Hoje"
   const linhaHojePlugin = {
     id: 'linhaHoje',
     afterDraw(chart) {
@@ -202,7 +188,7 @@ function renderGraficoAcumulado(a, m, f) {
 }
 
 // ============================================================
-// TABELA EQUIPE (Terminal Financeiro)
+// TABELA EQUIPE
 // ============================================================
 
 function renderTabelaEquipe(a, m, f) {
@@ -210,8 +196,6 @@ function renderTabelaEquipe(a, m, f) {
   if (!tbody) return;
 
   let vendedores = f.dados ? f.dados.filter(d => d.vendedor.papel === 'vendedor') : [];
-  
-  // Ordena por % de meta
   vendedores.sort((x, y) => (y.pctMeta || 0) - (x.pctMeta || 0));
 
   if(vendedores.length === 0) {
@@ -230,8 +214,6 @@ function renderTabelaEquipe(a, m, f) {
     else if (isAbaixo) statusBadge = '<span class="badge danger">Abaixo</span>';
 
     const barraCls = isAbaixo ? 'vermelho' : 'verde';
-    
-    // Calcula posição do marcador (onde deveria estar hoje)
     const marcadorPct = d.meta > 0 ? Math.min(100, (gap / d.meta) * 100) : 0;
 
     return `
@@ -257,7 +239,7 @@ function renderTabelaEquipe(a, m, f) {
 }
 
 // ============================================================
-// ATENÇÃO AGORA (Lista Top 5 do Cockpit)
+// ATENÇÃO AGORA
 // ============================================================
 
 function renderAtencaoAgora(a, m) {
@@ -265,8 +247,6 @@ function renderAtencaoAgora(a, m) {
   if (!el) return;
 
   let alertas = [];
-
-  // 1. Vendedores abaixo do ritmo
   const f = calcFilial(a, m, ui.escopoAtual);
   const dadosVendedores = f.dados || [];
   
@@ -277,13 +257,12 @@ function renderAtencaoAgora(a, m) {
       alertas.push({
         tipo: 'vendedor',
         titulo: d.vendedor.nome + ' está abaixo do ritmo',
-        desc: `${fmtBRL(falta)} atrás do esperado até hoje. Precisa de ${fmtBRL(d.metaDia)}/dia.`,
+        desc: `${fmtBRL(falta)} atrás do esperado. Precisa de ${fmtBRL(d.metaDia)}/dia.`,
         peso: falta
       });
     }
   });
 
-  // 2. Clientes em risco alto
   let clientesRisco = state.clientes
     .filter(c => filialNoEscopo(c.filialId, ui.escopoAtual) && c.diasSemComprar > 30 && c.valorMedioMensal > 5000)
     .sort((a, b) => b.valorMedioMensal - a.valorMedioMensal)
@@ -293,12 +272,11 @@ function renderAtencaoAgora(a, m) {
     alertas.push({
       tipo: 'cliente',
       titulo: c.nome,
-      desc: `${c.diasSemComprar} dias sem comprar. Valor em jogo: ${fmtBRL(c.valorMedioMensal)}/mês.`,
-      peso: c.valorMedioMensal * 1.5 // Peso maior para dinheiro parado
+      desc: `${c.diasSemComprar} dias sem comprar. Valor: ${fmtBRL(c.valorMedioMensal)}/mês.`,
+      peso: c.valorMedioMensal * 1.5
     });
   });
 
-  // Ordena pelos mais críticos e pega top 5
   alertas.sort((x, y) => y.peso - x.peso);
   alertas = alertas.slice(0, 5);
 
@@ -319,8 +297,46 @@ function renderAtencaoAgora(a, m) {
 }
 
 // ============================================================
-// FUNÇÕES LEGADAS (Para não quebrar o resto do app)
+// FUNÇÕES DE IMPRESSÃO (Restauradas para não quebrar o app)
 // ============================================================
+
+export function imprimirHTML(titulo, subtitulo, corpoHTML) {
+  const html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' +
+    escapeHtml(titulo) + '</title><style>' +
+    'body{font-family:system-ui,sans-serif;color:#0f172a;font-size:11px;padding:16px;line-height:1.4}' +
+    'h1{font-size:16px;color:#dc2626;margin-bottom:2px}' +
+    '.sub{font-size:10px;color:#64748b;margin-bottom:14px;border-bottom:1px solid #e2e8f0;padding-bottom:8px}' +
+    'table{width:100%;border-collapse:collapse;font-size:10px;margin-top:10px}' +
+    'th{background:#e2e8f0;text-align:left;padding:5px 6px;font-weight:700;border-bottom:1px solid #94a3b8}' +
+    'td{padding:4px 6px;border-bottom:1px solid #e2e8f0}' +
+    'tr:nth-child(even) td{background:#f8fafc}.num{text-align:right}' +
+    '.rodape{margin-top:16px;font-size:9px;color:#94a3b8;text-align:center;border-top:1px solid #e2e8f0;padding-top:6px}' +
+    '@media print{body{padding:8px}tr{page-break-inside:avoid}}' +
+    '</style></head><body>';
+
+  const sub = escapeHtml(subtitulo) + ' · ' + new Date().toLocaleString('pt-BR') +
+    ' · ' + escapeHtml(escopoNome(ui.escopoAtual));
+
+  const blob = new Blob(
+    [html + '<h1>Alta Fix — ' + escapeHtml(titulo) + '</h1><div class="sub">' + sub + '</div>' +
+      corpoHTML + '<div class="rodape">Gerado pelo Alta Fix</div></body></html>'],
+    { type: 'text/html' }
+  );
+
+  const url = URL.createObjectURL(blob);
+  const w = window.open(url, '_blank');
+  if (!w) {
+    URL.revokeObjectURL(url);
+    toast('⚠ Bloqueador de pop-up ativo.');
+    return;
+  }
+  w.focus();
+  setTimeout(() => {
+    try { w.print(); } catch (e) {}
+    setTimeout(() => URL.revokeObjectURL(url), 30000);
+  }, 400);
+}
+
 export function renderFilaHoje() {
   const el = document.getElementById('fila-hoje-container');
   if(el) el.innerHTML = '<p>Em breve: Lista de ligações integrada.</p>';
