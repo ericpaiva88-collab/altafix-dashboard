@@ -209,11 +209,22 @@ function setupTabs() {
 // ============================================================
 
 function setupFiltros() {
+  // Filtros da aba Clientes
   const fcb = document.getElementById('filtro-cliente-busca');
   if (fcb) fcb.oninput = e => { ui.filtroClienteBusca = e.target.value; renderClientes(); };
 
   const fcv = document.getElementById('filtro-cliente-vend');
   if (fcv) fcv.onchange = e => { ui.filtroClienteVend = e.target.value; renderClientes(); };
+
+  // Filtros da aba Agenda (NOVO)
+  const agendaBusca = document.getElementById('agenda-busca');
+  if (agendaBusca) agendaBusca.oninput = () => renderAgenda();
+
+  const agendaTipo = document.getElementById('agenda-filtro-tipo');
+  if (agendaTipo) agendaTipo.onchange = () => renderAgenda();
+
+  const agendaVend = document.getElementById('agenda-filtro-vendedor');
+  if (agendaVend) agendaVend.onchange = () => renderAgenda();
 }
 
 function setupBotoes() {

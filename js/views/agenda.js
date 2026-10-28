@@ -21,8 +21,7 @@ export function renderAgenda() {
     });
     selVend.innerHTML = opts;
     
-    // Adiciona o evento de mudança no filtro
-    selVend.onchange = () => renderAgenda();
+
   }
 
   // Pega os valores dos filtros
