@@ -1,283 +1,122 @@
 // ============================================================
-// views/produtos.js — Tela de Produtos (Curva ABC)
+// views/produtos.js — Visão de Produtos (Cockpit)
 // ============================================================
 
 import { state, ui } from '../state.js';
-import {
-  fmtBRL, fmtNum, fmtPct, escapeHtml, ehProdutoValido,
-  deltaCellHTML, copiarTexto, normalizarNomeCliente
-} from '../utils.js';
+import { fmtBRL, fmtNum, escapeHtml, ehProdutoValido } from '../utils.js';
 import { produtosNoEscopo } from '../calc.js';
-import { imprimirHTML } from './painel.js';
-
-// ============================================================
-// CIDADES DE UM PRODUTO (clique na linha)
-// ============================================================
-
-function cidadesDoProduto(codigo, filialId) {
-  const mapa = {};
-
-  state.vendasItens.forEach(vi => {
-    if (vi.produtoCodigo !== codigo) return;
-    if (filialId && vi.filialId !== filialId) return;
-
-    const cli = state.clientes.find(c =>
-      normalizarNomeCliente(c.nome) === vi.clienteNorm && c.filialId === vi.filialId
-    );
-    const cidade = (cli && cli.cidade) || '—';
-
-    if (!mapa[cidade]) {
-      mapa[cidade] = { cidade, valor: 0, qtd: 0, numClientes: 0, clientes: {} };
-    }
-    mapa[cidade].valor += vi.valor;
-    mapa[cidade].qtd += vi.qtd;
-    mapa[cidade].clientes[vi.clienteNorm] = true;
-  });
-
-  const arr = Object.keys(mapa).map(k => {
-    const x = mapa[k];
-    x.numClientes = Object.keys(x.clientes).length;
-    delete x.clientes;
-    return x;
-  });
-
-  arr.sort((a, b) => b.valor - a.valor);
-  return arr;
-}
-
-// ============================================================
-// Δ% vs snapshot anterior
-// ============================================================
-
-function getDeltaProduto(codigo, valorAtual) {
-  if (!state._produtosSnap || !state._produtosSnap.ts) return null;
-
-  const ant = state._produtosSnap.produtos.find(p => p.codigo === codigo);
-  if (!ant || !ant.valorVendido) return null;
-
-  return { deltaPct: ((valorAtual - ant.valorVendido) / ant.valorVendido) * 100 };
-}
-
-// ============================================================
-// RENDER PRINCIPAL
-// ============================================================
 
 export function renderProdutos() {
-  const k = document.getElementById('produtos-kpis');
-  const tb = document.getElementById('tbody-produtos');
-  const ac_el = document.getElementById('abc-count');
-  const ai_el = document.getElementById('abc-info');
+  const kpisEl = document.getElementById('produtos-kpis');
+  const tbody = document.getElementById('tbody-produtos');
+  const countEl = document.getElementById('produtos-count');
+  if (!tbody) return;
 
-  const produtosBase = produtosNoEscopo(ui.escopoAtual);
+  // Base de produtos
+  let produtos = produtosNoEscopo(ui.escopoAtual).filter(ehProdutoValido);
 
-  if (produtosBase.length === 0) {
-    k.innerHTML = '';
-    tb.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:30px;color:#64748b;">' +
-      'Importe 324 e 361.</td></tr>';
-    if (ac_el) ac_el.textContent = '';
-    if (ai_el) ai_el.textContent = '';
-    return;
+  // Popula o select de fabricantes (só se estiver vazio)
+  const selFab = document.getElementById('filtro-produto-fabricante');
+  if (selFab && selFab.options.length <= 1) {
+    const fabricantes = new Set();
+    produtos.forEach(p => { if (p.fabricante) fabricantes.add(p.fabricante); });
+    
+    let opts = '<option value="">Todos fabricantes</option>';
+    Array.from(fabricantes).sort().forEach(f => {
+      opts += `<option value="${escapeHtml(f)}">${escapeHtml(f)}</option>`;
+    });
+    selFab.innerHTML = opts;
   }
 
-  // Filtra válidos e ordena por valor
-  const validos = produtosBase.filter(ehProdutoValido);
-  const sorted = validos.slice().sort((a, b) => (b.valorVendido || 0) - (a.valorVendido || 0));
-  const total = sorted.reduce((s, p) => s + (p.valorVendido || 0), 0);
+  // Pega os valores dos filtros
+  const fBusca = (document.getElementById('filtro-produto-busca')?.value || '').toUpperCase();
+  const fCurva = document.getElementById('filtro-produto-curva')?.value || 'TODAS';
+  const fFab = selFab?.value || '';
 
-  // Curva ABC + pct + delta
-  let ac = 0;
-  sorted.forEach(p => {
-    if (!p.curvaOficial) {
-      ac += (p.valorVendido || 0);
-      const pa = total > 0 ? (ac / total) * 100 : 0;
-      p.curva = pa <= 80 ? 'A' : (pa <= 95 ? 'B' : 'C');
-    } else {
-      p.curva = p.curvaOficial;
+  // --- KPIs ---
+  const cA = produtos.filter(p => (p.curva || p.curvaOficial) === 'A');
+  const cB = produtos.filter(p => (p.curva || p.curvaOficial) === 'B');
+  const cC = produtos.filter(p => (p.curva || p.curvaOficial) === 'C');
+  
+  const faturamentoTotal = produtos.reduce((s, p) => s + (p.valorVendido || 0), 0);
+  
+  // Verifica produtos abaixo do estoque mínimo
+  const abaixoMinimo = produtos.filter(p => 
+    p.estoqueAtual != null && p.estoqueMinimo != null && p.estoqueAtual <= p.estoqueMinimo
+  ).length;
+
+  kpisEl.innerHTML = `
+    <div class="kpi-card">
+      <div class="kpi-header">TOTAL DE PRODUTOS</div>
+      <div class="kpi-value">${produtos.length}</div>
+      <div class="kpi-hint">${cA.length} na Curva A</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-header">FATURAMENTO</div>
+      <div class="kpi-value">${fmtBRL(faturamentoTotal)}</div>
+      <div class="kpi-hint">Acumulado no período</div>
+    </div>
+    <div class="kpi-card" style="border-left:3px solid var(--af-verde);">
+      <div class="kpi-header">CURVA A</div>
+      <div class="kpi-value" style="color:var(--af-verde)">${cA.length}</div>
+      <div class="kpi-hint">Produtos de alto giro</div>
+    </div>
+    <div class="kpi-card" style="border-left:3px solid var(--af-vermelho);">
+      <div class="kpi-header">ABAIXO DO MÍNIMO</div>
+      <div class="kpi-value" style="color:var(--af-vermelho)">${abaixoMinimo}</div>
+      <div class="kpi-hint">Precisam de reposição</div>
+    </div>
+  `;
+
+  // --- FILTROS DA TABELA ---
+  const filtrados = produtos.filter(p => {
+    const curva = p.curva || p.curvaOficial || 'C';
+    
+    if (fCurva !== 'TODAS' && curva !== fCurva) return false;
+    if (fFab && p.fabricante !== fFab) return false;
+    if (fBusca) {
+      const alvo = (p.codigo + ' ' + p.descricao).toUpperCase();
+      if (!alvo.includes(fBusca)) return false;
     }
-    p.pctIndividual = total > 0 ? ((p.valorVendido / total) * 100) : 0;
-    const d = getDeltaProduto(p.codigo, p.valorVendido || 0);
-    p.deltaPct = d ? d.deltaPct : null;
-  });
-
-  // KPIs
-  const cA = sorted.filter(p => p.curva === 'A');
-  const cB = sorted.filter(p => p.curva === 'B');
-  const cC = sorted.filter(p => p.curva === 'C');
-
-  k.innerHTML =
-    '<div class="kpi positivo"><div class="label">Curva A</div>' +
-    '<div class="value">' + cA.length + '</div>' +
-    '<div class="hint">' + fmtBRL(cA.reduce((s, p) => s + p.valorVendido, 0)) + '</div></div>' +
-    '<div class="kpi"><div class="label">Curva B</div>' +
-    '<div class="value">' + cB.length + '</div></div>' +
-    '<div class="kpi"><div class="label">Curva C</div>' +
-    '<div class="value">' + cC.length + '</div></div>';
-
-  // Popula select de fabricantes
-  popularSelectFabricantes(sorted);
-
-  // Aplica filtros
-  const lista = sorted.filter(p => {
-    if (ui.filtroCurva !== 'TODAS' && p.curva !== ui.filtroCurva) return false;
-    if (ui.filtroFabricante && p.fabricante !== ui.filtroFabricante) return false;
-    if (ui.filtroTextoProd) {
-      const t = ui.filtroTextoProd.toUpperCase();
-      if (p.descricao.toUpperCase().indexOf(t) < 0 && (p.codigo || '').indexOf(t) < 0) return false;
-    }
-    if (ui.filtroDeltaProduto === 'up' && !(p.deltaPct != null && p.deltaPct > 0)) return false;
-    if (ui.filtroDeltaProduto === 'down' && !(p.deltaPct != null && p.deltaPct < 0)) return false;
-    if (ui.filtroDeltaProduto === 'strong_down' && !(p.deltaPct != null && p.deltaPct <= -20)) return false;
-    if (ui.filtroDeltaProduto === 'new' && p.deltaPct != null) return false;
     return true;
   });
 
-  // Ordena conforme sortProduto
-  lista.sort((a, b) => {
-    const c = ui.sortProduto.campo;
-    const dir = ui.sortProduto.direcao === 'asc' ? 1 : -1;
-    let va = a[c], vb = b[c];
+  // Ordena pelo maior faturamento
+  filtrados.sort((a, b) => (b.valorVendido || 0) - (a.valorVendido || 0));
 
-    if (c === 'descricao' || c === 'codigo' || c === 'fabricante' || c === 'curva') {
-      va = String(va || '').toUpperCase();
-      vb = String(vb || '').toUpperCase();
-      return (va < vb ? -1 : va > vb ? 1 : 0) * dir;
-    }
-    va = (va == null || isNaN(va)) ? -Infinity : Number(va);
-    vb = (vb == null || isNaN(vb)) ? -Infinity : Number(vb);
-    return (va - vb) * dir;
-  });
+  if (countEl) countEl.textContent = filtrados.length + ' itens';
 
-  window._produtosFiltrados = lista;
-
-  if (ac_el) ac_el.textContent = lista.length + ' de ' + sorted.length;
-  if (ai_el) ai_el.textContent = 'Mostrando ' + lista.length + ' · clique na linha pra ver cidades';
-
-  // Tabela
-  renderTabela(lista);
-}
-
-// ============================================================
-// SELECT DE FABRICANTES
-// ============================================================
-
-function popularSelectFabricantes(sorted) {
-  const selFab = document.getElementById('filtro-fabricante');
-  if (!selFab) return;
-
-  const fabricantes = {};
-  sorted.forEach(p => { if (p.fabricante) fabricantes[p.fabricante] = true; });
-  const fArr = Object.keys(fabricantes).sort();
-
-  if (selFab.options.length - 1 !== fArr.length) {
-    selFab.innerHTML = '<option value="">Todos fabricantes</option>' +
-      fArr.map(f => '<option value="' + escapeHtml(f) + '">' + escapeHtml(f) + '</option>').join('');
-    selFab.value = ui.filtroFabricante;
-  }
-}
-
-// ============================================================
-// TABELA
-// ============================================================
-
-function renderTabela(lista) {
-  const tb = document.getElementById('tbody-produtos');
-
-  if (lista.length === 0) {
-    tb.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:20px;color:#64748b;">' +
-      'Nenhum produto.</td></tr>';
+  if (filtrados.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:32px; color:#888;">Nenhum produto encontrado com esses filtros.</td></tr>';
     return;
   }
 
-  let html = '';
+  // --- RENDERIZA TABELA ---
+  tbody.innerHTML = filtrados.slice(0, 500).map(p => {
+    const curva = p.curva || p.curvaOficial || 'C';
+    let curvaBadge = '<span class="badge neutral">C</span>';
+    if (curva === 'A') curvaBadge = '<span class="badge ok">A</span>';
+    else if (curva === 'B') curvaBadge = '<span class="badge warn">B</span>';
 
-  lista.slice(0, 300).forEach(p => {
-    const cls = p.curva === 'A' ? 'curva-A' : p.curva === 'B' ? 'curva-B' : 'curva-C';
-    const expandido = ui.produtosExpandidos[p.codigo] === true;
+    const estoque = p.estoqueAtual != null ? fmtNum(p.estoqueAtual, 0) : '—';
+    const minimo = p.estoqueMinimo != null ? fmtNum(p.estoqueMinimo, 0) : '—';
+    
+    // Alerta de estoque vermelho
+    const estoqueStyle = (p.estoqueAtual != null && p.estoqueMinimo != null && p.estoqueAtual <= p.estoqueMinimo)
+      ? 'color: var(--af-vermelho); font-weight: 700;'
+      : '';
 
-    html += '<tr class="expansivel ' + cls + '" data-prod="' + escapeHtml(p.codigo) + '">' +
-      '<td><span class="badge badge-' + p.curva + '">' + p.curva + '</span></td>' +
-      '<td>' + escapeHtml(p.codigo || '—') + '</td>' +
-      '<td>' + escapeHtml(p.descricao) + (expandido ? ' ▼' : ' ▶') + '</td>' +
-      '<td>' + escapeHtml(p.fabricante || '—') + '</td>' +
-      '<td class="num">' + fmtNum(p.qtdVendida, 0) + '</td>' +
-      '<td class="num">' + fmtBRL(p.valorVendido) + '</td>' +
-      '<td class="num">' + deltaCellHTML(p.deltaPct) + '</td>' +
-      '<td class="num">' + fmtPct(p.pctIndividual, 2) + '</td>' +
-      '<td class="num"><span style="color:#1e40af;font-weight:600;">ver</span></td></tr>';
-
-    if (expandido) {
-      const cidsProd = cidadesDoProduto(p.codigo, null);
-
-      html += '<tr><td colspan="9" class="detalhe-produto">';
-
-      if (cidsProd.length === 0) {
-        html += '<div style="font-size:12px;color:#64748b;">' +
-          'Sem dados de venda por cidade. Importe o 324 com o detalhamento atualizado.</div>';
-      } else {
-        const totalProd = cidsProd.reduce((s, x) => s + x.valor, 0);
-        html += '<table style="width:100%;font-size:12px;"><thead><tr>' +
-          '<th>Cidade</th><th class="num">Valor</th><th class="num">% do produto</th>' +
-          '<th class="num">Qtd</th><th class="num">Clientes</th></tr></thead><tbody>';
-
-        cidsProd.slice(0, 20).forEach(cid => {
-          const pct = totalProd > 0 ? (cid.valor / totalProd) * 100 : 0;
-          html += '<tr><td><strong>' + escapeHtml(cid.cidade) + '</strong></td>' +
-            '<td class="num">' + fmtBRL(cid.valor) + '</td>' +
-            '<td class="num">' + fmtPct(pct, 1) + '</td>' +
-            '<td class="num">' + fmtNum(cid.qtd, 0) + '</td>' +
-            '<td class="num">' + cid.numClientes + '</td></tr>';
-        });
-        html += '</tbody></table>';
-      }
-
-      html += '</td></tr>';
-    }
-  });
-
-  tb.innerHTML = html;
-
-  tb.querySelectorAll('tr.expansivel').forEach(tr => {
-    tr.onclick = () => {
-      const cod = tr.dataset.prod;
-      ui.produtosExpandidos[cod] = !ui.produtosExpandidos[cod];
-      renderProdutos();
-    };
-  });
-}
-
-// ============================================================
-// LIMPAR SNAPSHOT
-// ============================================================
-
-export function limparSnapshot() {
-  if (!confirm('Limpar snapshot de comparação de produtos?')) return;
-  state._produtosSnap = null;
-  state._produtosHistorico = {};
-  renderProdutos();
-  copiarTexto('Snapshot removido');
-}
-
-// ============================================================
-// IMPRESSÃO
-// ============================================================
-
-export function imprimirProdutos() {
-  const lista = window._produtosFiltrados || [];
-  if (lista.length === 0) { copiarTexto('Nada para imprimir'); return; }
-
-  let h = '<table><thead><tr>' +
-    '<th>Curva</th><th>Código</th><th>Descrição</th><th>Fabricante</th>' +
-    '<th class="num">Qtd</th><th class="num">Valor</th></tr></thead><tbody>';
-
-  lista.slice(0, 1000).forEach(p => {
-    h += '<tr><td>' + p.curva + '</td>' +
-      '<td>' + escapeHtml(p.codigo || '—') + '</td>' +
-      '<td>' + escapeHtml(p.descricao) + '</td>' +
-      '<td>' + escapeHtml(p.fabricante || '—') + '</td>' +
-      '<td class="num">' + fmtNum(p.qtdVendida, 0) + '</td>' +
-      '<td class="num">' + fmtBRL(p.valorVendido) + '</td></tr>';
-  });
-  h += '</tbody></table>';
-
-  imprimirHTML('Curva ABC', lista.length + ' produtos', h);
+    return `
+      <tr>
+        <td>${curvaBadge}</td>
+        <td style="color:var(--af-t2);">${escapeHtml(p.codigo || '—')}</td>
+        <td><strong>${escapeHtml(p.descricao)}</strong></td>
+        <td style="font-size:12px; color:var(--af-t2);">${escapeHtml(p.fabricante || '—')}</td>
+        <td class="num">${fmtNum(p.qtdVendida, 0)}</td>
+        <td class="num"><strong>${fmtBRL(p.valorVendido)}</strong></td>
+        <td class="num" style="${estoqueStyle}">${estoque}</td>
+        <td class="num" style="color:var(--af-t3);">${minimo}</td>
+      </tr>
+    `;
+  }).join('');
 }

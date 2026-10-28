@@ -1,12 +1,20 @@
+// ============================================================
+// main.js — Ponto de entrada do app (Cockpit v3)
+// ============================================================
+
 import { state, ui, session, carregar, salvar } from './state.js';
 import { derivarHistorico } from './calc.js';
 import { fmtBRL, toast, isoDate, normalizarNomeCliente, copiarTexto } from './utils.js';
-import { sbInit, sbLogin, sbLogout, sbSessaoAtual, sbCarregarPerfil, sbCarregarTudo, aplicarDadosDoBanco } from './supabase.js';
+import {
+  sbInit, sbLogin, sbLogout, sbSessaoAtual, sbCarregarPerfil,
+  sbCarregarTudo, aplicarDadosDoBanco
+} from './supabase.js';
 
 import { renderPainel } from './views/painel.js';
 import { renderAgenda } from './views/agenda.js'; 
 import { renderEquipe } from './views/equipe.js';
 import { renderClientes } from './views/clientes.js';
+import { renderProdutos } from './views/produtos.js';
 import { abrirModalLigacao } from './views/ligacoes.js';
 
 export function parseEscopo(str) {
@@ -119,20 +127,31 @@ function setupTabs() {
       b.classList.add('active');
       const t = document.getElementById('tab-' + b.dataset.tab);
       if (t) t.classList.add('active');
+      
+      // Renderizações sob demanda
       if (b.dataset.tab === 'agenda') setTimeout(() => { try { renderAgenda(); } catch (e) { console.error(e); } }, 50); 
       if (b.dataset.tab === 'equipe') setTimeout(() => { try { renderEquipe(); } catch (e) { console.error(e); } }, 50);
       if (b.dataset.tab === 'clientes') setTimeout(() => { try { renderClientes(); } catch (e) { console.error(e); } }, 50);
+      if (b.dataset.tab === 'produtos') setTimeout(() => { try { renderProdutos(); } catch (e) { console.error('Erro Produtos:', e); } }, 50);
     };
   });
 }
 
 function setupFiltros() {
+  // Agenda
   const agendaBusca = document.getElementById('agenda-busca'); if (agendaBusca) agendaBusca.oninput = () => renderAgenda();
   const agendaTipo = document.getElementById('agenda-filtro-tipo'); if (agendaTipo) agendaTipo.onchange = () => renderAgenda();
   const agendaVend = document.getElementById('agenda-filtro-vendedor'); if (agendaVend) agendaVend.onchange = () => renderAgenda();
+  
+  // Clientes
   const cliBusca = document.getElementById('filtro-cliente-busca'); if (cliBusca) cliBusca.oninput = () => renderClientes();
   const cliVend = document.getElementById('filtro-cliente-vend'); if (cliVend) cliVend.onchange = () => renderClientes();
   const cliStatus = document.getElementById('filtro-cliente-status'); if (cliStatus) cliStatus.onchange = () => renderClientes();
+
+  // Produtos
+  const prodBusca = document.getElementById('filtro-produto-busca'); if (prodBusca) prodBusca.oninput = () => renderProdutos();
+  const prodCurva = document.getElementById('filtro-produto-curva'); if (prodCurva) prodCurva.onchange = () => renderProdutos();
+  const prodFab = document.getElementById('filtro-produto-fabricante'); if (prodFab) prodFab.onchange = () => renderProdutos();
 }
 
 function setupBotoes() {
