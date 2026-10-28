@@ -186,7 +186,85 @@
     </section>
 
     <section id="tab-analise" class="tab-content"><div class="page-header"><h2>Análise</h2><p>Em breve.</p></div></section>
-    <section id="tab-config" class="tab-content"><div class="page-header"><h2>Configurações</h2><p>Em breve.</p></div></section>
+        <section id="tab-config" class="tab-content">
+      <div class="page-header">
+        <h2>Configurações</h2>
+        <p>Gestão de importações, metas da equipe e parâmetros do sistema.</p>
+      </div>
+
+      <!-- Bloco 1: Importação -->
+      <div class="card-painel" style="margin-bottom:24px;">
+        <div class="card-title-row" style="padding:16px 20px; border-bottom:1px solid #eee;">
+          <h3>📥 Importar Planilhas (ERP)</h3>
+          <span class="text-xs text-muted">Selecione a filial no topo antes de importar</span>
+        </div>
+        <div style="padding: 20px; display:grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap:16px;">
+          
+          <div class="drop-zone" id="drop-erp">
+            <div class="icone">📊</div>
+            <div class="texto">324 Detalhado</div>
+            <div class="sub">Arraste ou clique para selecionar</div>
+          </div>
+          <input type="file" id="erp-input" accept=".xlsx,.xls" multiple hidden>
+          <div id="erp-status" style="display:none;"></div>
+
+          <div class="drop-zone" id="drop-740">
+            <div class="icone">🗺️</div>
+            <div class="texto">740 Cidades</div>
+            <div class="sub">Arraste ou clique para selecionar</div>
+          </div>
+          <input type="file" id="input-740" accept=".xlsx,.xls" multiple hidden>
+
+          <div class="drop-zone" id="drop-abc">
+            <div class="icone">📦</div>
+            <div class="texto">361 Curva ABC</div>
+            <div class="sub">Arraste ou clique para selecionar</div>
+          </div>
+          <input type="file" id="abc-input" accept=".xlsx,.xls" multiple hidden>
+
+        </div>
+        <div style="padding: 0 20px 20px 20px; display:flex; justify-content:space-between; align-items:center; border-top: 1px solid #eee; padding-top: 16px;">
+          <div id="bases-status" style="font-size:13px; color:var(--af-t2);">Nenhuma base pendente.</div>
+          <button class="btn btn-primary" id="btn-salvar-bases">✓ Salvar e Sincronizar</button>
+        </div>
+      </div>
+
+      <!-- Bloco 2: Metas e Vendedores -->
+      <div class="card-painel">
+        <div class="card-title-row" style="padding:16px 20px; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center;">
+          <h3>👤 Metas e Vendedores</h3>
+          <div style="display:flex; gap:10px; align-items:center;">
+            <label style="font-size:12px; font-weight:600;">Mês:</label>
+            <select id="meta-mes-select" class="select-clean" style="min-width:150px;"></select>
+          </div>
+        </div>
+        <div style="overflow-x:auto;">
+          <table class="tabela-cockpit">
+            <thead>
+              <tr>
+                <th>VENDEDOR</th>
+                <th>EMAIL</th>
+                <th>FILIAL</th>
+                <th class="num">META FATURAMENTO</th>
+                <th class="num">META TICKET</th>
+                <th style="text-align:center;">ADM</th>
+                <th style="text-align:center;">ATIVO</th>
+                <th style="text-align:center;">AÇÃO</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-metas">
+              <!-- Preenchido via JS -->
+            </tbody>
+          </table>
+        </div>
+        <div style="padding: 16px 20px; border-top:1px solid #eee; display:flex; justify-content:space-between;">
+          <button class="btn btn-sm" id="btn-add-vend">+ Adicionar Vendedor</button>
+          <div style="display:flex; gap:8px;">
+            <button class="btn btn-sm" id="btn-sinc-metas">☁️ Salvar no Servidor</button>
+          </div>
+        </div>
+      </div>
+    </section>
   </main>
 </div>
 

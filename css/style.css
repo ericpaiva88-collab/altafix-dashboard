@@ -549,3 +549,51 @@ body {
   .ficha-body { grid-template-columns: 1fr; padding: 16px; }
   .ficha-header { padding: 16px; }
 }
+/* =========================================
+   Aba de Configurações
+   ========================================= */
+.drop-zone {
+  border: 2px dashed var(--af-borda-forte);
+  border-radius: var(--radius-md);
+  padding: 32px 20px;
+  text-align: center;
+  cursor: pointer;
+  background: #FAFAFA;
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+}
+.drop-zone:hover, .drop-zone.over {
+  border-color: var(--af-preto);
+  background: #F3F4F6;
+}
+.drop-zone .icone { font-size: 28px; margin-bottom: 8px; }
+.drop-zone .texto { font-size: 14px; font-weight: 600; color: var(--af-t1); }
+.drop-zone .sub { font-size: 11.5px; color: var(--af-t3); margin-top: 4px; }
+
+/* Inputs dentro da tabela de metas */
+.tabela-cockpit td input[type="text"],
+.tabela-cockpit td input[type="email"],
+.tabela-cockpit td select {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--af-borda-forte);
+  border-radius: 4px;
+  font-size: 12.5px;
+  font-family: inherit;
+  background: #fff;
+}
+.tabela-cockpit td input[type="text"]:focus,
+.tabela-cockpit td input[type="email"]:focus,
+.tabela-cockpit td select:focus {
+  border-color: var(--af-preto);
+  outline: none;
+}
+.tabela-cockpit td input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}

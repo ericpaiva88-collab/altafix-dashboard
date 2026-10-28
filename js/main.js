@@ -3,6 +3,7 @@
 // ============================================================
 
 import { state, ui, session, carregar, salvar } from './state.js';
+import { setupConfig, renderConfig } from './views/config.js';
 import { derivarHistorico } from './calc.js';
 import { fmtBRL, toast, isoDate, normalizarNomeCliente, copiarTexto } from './utils.js';
 import {
@@ -133,6 +134,7 @@ function setupTabs() {
       if (b.dataset.tab === 'equipe') setTimeout(() => { try { renderEquipe(); } catch (e) { console.error(e); } }, 50);
       if (b.dataset.tab === 'clientes') setTimeout(() => { try { renderClientes(); } catch (e) { console.error(e); } }, 50);
       if (b.dataset.tab === 'produtos') setTimeout(() => { try { renderProdutos(); } catch (e) { console.error('Erro Produtos:', e); } }, 50);
+      if (b.dataset.tab === 'config') setTimeout(() => { try { renderConfig(); } catch (e) { console.error('Erro Config:', e); } }, 50);
     };
   });
 }
@@ -181,6 +183,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupTabs();
     setupFiltros();
     setupBotoes();
+    setupConfig();
     renderPainel();
     toast('✓ Pronto');
   } catch (e) {
