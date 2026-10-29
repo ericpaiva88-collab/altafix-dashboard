@@ -1,9 +1,9 @@
 // ============================================================
-// views/painel.js — Cockpit Comercial (Ação Rápida)
+// views/painel.js — Cockpit Comercial (Com Relatório Matinal)
 // ============================================================
 
 import { state, ui } from '../state.js';
-import { fmtBRL, fmtPct, escapeHtml, isoDate, inicioSemana, diffDias } from '../utils.js';
+import { fmtBRL, fmtPct, escapeHtml, isoDate, inicioSemana, diffDias, copiarTexto } from '../utils.js';
 import {
   mesRefAtual, calcFilial, calcVendedor, calcDiasUteisNoMes, calcDiasUteisDecorridos, escopoNome, filialNoEscopo, vendedoresNoEscopo, getMetaVendedor
 } from '../calc.js';
@@ -384,13 +384,111 @@ function renderAtencaoAgora(a, m, vendedorFoco, fCalculada) {
   `}).join('');
 }
 
+// ============================================================
+// RELATÓRIO MATINAL (WHATSAPP)
+// ============================================================
+
+export function gerarRelatorioMatinal() {
+  const ref = mesRefAtual(ui.escopoAtual);
+  const a = ref.ano, m = ref.mes;
+  const meses = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+
+  const isModoVendedor = !!ui.modoVendedor;
+  let vendedorFoco = null;
+  let f = null;
+
+  if (isModoVendedor) vendedorFoco = state.vendedores.find(v => v.id === ui.modoVendedor);
+
+  if (vendedorFoco) f = calcVendedor(vendedorFoco, a, m);
+  else f = calcFilial(a, m, ui.escopoAtual);
+
+  const faturado = isModoVendedor ? f.faturado : f.faturadoTotal;
+  const meta = isModoVendedor ? f.meta : f.metaTotal;
+  const falta = isModoVendedor ? Math.max(0, meta - faturado) : f.falta;
+  const projecao = f.projecao;
+  const porDia = isModoVendedor ? f.metaDia : f.porDia;
+  const pctMeta = meta > 0 ? (faturado / meta) * 100 : 0;
+  const diasFaltam = f.diasFaltam;
+  
+  const titulo = vendedorFoco ? `☀️ *Alta Fix* — ${vendedorFoco.nome}` : `☀️ *Alta Fix* — ${escopoNome(ui.escopoAtual)}`;
+  
+  const linhas = [];
+  linhas.push(titulo);
+  linhas.push(`_${new Date().toLocaleDateString('pt-BR')} · ${meses[m]}/${a}_`);
+  linhas.push('');
+
+  linhas.push('📊 *SITUAÇÃO*');
+  if (meta > 0) {
+    linhas.push(`Faturado: *${fmtBRL(faturado)}* de *${fmtBRL(meta)}* (${fmtPct(pctMeta, 1)})`);
+  } else {
+    linhas.push(`Faturado: *${fmtBRL(faturado)}*`);
+  }
+  if (falta > 0 && diasFaltam > 0) {
+    linhas.push(`Faltam *${fmtBRL(falta)}* em *${diasFaltam} dias úteis*`);
+    linhas.push(`🎯 Ritmo necessário: *${fmtBRL(porDia)}/dia*`);
+  } else if (falta <= 0 && meta > 0) {
+    linhas.push('🎉 *META BATIDA!*');
+  }
+  if (projecao > 0) {
+    linhas.push(`🔮 Projeção de fechamento: ${fmtBRL(projecao)}`);
+  }
+
+  linhas.push('');
+
+  if (!isModoVendedor) {
+    const dadosVendedores = f.dados || [];
+    const abaixoRitmo = dadosVendedores
+      .filter(d => d.vendedor.papel === 'vendedor')
+      .filter(d => {
+        const gap = d.meta * (calcDiasUteisDecorridos(a, m) / calcDiasUteisNoMes(a, m));
+        return d.faturado < gap && d.faturado > 0;
+      })
+      .sort((x, y) => (y.meta - y.faturado) - (x.meta - x.faturado))
+      .slice(0, 3);
+
+    if (abaixoRitmo.length > 0) {
+      linhas.push('⚠️ *ATENÇÃO DO TIME*');
+      abaixoRitmo.forEach(d => {
+        const gap = d.meta * (calcDiasUteisDecorridos(a, m) / calcDiasUteisNoMes(a, m));
+        const diferenca = gap - d.faturado;
+        linhas.push(`• *${d.vendedor.nome}*: ${fmtBRL(diferenca)} atrás do ritmo.`);
+      });
+      linhas.push('');
+    }
+  }
+
+  let clientesFiltro = state.clientes.filter(c => (c.diasSemComprar || 0) > 30 && c.valorMedioMensal > 1000);
+  if (vendedorFoco) clientesFiltro = clientesFiltro.filter(c => c.vendedor === vendedorFoco.id);
+  else clientesFiltro = clientesFiltro.filter(c => filialNoEscopo(c.filialId, ui.escopoAtual));
+
+  const topRisco = clientesFiltro
+    .sort((a, b) => b.valorMedioMensal - a.valorMedioMensal)
+    .slice(0, 5);
+
+  if (topRisco.length > 0) {
+    linhas.push('🚨 *PRIORIDADES DE HOJE*');
+    topRisco.forEach(c => {
+      const v = state.vendedores.find(x => x.id === c.vendedor);
+      linhas.push(`• *${c.nome}* (${c.cidade || '—'})`);
+      linhas.push(`  ${c.diasSemComprar}d parado · ${fmtBRL(c.valorMedioMensal)}/mês · Resp: ${v ? v.nome : 'Sem vendedor'}`);
+    });
+  } else {
+    linhas.push('✅ Nenhum cliente crítico no radar.');
+  }
+
+  linhas.push('');
+  linhas.push('_Gerado automaticamente pelo Alta Fix_');
+
+  copiarTexto(linhas.join('\n'));
+}
+
 export function imprimirHTML(titulo, subtitulo, corpoHTML) {
   const html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' + escapeHtml(titulo) + '</title><style>body{font-family:system-ui,sans-serif;color:#0f172a;font-size:11px;padding:16px;line-height:1.4}h1{font-size:16px;color:#dc2626;margin-bottom:2px}.sub{font-size:10px;color:#64748b;margin-bottom:14px;border-bottom:1px solid #e2e8f0;padding-bottom:8px}table{width:100%;border-collapse:collapse;font-size:10px;margin-top:10px}th{background:#e2e8f0;text-align:left;padding:5px 6px;font-weight:700;border-bottom:1px solid #94a3b8}td{padding:4px 6px;border-bottom:1px solid #e2e8f0}tr:nth-child(even) td{background:#f8fafc}.num{text-align:right}.rodape{margin-top:16px;font-size:9px;color:#94a3b8;text-align:center;border-top:1px solid #e2e8f0;padding-top:6px}@media print{body{padding:8px}tr{page-break-inside:avoid}}</style></head><body>';
   const sub = escapeHtml(subtitulo) + ' · ' + new Date().toLocaleString('pt-BR') + ' · ' + escapeHtml(escopoNome(ui.escopoAtual));
   const blob = new Blob([html + '<h1>Alta Fix — ' + escapeHtml(titulo) + '</h1><div class="sub">' + sub + '</div>' + corpoHTML + '<div class="rodape">Gerado pelo Alta Fix</div></body></html>'], { type: 'text/html' });
   const url = URL.createObjectURL(blob);
   const w = window.open(url, '_blank');
-  if (!w) { URL.revokeObjectURL(url); toast('⚠ Bloqueador de pop-up ativo.'); return; }
+  if (!w) { URL.revokeObjectURL(url); alert('⚠ Bloqueador de pop-up ativo.'); return; }
   w.focus();
   setTimeout(() => { try { w.print(); } catch (e) {} setTimeout(() => URL.revokeObjectURL(url), 30000); }, 400);
 }

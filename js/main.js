@@ -2,6 +2,7 @@
 // main.js — Ponto de entrada do app (Otimizado)
 // ============================================================
 
+import { renderPainel, renderSemana, gerarRelatorioMatinal } from './views/painel.js';
 import { state, ui, session, carregar, salvar } from './state.js';
 import { derivarHistorico } from './calc.js';
 import { fmtBRL, toast, isoDate, normalizarNomeCliente, copiarTexto } from './utils.js';
@@ -157,6 +158,8 @@ function setupFiltros() {
 }
 
 function setupBotoes() {
+    const btnRelatorio = document.getElementById('btn-relatorio-matinal');
+  if (btnRelatorio) btnRelatorio.onclick = () => gerarRelatorioMatinal();
   const helpBtn = document.getElementById('help-btn'); if (helpBtn) helpBtn.onclick = () => document.getElementById('help-modal').classList.add('show');
   const helpClose = document.getElementById('help-close'); if (helpClose) helpClose.onclick = () => document.getElementById('help-modal').classList.remove('show');
   

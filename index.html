@@ -73,9 +73,27 @@
   <main class="content-area">
     <!-- ABA COCKPIT -->
     <section id="tab-painel" class="tab-content active">
+      <div class="painel-hero" style="border: none; padding: 0; margin-bottom: 20px; background: transparent;">
+        <div class="painel-hero-top" style="margin-bottom: 16px;">
+          <div>
+            <h2 id="painel-titulo">Carregando...</h2>
+            <div id="painel-dias-info" class="painel-hero-dias" style="margin-bottom: 0;"></div>
+          </div>
+          <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+            <div style="display:flex; gap:8px; align-items:center;">
+              <select id="painel-mes-select" class="select-clean" style="font-size:13px;min-height:34px;padding:4px 8px;"></select>
+              <div id="painel-status"></div>
+            </div>
+            <div class="painel-hero-botoes" style="margin: 0; display: flex; gap: 6px; flex-wrap: wrap;">
+              <button class="btn btn-primary btn-sm" id="btn-relatorio-matinal">📱 Relatório Matinal</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div class="grid-kpis">
         <div class="kpi-card">
-          <div class="kpi-header"><span>FATURADO</span><div id="painel-status"></div></div>
+          <div class="kpi-header"><span>FATURADO</span></div>
           <div class="numero-grande" id="painel-pct">R$ 0,00</div>
           <div class="barra-progresso-container"><div class="barra-progresso" id="painel-barra"><div></div></div><span id="painel-dias-info" class="text-xs text-muted"></span></div>
         </div>
@@ -95,7 +113,6 @@
         </div>
       </div>
 
-      <!-- NAVEGAÇÃO SEMANAL -->
       <div class="card-painel" style="margin-top:20px; padding:20px;">
         <div class="card-title-row" style="margin-bottom:16px;">
           <h3>Ritmo Semanal e Diário</h3>
