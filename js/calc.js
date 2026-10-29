@@ -70,6 +70,15 @@ export function clientesNoEscopo(escopoAtual) {
   return state.clientes.filter(c => filialNoEscopo(c.filialId, escopoAtual));
 }
 
+// FIX: Funções que faltavam e quebravam a Equipe e a Análise
+export function comparativoNoEscopo(escopoAtual) {
+  return (state.comparativo || []).filter(c => filialNoEscopo(c.filialId, escopoAtual));
+}
+
+export function produtosNoEscopo(escopoAtual) {
+  return state.produtos.filter(p => filialNoEscopo(p.filialId, escopoAtual));
+}
+
 export function escopoNome(escopoAtual) {
   const e = parseEscopo(escopoAtual);
   if (e.tipo === 'all') return 'Todas as filiais';
@@ -111,7 +120,6 @@ export function getMetaVendedor(v, a, m) {
   return { meta: v.meta || 0, metaTicket: v.metaTicket || 0 };
 }
 
-// OTIMIZAÇÃO: Recebe um array pré-filtrado para não varrer a lista inteira toda vez
 export function calcDiasComLancamento(a, m, vendedorId, lancsBase) {
   const prefix = a + '-' + String(m + 1).padStart(2, '0');
   const dias = {};
@@ -167,7 +175,6 @@ export function calcVendedor(v, a, m, lancsBase) {
 export function calcFilial(a, m, escopoAtual) {
   const prefix = a + '-' + String(m + 1).padStart(2, '0');
   
-  // OTIMIZAÇÃO: Filtra os lançamentos UMA VEZ e passa para os vendedores
   const lancsFiltrados = lancamentosNoEscopo(escopoAtual);
 
   const at = vendedoresNoEscopo(escopoAtual).filter(v => {
