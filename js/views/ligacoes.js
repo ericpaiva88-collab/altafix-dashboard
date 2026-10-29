@@ -1,312 +1,120 @@
 // ============================================================
-// views/ligacoes.js — Tela de Ligações (TeleVendas migrado)
+// views/ligacoes.js — Histórico e Cadastro de Ligações
 // ============================================================
 
-import { state, ui, session } from '../state.js';
-import {
-  fmtBRL, escapeHtml, isoDate, diffDias, fmtDataBR, toast
-} from '../utils.js';
-import { filialNoEscopo, parseEscopo } from '../calc.js';
+import { state, ui } from '../state.js';
+import { fmtBRL, escapeHtml, isoDate, fmtDataBR, normalizarNomeCliente, toast } from '../utils.js';
+import { filialNoEscopo } from '../calc.js';
 import { sbCarregarTudo, aplicarDadosDoBanco } from '../supabase.js';
 
 const STATUS = {
-  prospeccao:     { label: 'Prospecção',       emoji: '🔵', cor: '#3b82f6' },
-  retornar:       { label: 'Retornar',         emoji: '🟡', cor: '#f59e0b' },
-  aguardando:     { label: 'Aguardando',       emoji: '🔴', cor: '#dc2626' },
-  venda:          { label: 'Venda',            emoji: '🟢', cor: '#16a34a' },
-  sem_interesse:  { label: 'Sem interesse',    emoji: '⚫', cor: '#64748b' }
+  prospeccao:     { label: 'Prospecção',       emoji: '🔵', cor: 'var(--af-t2)' },
+  retornar:       { label: 'Retornar',         emoji: '🟡', cor: 'var(--af-amarelo)' },
+  aguardando:     { label: 'Aguardando',       emoji: '🔴', cor: 'var(--af-vermelho)' },
+  venda:          { label: 'Venda',            emoji: '🟢', cor: 'var(--af-verde)' },
+  sem_interesse:  { label: 'Sem interesse',    emoji: '⚫', cor: 'var(--af-t3)' }
 };
 
 // ============================================================
-// HELPERS
-// ============================================================
-
-function ligacoesNoEscopo() {
-  return (state.ligacoes || []).filter(l => filialNoEscopo(l.filialId, ui.escopoAtual));
-}
-
-function vendasAtribuidasMap() {
-  const mapa = {};
-  (state.ligacoesVendas || []).forEach(lv => {
-    mapa[lv.ligacaoId] = lv;
-  });
-  return mapa;
-}
-
-function calcularPeriodo() {
-  const preset = document.getElementById('filtro-lig-periodo')?.value || 'mes_atual';
-  if (preset === 'tudo') return null;
-  const hj = new Date();
-  let ini, fim;
-
-  if (preset === 'mes_atual') {
-    ini = new Date(hj.getFullYear(), hj.getMonth(), 1);
-    fim = new Date(hj.getFullYear(), hj.getMonth() + 1, 0);
-  } else if (preset === 'mes_passado') {
-    ini = new Date(hj.getFullYear(), hj.getMonth() - 1, 1);
-    fim = new Date(hj.getFullYear(), hj.getMonth(), 0);
-  } else if (preset === '30d') {
-    ini = new Date(hj); ini.setDate(ini.getDate() - 30);
-    fim = hj;
-  } else if (preset === '90d') {
-    ini = new Date(hj); ini.setDate(ini.getDate() - 90);
-    fim = hj;
-  } else return null;
-
-  return { ini: isoDate(ini), fim: isoDate(fim) };
-}
-
-function ehAtiva(l) {
-  return l.status !== 'venda' && l.status !== 'sem_interesse';
-}
-
-function aplicarUrgencia(l, urgencia, hj) {
-  if (!urgencia) return true;
-  if (!l.proximo) return false;
-  if (!ehAtiva(l)) return false;
-
-  // Atrasado só considera o que venceu nos últimos 30 dias.
-  // Mais velho que isso = fora do radar (cemitério).
-  if (urgencia === 'atrasados') {
-    if (l.status === 'prospeccao') return false;
-    const limite = new Date(); limite.setDate(limite.getDate() - 30);
-    return l.proximo < hj && l.proximo >= isoDate(limite);
-  }
-  if (urgencia === 'hoje') {
-    return l.proximo === hj;
-  }
-  if (urgencia === 'semana') {
-    const limite = new Date(); limite.setDate(limite.getDate() + 7);
-    return l.proximo >= hj && l.proximo <= isoDate(limite);
-  }
-  return true;
-}
-
-// ============================================================
-// RENDER PRINCIPAL
+// RENDERIZAÇÃO DA TELA (Tabela e KPIs)
 // ============================================================
 
 export function renderLigacoes() {
-  const kpisEl = document.getElementById('ligacoes-kpis');
+  const kpiEl = document.getElementById('ligacoes-kpis');
   const tbody = document.getElementById('tbody-ligacoes');
   const countEl = document.getElementById('ligacoes-count');
-  if (!kpisEl || !tbody) return;
+  if (!tbody) return;
 
-  const base = ligacoesNoEscopo();
-  const mapaVendas = vendasAtribuidasMap();
-  const hj = isoDate(new Date());
-  const urgencia = ui.filtroLigUrgencia || '';
+  // Popula select de vendedor
+  const selVend = document.getElementById('filtro-lig-vendedor');
+  if (selVend && selVend.options.length <= 1) {
+    let opts = '<option value="">Todos vendedores</option>';
+    state.vendedores.filter(v => v.ativo && v.papel === 'vendedor').forEach(v => {
+      opts += `<option value="${v.id}">${escapeHtml(v.nome)}</option>`;
+    });
+    selVend.innerHTML = opts;
+  }
 
-  popularSelectVendedor(base);
+  // Filtros
+  const fBusca = (document.getElementById('filtro-lig-busca')?.value || '').toUpperCase();
+  const fVend = selVend?.value || ui.modoVendedor || '';
+  const fStatus = document.getElementById('filtro-lig-status')?.value || '';
 
-  const periodo = calcularPeriodo();
-  const busca = (document.getElementById('filtro-lig-busca')?.value || '').toUpperCase();
-  const filtroVend = document.getElementById('filtro-lig-vend')?.value || '';
-  const filtroStatus = document.getElementById('filtro-lig-status')?.value || '';
-  const filtroConv = document.getElementById('filtro-lig-conversao')?.value || '';
+  // Base de ligações
+  let ligacoes = (state.ligacoes || []).filter(l => filialNoEscopo(l.filialId, ui.escopoAtual));
 
-  // Primeiro passa pelo período (base para KPIs)
-  const noPeriodo = base.filter(l => {
-    if (periodo && (!l.data || l.data < periodo.ini || l.data > periodo.fim)) return false;
+  // Aplica filtros
+  const filtradas = ligacoes.filter(l => {
+    if (fVend && l.vendedor !== fVend) return false;
+    if (fStatus && l.status !== fStatus) return false;
+    if (fBusca && !l.empresa.toUpperCase().includes(fBusca)) return false;
     return true;
   });
 
-  // Filtros de lista
-  const filtradas = noPeriodo.filter(l => {
-    if (!aplicarUrgencia(l, urgencia, hj)) return false;
-    if (filtroVend && l.vendedor !== filtroVend) return false;
-    if (filtroStatus && l.status !== filtroStatus) return false;
+  // Ordena da mais recente para a mais antiga
+  filtradas.sort((a, b) => (b.data || '').localeCompare(a.data || ''));
 
-    const temVenda = !!mapaVendas[l.id];
-    if (filtroConv === 'sim' && !temVenda) return false;
-    if (filtroConv === 'nao' && temVenda) return false;
+  // KPIs do período (usando a base filtrada)
+  const totalLig = filtradas.length;
+  const vendas = filtradas.filter(l => l.status === 'venda');
+  const valorGerado = vendas.reduce((s, l) => s + (l.valor || 0), 0);
+  const taxaConversao = totalLig > 0 ? (vendas.length / totalLig) * 100 : 0;
 
-    if (busca) {
-      const alvo = [l.empresa, l.cidade, l.codigo, l.obs, l.contato]
-        .filter(Boolean).join(' ').toUpperCase();
-      if (alvo.indexOf(busca) < 0) return false;
-    }
-    return true;
-  });
+  kpiEl.innerHTML = `
+    <div class="kpi-card">
+      <div class="kpi-header">LIGAÇÕES REALIZADAS</div>
+      <div class="kpi-value">${totalLig}</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-header">CONVERSÃO EM VENDA</div>
+      <div class="kpi-value" style="color:var(--af-verde)">${taxaConversao.toFixed(1)}%</div>
+      <div class="kpi-hint">${vendas.length} vendas fechadas</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-header">VALOR GERADO</div>
+      <div class="kpi-value">${fmtBRL(valorGerado)}</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-header">RETORNOS PENDENTES</div>
+      <div class="kpi-value" style="color:var(--af-amarelo)">${filtradas.filter(l => l.proximo && l.status !== 'venda' && l.status !== 'sem_interesse').length}</div>
+    </div>
+  `;
 
-  // KPIs do período (não filtrados por urgência/status/conversão)
-  const totalLig = noPeriodo.length;
-  const ligComVenda = noPeriodo.filter(l => mapaVendas[l.id]);
-  const valorAtribuido = ligComVenda.reduce((s, l) => s + (mapaVendas[l.id].valorVenda || 0), 0);
-  const taxaConversao = totalLig > 0 ? (ligComVenda.length / totalLig) * 100 : 0;
-  const valorMedioVenda = ligComVenda.length > 0 ? valorAtribuido / ligComVenda.length : 0;
+  if (countEl) countEl.textContent = filtradas.length + ' ligações';
 
-  const diasMedio = ligComVenda.length > 0
-    ? ligComVenda.reduce((s, l) => s + (mapaVendas[l.id].diasEntre || 0), 0) / ligComVenda.length
-    : 0;
-
-  kpisEl.innerHTML =
-    '<div class="kpi"><div class="label">Ligações</div>' +
-    '<div class="value">' + totalLig + '</div>' +
-    '<div class="hint">' + (periodo ? 'no período' : 'no total') + '</div></div>' +
-    '<div class="kpi positivo"><div class="label">Vendas atribuídas</div>' +
-    '<div class="value">' + ligComVenda.length + '</div>' +
-    '<div class="hint">via ligação (30d)</div></div>' +
-    '<div class="kpi positivo"><div class="label">Valor atribuído</div>' +
-    '<div class="value">' + fmtBRL(valorAtribuido) + '</div>' +
-    '<div class="hint">ticket médio ' + fmtBRL(valorMedioVenda) + '</div></div>' +
-    '<div class="kpi ' + (taxaConversao >= 20 ? 'positivo' : taxaConversao >= 10 ? '' : 'negativo') + '">' +
-    '<div class="label">Conversão</div>' +
-    '<div class="value">' + taxaConversao.toFixed(1) + '%</div>' +
-    '<div class="hint">ligações que viraram venda</div></div>' +
-    '<div class="kpi"><div class="label">Tempo médio</div>' +
-    '<div class="value">' + diasMedio.toFixed(1) + 'd</div>' +
-    '<div class="hint">entre ligação e venda</div></div>';
-
-  // Distribuição por status
-  renderDistribuicaoStatus(noPeriodo);
-
-  // Atalhos de urgência
-  renderUrgencia(base, hj, mapaVendas);
-
-  countEl.textContent = filtradas.length + ' ligações';
-
-  // Tabela
   if (filtradas.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:30px;color:#64748b;">' +
-      'Nenhuma ligação no filtro atual.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:32px; color:#888;">Nenhuma ligação encontrada.</td></tr>';
     return;
   }
 
-  const ordenadas = filtradas.slice().sort((a, b) => (b.data || '').localeCompare(a.data || ''));
-
-  tbody.innerHTML = ordenadas.slice(0, 500).map(l => {
+  tbody.innerHTML = filtradas.slice(0, 500).map(l => {
     const v = state.vendedores.find(x => x.id === l.vendedor);
     const st = STATUS[l.status] || STATUS.prospeccao;
-    const lv = mapaVendas[l.id];
+    
+    const proxTxt = l.proximo ? fmtDataBR(l.proximo) : '—';
 
-    const convHTML = lv
-      ? '<span class="badge badge-ok" title="Venda em ' + fmtDataBR(lv.dataVenda) +
-        ' (' + lv.diasEntre + ' dias após)">✓ ' + fmtBRL(lv.valorVenda) + '</span>'
-      : '<span style="color:#94a3b8;">—</span>';
-
-    const proxVencido = l.proximo && l.proximo < hj && ehAtiva(l);
-    const proxHoje = l.proximo === hj && ehAtiva(l);
-    const proxHTML = l.proximo
-      ? (proxVencido
-          ? '<span style="color:#dc2626;font-weight:700;">' + fmtDataBR(l.proximo) + '</span>'
-          : proxHoje
-            ? '<span style="color:#f59e0b;font-weight:700;">' + fmtDataBR(l.proximo) + '</span>'
-            : fmtDataBR(l.proximo))
-      : '—';
-
-    return '<tr>' +
-      '<td>' + fmtDataBR(l.data) + '</td>' +
-      '<td>' + (v ? escapeHtml(v.nome) : '—') + '</td>' +
-      '<td><strong>' + escapeHtml(l.empresa || '—') + '</strong>' +
-      (l.codigo ? ' <span style="font-size:10px;color:#94a3b8;">' + escapeHtml(l.codigo) + '</span>' : '') +
-      '</td>' +
-      '<td>' + escapeHtml(l.cidade || '—') + (l.estado ? '/' + escapeHtml(l.estado) : '') + '</td>' +
-      '<td><span class="badge" style="background:' + st.cor + ';color:#fff;">' +
-        st.emoji + ' ' + st.label + '</span></td>' +
-      '<td class="num">' + (l.valor > 0 ? fmtBRL(l.valor) : '—') + '</td>' +
-      '<td>' + convHTML + '</td>' +
-      '<td style="font-size:11px;">' + proxHTML + '</td>' +
-      '<td><button class="btn btn-sm" data-editar-lig="' + escapeHtml(l.id) + '">✏️</button></td>' +
-      '</tr>';
-  }).join('');
-
-  tbody.querySelectorAll('[data-editar-lig]').forEach(b => {
-    b.onclick = () => abrirModalLigacao(b.dataset.editarLig);
-  });
-}
-
-// ============================================================
-// DISTRIBUIÇÃO POR STATUS
-// ============================================================
-
-function renderDistribuicaoStatus(noPeriodo) {
-  const el = document.getElementById('ligacoes-status-dist');
-  if (!el) return;
-
-  const counts = {};
-  Object.keys(STATUS).forEach(k => { counts[k] = 0; });
-  noPeriodo.forEach(l => { counts[l.status] = (counts[l.status] || 0) + 1; });
-
-  const total = noPeriodo.length || 1;
-
-  el.innerHTML = Object.keys(STATUS).map(k => {
-    const st = STATUS[k];
-    const n = counts[k] || 0;
-    const pct = (n / total * 100).toFixed(0);
-    return '<div style="display:flex;align-items:center;gap:6px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:6px 12px;font-size:12px;">' +
-      '<span style="font-weight:700;color:' + st.cor + ';">' + st.emoji + ' ' + st.label + '</span>' +
-      '<strong style="font-size:14px;">' + n + '</strong>' +
-      '<span style="color:#94a3b8;">(' + pct + '%)</span>' +
-      '</div>';
+    return `
+      <tr>
+        <td>${fmtDataBR(l.data)}</td>
+        <td><strong>${escapeHtml(v ? v.nome : '—')}</strong></td>
+        <td>${escapeHtml(l.empresa)}</td>
+        <td>
+          <span class="badge" style="background:${st.cor}15; color:${st.cor}; border:1px solid ${st.cor}30;">
+            ${st.emoji} ${st.label}
+          </span>
+        </td>
+        <td class="num">${l.valor > 0 ? fmtBRL(l.valor) : '—'}</td>
+        <td class="num" style="color:var(--af-t2)">${proxTxt}</td>
+        <td style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--af-t3);" title="${escapeHtml(l.obs || '')}">
+          ${escapeHtml(l.obs || '—')}
+        </td>
+      </tr>
+    `;
   }).join('');
 }
 
 // ============================================================
-// ATALHOS DE URGÊNCIA
-// ============================================================
-
-function renderUrgencia(base, hj, mapaVendas) {
-  // Contadores: aplicar período pra não contar coisas antigas
-  const periodo = calcularPeriodo();
-  const noPeriodo = base.filter(l => {
-    if (periodo && (!l.data || l.data < periodo.ini || l.data > periodo.fim)) return false;
-    return true;
-  });
-
-  const nAtrasados = noPeriodo.filter(l => aplicarUrgencia(l, 'atrasados', hj)).length;
-  const nHoje = noPeriodo.filter(l => aplicarUrgencia(l, 'hoje', hj)).length;
-  const nSemana = noPeriodo.filter(l => aplicarUrgencia(l, 'semana', hj)).length;
-
-  const nEl = document.getElementById('urg-atrasados-n');
-  if (nEl) nEl.textContent = nAtrasados > 0 ? '(' + nAtrasados + ')' : '';
-  const hEl = document.getElementById('urg-hoje-n');
-  if (hEl) hEl.textContent = nHoje > 0 ? '(' + nHoje + ')' : '';
-  const sEl = document.getElementById('urg-semana-n');
-  if (sEl) sEl.textContent = nSemana > 0 ? '(' + nSemana + ')' : '';
-
-  // Marcar botão ativo
-  const atual = ui.filtroLigUrgencia || '';
-  ['', 'atrasados', 'hoje', 'semana'].forEach(u => {
-    const btn = document.querySelector('[data-urgencia="' + u + '"]');
-    if (btn) btn.classList.toggle('btn-primary', atual === u);
-  });
-
-  // Cores nos contadores se > 0
-  const bA = document.getElementById('urg-atrasados');
-  if (bA) {
-    bA.style.borderColor = nAtrasados > 0 ? '#dc2626' : '';
-    bA.style.color = nAtrasados > 0 && atual !== 'atrasados' ? '#dc2626' : '';
-  }
-  const bH = document.getElementById('urg-hoje');
-  if (bH) {
-    bH.style.borderColor = nHoje > 0 ? '#f59e0b' : '';
-    bH.style.color = nHoje > 0 && atual !== 'hoje' ? '#f59e0b' : '';
-  }
-}
-
-// ============================================================
-// SELECT VENDEDOR
-// ============================================================
-
-function popularSelectVendedor(base) {
-  const sel = document.getElementById('filtro-lig-vend');
-  if (!sel) return;
-  if (sel.options.length > 1) return;
-
-  const vistos = {};
-  base.forEach(l => { if (l.vendedor) vistos[l.vendedor] = true; });
-
-  let opts = '<option value="">Todos vendedores</option>';
-  Object.keys(vistos).forEach(id => {
-    const v = state.vendedores.find(x => x.id === id);
-    if (v) opts += '<option value="' + escapeHtml(id) + '">' + escapeHtml(v.nome) + '</option>';
-  });
-  sel.innerHTML = opts;
-}
-
-// ============================================================
-// MODAL — registrar/editar ligação
+// MODAL DE CADASTRO/EDIÇÃO
 // ============================================================
 
 export function abrirModalLigacao(ligacaoId, prefill) {
@@ -389,10 +197,6 @@ export function abrirModalLigacao(ligacaoId, prefill) {
   setTimeout(() => document.getElementById('ml-empresa')?.focus(), 100);
 }
 
-// ============================================================
-// SALVAR
-// ============================================================
-
 async function salvarLigacao(existente) {
   const empresa = document.getElementById('ml-empresa').value.trim();
   if (!empresa) { toast('Empresa obrigatória.', 2500); return; }
@@ -401,23 +205,19 @@ async function salvarLigacao(existente) {
   const data = document.getElementById('ml-data').value;
   if (!data) { toast('Data obrigatória.', 2500); return; }
 
-  const filialId = session.vendedor ? session.vendedor.filial_id : null;
-  if (!filialId && !ui.escopoAtual.startsWith('FILIAL')) {
-    toast('Sem filial definida.', 2500);
-    return;
-  }
-  const fId = filialId || parseEscopo(ui.escopoAtual).id;
+  const filialId = session.vendedor ? session.vendedor.filial_id : (state.filiais[0] ? state.filiais[0].id : null);
+  if (!filialId) { toast('Sem filial definida.', 2500); return; }
 
   const valorTxt = document.getElementById('ml-valor').value || '0';
   const valor = parseFloat(String(valorTxt).replace(/\./g, '').replace(',', '.')) || 0;
 
   const payload = {
-    filial_id: fId,
+    filial_id: filialId,
     vendedor_id: vendedor,
     data: data,
     codigo: document.getElementById('ml-codigo').value.trim() || null,
     empresa: empresa,
-    cliente_norm: empresa.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Z0-9 ]/g, '').trim(),
+    cliente_norm: normalizarNomeCliente(empresa),
     contato: document.getElementById('ml-contato').value.trim() || null,
     telefone: document.getElementById('ml-telefone').value.trim() || null,
     cidade: document.getElementById('ml-cidade').value.trim() || null,
@@ -453,9 +253,14 @@ async function salvarLigacao(existente) {
       window._marcarAcaoTratada(acaoId);
     }
 
-    const dados = await sbCarregarTudo();
+    // Recarrega os dados locais para atualizar a tela de ligações
+    const dados = await sbCarregarTudo(true);
     aplicarDadosDoBanco(dados);
+    
+    // Atualiza as views que dependem das ligações
     renderLigacoes();
+    if (window._renderPainel) window._renderPainel(); // Atualiza o Cockpit em background
+
   } catch (e) {
     btn.disabled = false;
     btn.textContent = '✓ Salvar';

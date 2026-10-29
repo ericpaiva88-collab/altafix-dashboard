@@ -12,7 +12,7 @@ import { renderAgenda } from './views/agenda.js';
 import { renderEquipe } from './views/equipe.js';
 import { renderClientes } from './views/clientes.js';
 import { renderProdutos } from './views/produtos.js';
-import { abrirModalLigacao } from './views/ligacoes.js';
+import { renderLigacoes, abrirModalLigacao } from './views/ligacoes.js'; // <-- IMPORT DA LIGAÇÕES
 import { setupConfig, renderConfig, renderTudo } from './views/config.js';
 import { renderAnalise } from './views/analise.js';
 
@@ -133,6 +133,7 @@ function setupTabs() {
       if (b.dataset.tab === 'equipe') setTimeout(() => { try { renderEquipe(); } catch (e) { console.error(e); } }, 50);
       if (b.dataset.tab === 'clientes') setTimeout(() => { try { renderClientes(); } catch (e) { console.error(e); } }, 50);
       if (b.dataset.tab === 'produtos') setTimeout(() => { try { renderProdutos(); } catch (e) { console.error(e); } }, 50);
+      if (b.dataset.tab === 'ligacoes') setTimeout(() => { try { renderLigacoes(); } catch (e) { console.error(e); } }, 50); // <-- CHAMADA DA LIGAÇÕES
       if (b.dataset.tab === 'config') setTimeout(() => { try { renderConfig(); } catch (e) { console.error(e); } }, 50);
       if (b.dataset.tab === 'analise') setTimeout(() => { try { renderAnalise(); } catch (e) { console.error(e); } }, 50);
     };
@@ -155,6 +156,11 @@ function setupFiltros() {
   const prodCurva = document.getElementById('filtro-produto-curva'); if (prodCurva) prodCurva.onchange = () => renderProdutos();
   const prodFab = document.getElementById('filtro-produto-fabricante'); if (prodFab) prodFab.onchange = () => renderProdutos();
 
+  // Ligações
+  const ligBusca = document.getElementById('filtro-lig-busca'); if (ligBusca) ligBusca.oninput = () => renderLigacoes();
+  const ligVend = document.getElementById('filtro-lig-vendedor'); if (ligVend) ligVend.onchange = () => renderLigacoes();
+  const ligStatus = document.getElementById('filtro-lig-status'); if (ligStatus) ligStatus.onchange = () => renderLigacoes();
+
   // Análise
   const analiseVend = document.getElementById('analise-filtro-vendedor'); if (analiseVend) analiseVend.onchange = () => renderAnalise();
   const analisePeriodo = document.getElementById('analise-periodo'); if (analisePeriodo) analisePeriodo.onchange = () => renderAnalise();
@@ -164,23 +170,17 @@ function setupBotoes() {
   const helpBtn = document.getElementById('help-btn'); if (helpBtn) helpBtn.onclick = () => document.getElementById('help-modal').classList.add('show');
   const helpClose = document.getElementById('help-close'); if (helpClose) helpClose.onclick = () => document.getElementById('help-modal').classList.remove('show');
   
-  // FIX: Sempre que mudar o escopo ou o modo vendedor, atualiza o Painel E a Agenda
-  const escopo = document.getElementById('escopo-select'); 
-  if (escopo) escopo.onchange = e => { 
-    ui.escopoAtual = e.target.value; 
-    renderPainel(); 
-    renderAgenda(); 
-  };
-  
-  const mv = document.getElementById('modo-vendedor'); 
-  if (mv) mv.onchange = e => { 
-    ui.modoVendedor = e.target.value; 
-    renderPainel(); 
-    renderAgenda(); 
-  };
-  
+  const escopo = document.getElementById('escopo-select'); if (escopo) escopo.onchange = e => { ui.escopoAtual = e.target.value; renderPainel(); renderAgenda(); };
+  const mv = document.getElementById('modo-vendedor'); if (mv) mv.onchange = e => { ui.modoVendedor = e.target.value; renderPainel(); renderAgenda(); };
   const painelMesSel = document.getElementById('painel-mes-select'); if (painelMesSel) painelMesSel.onchange = e => { ui.mesPainelSelecionado = e.target.value; renderPainel(); };
-  const btnNovaLigAgenda = document.getElementById('btn-nova-ligacao-agenda'); if (btnNovaLigAgenda) btnNovaLigAgenda.onclick = () => { if (window._abrirModalLigacao) window._abrirModalLigacao(); };
+  
+  // Botão Nova Ligação (no topo da aba Ligações)
+  const btnNovaLigTopo = document.getElementById('btn-nova-ligacao-topo'); 
+  if (btnNovaLigTopo) btnNovaLigTopo.onclick = () => { if (window._abrirModalLigacao) window._abrirModalLigacao(); };
+  
+  // Botão Nova Ligação (no topo da aba Agenda)
+  const btnNovaLigAgenda = document.getElementById('btn-nova-ligacao-agenda'); 
+  if (btnNovaLigAgenda) btnNovaLigAgenda.onclick = () => { if (window._abrirModalLigacao) window._abrirModalLigacao(); };
 
   const btnRelatorio = document.getElementById('btn-relatorio-matinal');
   if (btnRelatorio) btnRelatorio.onclick = () => gerarRelatorioMatinal();
