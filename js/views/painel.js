@@ -1,9 +1,9 @@
 // ============================================================
-// views/painel.js — Cockpit Comercial (Otimizado)
+// views/painel.js — Cockpit Comercial (Ação Rápida)
 // ============================================================
 
 import { state, ui } from '../state.js';
-import { fmtBRL, fmtPct, escapeHtml, isoDate, inicioSemana, normalizarNomeCliente, diffDias } from '../utils.js';
+import { fmtBRL, fmtPct, escapeHtml, isoDate, inicioSemana, diffDias } from '../utils.js';
 import {
   mesRefAtual, calcFilial, calcVendedor, calcDiasUteisNoMes, calcDiasUteisDecorridos, escopoNome, filialNoEscopo, vendedoresNoEscopo, getMetaVendedor
 } from '../calc.js';
@@ -354,25 +354,34 @@ function renderAtencaoAgora(a, m, vendedorFoco, fCalculada) {
     dadosVendedores.filter(d => d.vendedor.papel === 'vendedor').forEach(d => {
       const gap = d.meta * (calcDiasUteisDecorridos(a, m) / calcDiasUteisNoMes(a, m));
       if (d.faturado < gap && d.faturado > 0) {
-        alertas.push({ tipo: 'vendedor', titulo: d.vendedor.nome + ' está abaixo do ritmo', desc: `${fmtBRL(gap - d.faturado)} atrás. Precisa de ${fmtBRL(d.metaDia)}/dia.`, peso: gap - d.faturado });
+        alertas.push({ tipo: 'vendedor', titulo: d.vendedor.nome + ' está abaixo do ritmo', desc: `${fmtBRL(gap - d.faturado)} atrás. Precisa de ${fmtBRL(d.metaDia)}/dia.`, peso: gap - d.faturado, vendedorId: d.vendedor.id });
       }
     });
     let clientesRisco = state.clientes.filter(c => filialNoEscopo(c.filialId, ui.escopoAtual) && (c.diasSemComprar || 0) > 30 && c.valorMedioMensal > 5000).sort((a, b) => b.valorMedioMensal - a.valorMedioMensal).slice(0, 2);
-    clientesRisco.forEach(c => { alertas.push({ tipo: 'cliente', titulo: c.nome, desc: `${c.diasSemComprar} dias sem comprar. Valor: ${fmtBRL(c.valorMedioMensal)}/mês.`, peso: c.valorMedioMensal * 1.5 }); });
+    clientesRisco.forEach(c => { alertas.push({ tipo: 'cliente', titulo: c.nome, desc: `${c.diasSemComprar} dias sem comprar. Valor: ${fmtBRL(c.valorMedioMensal)}/mês.`, peso: c.valorMedioMensal * 1.5, clienteObj: c }); });
     alertas.sort((x, y) => y.peso - x.peso); alertas = alertas.slice(0, 5);
   }
 
   if (alertas.length === 0) { el.innerHTML = '<div style="padding:32px; text-align:center; color:#888;">Tudo tranquilo no radar.</div>'; return; }
 
-  el.innerHTML = alertas.map(al => `
-    <div class="acao-item">
+  el.innerHTML = alertas.map(al => {
+    let botoes = '';
+    if (al.tipo === 'vendedor' && al.vendedorId) {
+      botoes = `<button class="btn btn-sm" onclick="event.stopPropagation(); window._abrirFichaVendedor('${al.vendedorId}')">Ver Ficha</button>`;
+    } else if (al.tipo === 'cliente' && al.clienteObj) {
+      botoes = `<button class="btn btn-sm" onclick="event.stopPropagation(); window._abrirModalLigacao(null, { empresa: '${escapeHtml(al.clienteObj.nome)}', cidade: '${escapeHtml(al.clienteObj.cidade)}', estado: '${escapeHtml(al.clienteObj.uf)}', vendedor: '${al.clienteObj.vendedor}' })">Ligar</button>`;
+    }
+
+    return `
+    <div class="acao-item" style="align-items:center;">
       <div class="acao-icon" style="background: ${al.tipo === 'vendedor' ? 'var(--af-amarelo)' : 'var(--af-vermelho)'}"></div>
       <div class="acao-content">
         <div class="acao-title">${escapeHtml(al.titulo)}</div>
         <div class="acao-desc">${escapeHtml(al.desc)}</div>
       </div>
+      <div style="display:flex; gap:8px;">${botoes}</div>
     </div>
-  `).join('');
+  `}).join('');
 }
 
 export function imprimirHTML(titulo, subtitulo, corpoHTML) {

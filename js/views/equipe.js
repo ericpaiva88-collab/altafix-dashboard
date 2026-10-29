@@ -3,7 +3,7 @@
 // ============================================================
 
 import { state, ui } from '../state.js';
-import { fmtBRL, escapeHtml, diffDias, isoDate } from '../utils.js';
+import { fmtBRL, escapeHtml, diffDias, isoDate, toast } from '../utils.js';
 import { calcVendedor, mesRefAtual, filialNoEscopo, comparativoNoEscopo } from '../calc.js';
 
 let chartFichaInstance = null;
@@ -92,6 +92,9 @@ window._abrirFichaVendedor = function(vendedorId) {
     .sort((a, b) => (b.valorMedioMensal || 0) - (a.valorMedioMensal || 0))
     .slice(0, 5);
 
+  // Recupera as anotações do 1:1 salvas
+  const notaSalva = localStorage.getItem('nota_1a1_' + v.id) || '';
+
   let html = `
     <div class="ficha-header" style="padding-bottom:12px;">
       <div>
@@ -113,7 +116,7 @@ window._abrirFichaVendedor = function(vendedorId) {
         <canvas id="chart-ficha-evolucao"></canvas>
       </div>
 
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:24px;">
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:24px; margin-bottom:24px;">
         
         <div>
           <div style="font-size:13px; font-weight:700; margin-bottom:12px; color:var(--af-verde);">🏆 Melhores Clientes (Ativos)</div>
@@ -144,6 +147,17 @@ window._abrirFichaVendedor = function(vendedorId) {
         </div>
 
       </div>
+
+      <!-- Diário de Bordo 1:1 -->
+      <div style="border-top:1px solid #eee; padding-top:24px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+          <div style="font-size:14px; font-weight:700; color:var(--af-t1);">📝 Diário de Bordo 1:1</div>
+          <span class="text-xs text-muted">Visível apenas para o gestor</span>
+        </div>
+        <textarea id="ficha-notas-1a1" style="width:100%; min-height:100px; padding:12px; border:1px solid var(--af-borda-forte); border-radius:6px; font-family:inherit; font-size:13px; margin-bottom:12px;" placeholder="O que foi conversado? Quais os compromissos acordados?">${escapeHtml(notaSalva)}</textarea>
+        <button class="btn btn-primary" onclick="window._salvarNota1a1('${v.id}')">Salvar Anotações</button>
+      </div>
+
     </div>
   `;
 
@@ -158,6 +172,13 @@ window._abrirFichaVendedor = function(vendedorId) {
   modal.querySelector('.modal-content').innerHTML = html;
   modal.classList.add('show');
   modal.onclick = e => { if (e.target.id === 'ficha-vendedor-modal') modal.classList.remove('show'); };
+
+  // Função para salvar a nota
+  window._salvarNota1a1 = (vId) => {
+    const txt = document.getElementById('ficha-notas-1a1').value;
+    localStorage.setItem('nota_1a1_' + vId, txt);
+    toast('✓ Anotações salvas!');
+  };
 
   const renderGrafico = (mesesQtd) => {
     const ctx = document.getElementById('chart-ficha-evolucao');
