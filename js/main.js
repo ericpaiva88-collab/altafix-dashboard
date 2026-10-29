@@ -160,6 +160,19 @@ function setupBotoes() {
   const mv = document.getElementById('modo-vendedor'); if (mv) mv.onchange = e => { ui.modoVendedor = e.target.value; renderPainel(); };
   const painelMesSel = document.getElementById('painel-mes-select'); if (painelMesSel) painelMesSel.onchange = e => { ui.mesPainelSelecionado = e.target.value; renderPainel(); };
   const btnNovaLigAgenda = document.getElementById('btn-nova-ligacao-agenda'); if (btnNovaLigAgenda) btnNovaLigAgenda.onclick = () => { if (window._abrirModalLigacao) window._abrirModalLigacao(); };
+  // FIX: Navegação do Ritmo Semanal
+  const sp = document.getElementById('sem-prev');
+  if (sp) sp.onclick = () => { ui.semanaRef.setDate(ui.semanaRef.getDate() - 7); renderSemana(); };
+
+  const sn = document.getElementById('sem-next');
+  if (sn) sn.onclick = () => { ui.semanaRef.setDate(ui.semanaRef.getDate() + 7); renderSemana(); };
+
+  document.querySelectorAll('#sem-tabs button').forEach(b => {
+    b.onclick = () => {
+      ui.diaSemanaMobile = parseInt(b.dataset.dia, 10);
+      renderSemana();
+    };
+  });
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
