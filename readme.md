@@ -9,10 +9,10 @@ O Alta Fix deixou de ser um dashboard genérico e se tornou um **Copiloto de Ges
 - **Frontend:** HTML5, CSS3 (Design System próprio com variáveis), JavaScript (ES Modules - Vanilla JS).
 - **Backend/Auth:** Supabase (PostgreSQL + Auth).
 - **Gráficos:** Chart.js.
-- **Importação de Dados:** SheetJS (XLSX).
+- **Importação de Dados:** SheetJS (XLSX) com leitura assíncrona (Promises) para evitar falhas de processamento.
 - **Integração de Comunicação:** WhatsApp API (via `wa.me` com geração inteligente de texto B2B).
 - **Hospedagem:** Cloudflare Pages (Deploy automático via GitHub).
-- **Performance:** Carregamento em duas etapas (*Lazy Loading*). O app carrega primeiro as tabelas vitais (clientes, lançamentos) e depois baixa o histórico pesado em background.
+- **Performance:** Carregamento em duas etapas (*Lazy Loading*). O app carrega primeiro as tabelas vitais (clientes, lançamentos) e depois baixa o histórico pesado em background. Sincronização em cascata após importação (não exige F5).
 
 ---
 
@@ -28,7 +28,7 @@ O Alta Fix deixou de ser um dashboard genérico e se tornou um **Copiloto de Ges
     ├── utils.js             # Helpers (formatadores, WhatsApp inteligente, etc)
     ├── calc.js              # Regras de negócio otimizadas (RFM, metas, projeções)
     ├── supabase.js          # Comunicação com o banco (modo Lite e Full)
-    ├── importer.js          # Parsing das planilhas (324, 740, 361)
+    ├── importer.js          # Parsing assíncrono das planilhas (324, 740, 361)
     └── views/
         ├── painel.js        # Cockpit (KPIs, Gráfico Meta, Ritmo Semanal, Relatório Matinal)
         ├── agenda.js        # Fila inteligente (Modo Lista e Modo Foco)
@@ -89,7 +89,7 @@ Sazonalidade (YoY): Gráfico de linha comparando 2025 e 2026.
 Leitura de Gestão: A tabela de ranking interpreta os números (ex: "Crescendo levemente", "Abaixo de 2025 — precisa de apoio").
 
 8. Configurações
-Importação via Drag & Drop das planilhas (324, 740, 361) com feedback visual.
+Importação via Drag & Drop das planilhas (324, 740, 361) com feedback visual e leitura assíncrona.
 
 Edição de Metas por mês e vendedor.
 
@@ -98,14 +98,14 @@ O botão de WhatsApp (💬) não apenas abre o aplicativo, ele gera uma mensagem
 
 Limpeza do Nome: O sistema ignora sufixos como "LTDA", "ME", "COMÉRCIO" e extrai o nome fantasia da empresa (ex: "AUTO PECAS ORIZONA LTDA - ME" vira "Auto Pecas Orizona").
 
-Personalização do Vendedor: O vendedor responsável se apresenta na mensagem (ex: "Aqui é o Diego, da Alta Fix...").
+Personalização do Vendedor: O vendedor responsável se apresenta na mensagem (ex: "Aqui é o Diego, da Alta Fix Distribuidora...").
 
 Contexto: A mensagem lembra o cliente do último pedido e oferece novidades.
 
 🧠 Regras de Negócio (O "Cérebro" do App)
 Vale/Mês: Faturamento dos últimos 90 dias antes da última compra, dividido por 3.
 
-Atenção Agora: Calcula o "Gap" (Onde o vendedor deveria estar hoje vs onde ele está). Se estiver abaixo, ele sobe para a lista de alertas.
+Cálculo de Recompra (Mediana): O ciclo de compra do cliente é calculado usando a mediana das diferenças entre as compras recentes. Isso evita que clientes diários (que compram todo dia) sejam marcados como "Sumidos" por causa de um feriado ou final de semana.
 
 Modo Vendedor: O seletor no topo filtra todas as abas (Cockpit, Agenda, Clientes) para mostrar exclusivamente os dados do vendedor selecionado.
 
@@ -116,9 +116,11 @@ A interface foi desenhada como Mobile-First.
 
 O menu lateral vira um botão hambúrguer.
 
-As tabelas de dados complexos se transformam em Cards no celular, facilitando a leitura.
+As tabelas de dados complexos se transformam em Cards no celular.
 
 O Ritmo Semanal foca em um dia por vez no mobile (através dos botões da semana).
+
+Números grandes (KPI) usam clamp() para não quebrarem em telas menores.
 
 🚀 Como rodar localmente
 Abra a pasta do projeto no VS Code.
@@ -131,7 +133,7 @@ O app abrirá em http://127.0.0.1:5500.
 
 Faça login com as credenciais cadastradas no Supabase Auth.
 
-(Dica: Sempre use Ctrl + F5 ao alterar arquivos JS para evitar conflitos de cache no navegador).
+(Dica: Sempre use Ctrl + F5 ao alterar arquivos JS/CSS para evitar conflitos de cache no navegador).
 
 ☁️ Deploy (Cloudflare Pages)
 Faça o commit das alterações no Git (git add ., git commit -m "...", git push origin main).
@@ -155,7 +157,7 @@ metas	Metas mensais por vendedor.
 ⚠️ Limitações Conhecidas / Próximos Passos
 Integração via API (ERP): Hoje a entrada depende de importação manual. O próximo passo é integrar com o ERP (Maxdata) para leitura em tempo real.
 
-Envio Automático de WhatsApp: A integração atual abre o WhatsApp Web/App com a mensagem pronta. Para envio 100% automatizado (sem clique do vendedor), seria necessário contratar uma API oficial (ex: Twilio, Z-API, Meta Business API).
+Envio Automático de WhatsApp: A integração atual abre o WhatsApp Web/App com a mensagem pronta. Para envio 100% automatizado, seria necessário contratar uma API oficial (ex: Twilio, Z-API, Meta Business API).
 
 Backup na Nuvem: O botão de backup gera um JSON local. O ideal seria salvar esse snapshot automaticamente no Supabase.
 
