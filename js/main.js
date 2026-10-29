@@ -2,13 +2,13 @@
 // main.js — Ponto de entrada do app (Otimizado)
 // ============================================================
 
-import { renderPainel, renderSemana, gerarRelatorioMatinal } from './views/painel.js';
 import { state, ui, session, carregar, salvar } from './state.js';
 import { derivarHistorico } from './calc.js';
 import { fmtBRL, toast, isoDate, normalizarNomeCliente, copiarTexto } from './utils.js';
 import { sbInit, sbLogin, sbLogout, sbSessaoAtual, sbCarregarPerfil, sbCarregarTudo, aplicarDadosDoBanco } from './supabase.js';
 
-import { renderPainel, renderSemana } from './views/painel.js';
+// IMPORTS LIMPOS (sem duplicação)
+import { renderPainel, renderSemana, gerarRelatorioMatinal } from './views/painel.js';
 import { renderAgenda } from './views/agenda.js'; 
 import { renderEquipe } from './views/equipe.js';
 import { renderClientes } from './views/clientes.js';
@@ -158,8 +158,6 @@ function setupFiltros() {
 }
 
 function setupBotoes() {
-    const btnRelatorio = document.getElementById('btn-relatorio-matinal');
-  if (btnRelatorio) btnRelatorio.onclick = () => gerarRelatorioMatinal();
   const helpBtn = document.getElementById('help-btn'); if (helpBtn) helpBtn.onclick = () => document.getElementById('help-modal').classList.add('show');
   const helpClose = document.getElementById('help-close'); if (helpClose) helpClose.onclick = () => document.getElementById('help-modal').classList.remove('show');
   
@@ -167,6 +165,10 @@ function setupBotoes() {
   const mv = document.getElementById('modo-vendedor'); if (mv) mv.onchange = e => { ui.modoVendedor = e.target.value; renderPainel(); };
   const painelMesSel = document.getElementById('painel-mes-select'); if (painelMesSel) painelMesSel.onchange = e => { ui.mesPainelSelecionado = e.target.value; renderPainel(); };
   const btnNovaLigAgenda = document.getElementById('btn-nova-ligacao-agenda'); if (btnNovaLigAgenda) btnNovaLigAgenda.onclick = () => { if (window._abrirModalLigacao) window._abrirModalLigacao(); };
+
+  // FIX: Botão do Relatório Matinal
+  const btnRelatorio = document.getElementById('btn-relatorio-matinal');
+  if (btnRelatorio) btnRelatorio.onclick = () => gerarRelatorioMatinal();
 
   const sp = document.getElementById('sem-prev');
   if (sp) sp.onclick = () => { ui.semanaRef.setDate(ui.semanaRef.getDate() - 7); renderSemana(); };
@@ -192,7 +194,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!perfilOk) { document.getElementById('tela-login').style.display = 'flex'; document.getElementById('login-erro').textContent = 'Usuário sem vínculo na tabela vendedores.'; return; }
     
     toast('⏳ Carregando...');
-    // OTIMIZAÇÃO: Carrega primeiro as tabelas que o Cockpit precisa
     const dadosBase = await sbCarregarTudo(true).catch(e => { console.error(e); return null; });
     
     if (dadosBase) {
@@ -209,12 +210,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       toast('✓ Pronto');
     }
 
-    // OTIMIZAÇÃO: Carrega o resto das tabelas pesadas em background (lazy)
     setTimeout(async () => {
       try {
         const dadosCompletos = await sbCarregarTudo(false);
         aplicarDadosDoBanco(dadosCompletos);
-        // Não precisamos re-renderizar tudo, apenas avisamos os módulos que dependem dos dados completos
         if (window._renderTudo) window._renderTudo();
       } catch (e) {
         console.error('Erro no carregamento lazy:', e);
