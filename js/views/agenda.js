@@ -295,8 +295,9 @@ function gerarFila(fBusca, fTipo, fVend) {
     if (vistos[chave]) return;
     vistos[chave] = true;
 
-    const intervalo = Math.max(7, c.intervaloMedio || 30);
-    const fator = dias / intervalo;
+    // AQUI ESTÁ A MÁGICA:
+    const ciclo = Math.max(1, c.intervaloMedio || 30); 
+    const fator = dias / ciclo; 
     const v = state.vendedores.find(x => x.id === c.vendedor);
 
     let tipo = 'recompra';
@@ -304,13 +305,24 @@ function gerarFila(fBusca, fTipo, fVend) {
     let badge = 'neutral';
     let prioridade = 4;
 
+    // Se o ciclo é diário/semanal (até 10 dias), toleramos um pouco mais de atraso antes de alarmar
+    const toleranciaSumido = ciclo <= 10 ? 5 : 4; 
+    const toleranciaReativar = ciclo <= 10 ? 3 : 2;
+
     if (dias >= 180) {
       tipo = 'lento'; label = 'Recuperação Lenta'; badge = 'danger'; prioridade = 5;
-    } else if (fator >= 4) {
+    } else if (fator >= toleranciaSumido) {
       tipo = 'sumido'; label = 'Sumido'; badge = 'danger'; prioridade = 3;
-    } else if (fator >= 2) {
+    } else if (fator >= toleranciaReativar) {
       tipo = 'reativar'; label = 'Reativar'; badge = 'danger'; prioridade = 3;
     }
+
+    // Mostra o ciclo real no contexto
+    let contexto = `${dias} dias sem comprar · `;
+    if (ciclo <= 7) contexto += `Ciclo semanal (${ciclo}d)`;
+    else if (ciclo <= 15) contexto += `Ciclo quinzenal (${ciclo}d)`;
+    else if (ciclo <= 45) contexto += `Ciclo mensal (${ciclo}d)`;
+    else contexto += `Ciclo longo (${ciclo}d)`;
 
     fila.push({
       id: 'cli_' + c.id,
@@ -318,7 +330,7 @@ function gerarFila(fBusca, fTipo, fVend) {
       tipoLabel: label,
       tipoBadge: badge,
       cliente: c.nome,
-      contexto: `${dias} dias sem comprar · Ciclo a cada ${intervalo}d`,
+      contexto: contexto,
       vendedor: v ? v.nome : '—',
       vendedorId: c.vendedor,
       valor: c.valorMedioMensal || 0,

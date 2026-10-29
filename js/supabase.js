@@ -471,11 +471,22 @@ export async function sbUpsertClientes(lista, filialId, vendedoresMap) {
 
   const payloadFinal = Object.values(agregado).map(a => {
     a._datas.sort();
+        // --- FIX: Cálculo de Mediana em vez de Média ---
     let intervaloMedio = 30;
     if (a._datas.length > 1) {
-      const span = diffDias(a._datas[0], a._datas[a._datas.length - 1]);
-      intervaloMedio = Math.max(1, Math.round(span / (a._datas.length - 1)));
+      const diffs = [];
+      for (let d = 1; d < a._datas.length; d++) {
+        const diff = diffDias(a._datas[d - 1], a._datas[d]);
+        if (diff > 0) diffs.push(diff);
+      }
+      if (diffs.length > 0) {
+        diffs.sort((x, y) => x - y);
+        const mid = Math.floor(diffs.length / 2);
+        intervaloMedio = diffs.length % 2 === 1 ? diffs[mid] : Math.round((diffs[mid - 1] + diffs[mid]) / 2);
+      }
     }
+    if (intervaloMedio < 1) intervaloMedio = 1;
+    // ------------------------------------------------
 
     let valorMedioMensal = 0;
     if (a._periodos.length > 0 && a.ultima_compra) {
