@@ -2,7 +2,7 @@
 // views/ligacoes.js — Histórico e Cadastro de Ligações
 // ============================================================
 
-import { state, ui } from '../state.js';
+import { state, ui, session } from '../state.js'; // <-- SESSION ADICIONADO AQUI
 import { fmtBRL, escapeHtml, isoDate, fmtDataBR, normalizarNomeCliente, toast } from '../utils.js';
 import { filialNoEscopo } from '../calc.js';
 import { sbCarregarTudo, aplicarDadosDoBanco } from '../supabase.js';
@@ -102,7 +102,6 @@ export function renderLigacoes() {
   }).join('');
 }
 
-// O parâmetro onSave é novo: é uma função que roda após salvar com sucesso
 export function abrirModalLigacao(ligacaoId, prefill, onSave) {
   const existente = ligacaoId ? state.ligacoes.find(l => l.id === ligacaoId) : null;
   prefill = prefill || {};
@@ -241,7 +240,6 @@ async function salvarLigacao(existente) {
     renderLigacoes();
     if (window._renderPainel) window._renderPainel();
 
-    // Executa o callback se existir (usado pelo Modo Foco)
     if (typeof callback === 'function') {
       callback();
     }
