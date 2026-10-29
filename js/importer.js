@@ -9,7 +9,7 @@ import {
 import { matchVendedor, mesclarCliente, mesclarProduto, escopoFilialAtiva } from './calc.js';
 
 // ============================================================
-// AUXILIARES DE IMPORTAÇÃO
+// AUXILIARES
 // ============================================================
 
 export function filialParaImport(escopoAtual) {
@@ -37,15 +37,17 @@ export function filialParaImport(escopoAtual) {
 // ============================================================
 
 export function importar324(entrada, escopoAtual) {
-  const fid = filialParaImport(escopoAtual);
-  if (!fid) return;
+  return new Promise((resolve) => {
+    const fid = filialParaImport(escopoAtual);
+    if (!fid) return resolve();
 
-  const files = Array.isArray(entrada) ? entrada : [entrada];
-  if (files.length === 1) importar324Single(files[0], fid);
-  else importar324Multi(files, fid);
+    const files = Array.isArray(entrada) ? entrada : [entrada];
+    if (files.length === 1) importar324Single(files[0], fid, resolve);
+    else importar324Multi(files, fid, resolve);
+  });
 }
 
-function importar324Single(file, filialId) {
+function importar324Single(file, filialId, done) {
   const st = document.getElementById('erp-status');
   if (st) {
     st.textContent = 'Lendo...';
@@ -64,7 +66,7 @@ function importar324Single(file, filialId) {
           st.textContent = '⚠ ' + (result && result.erro ? result.erro : 'Sem dados');
         }
         toast('⚠ ' + (result && result.erro ? result.erro : 'Sem dados'), 3000);
-        return;
+        return done();
       }
 
       const lancamentos = [];
@@ -105,24 +107,25 @@ function importar324Single(file, filialId) {
       const naoId = Object.keys(basesPreview.vendedoresNaoIdentificados);
       if (naoId.length > 0) {
         if (st) {
-          st.innerHTML += '<br>⚠ <span style="color:#dc2626;">Não identificados: ' +
-            naoId.join(', ') + '</span>';
+          st.innerHTML += '<br>⚠ <span style="color:#dc2626;">Não identificados: ' + naoId.join(', ') + '</span>';
         }
         toast('⚠ Vendedores não identificados: ' + naoId.join(', '), 4000);
       }
       renderBasesStatus();
+      done();
     } catch (e) {
       if (st) {
         st.style.color = '#dc2626';
         st.textContent = 'Erro: ' + e.message;
       }
       toast('❌ Erro ao ler 324: ' + e.message, 4000);
+      done();
     }
   };
   r.readAsArrayBuffer(file);
 }
 
-function importar324Multi(files, filialId) {
+function importar324Multi(files, filialId, done) {
   const st = document.getElementById('erp-status');
   if (st) {
     st.style.color = '#64748b';
@@ -152,7 +155,7 @@ function importar324Multi(files, filialId) {
         st.textContent = '⚠ Nenhum arquivo válido.';
       }
       toast('⚠ Nenhum arquivo válido.', 3000);
-      return;
+      return done();
     }
 
     const cliMap = {};
@@ -210,13 +213,11 @@ function importar324Multi(files, filialId) {
 
     if (st) {
       st.style.color = '#16a34a';
-      st.textContent = '✓ ' + validos.length + ' arquivos · ' +
-        clientes.length + ' clientes · ' +
-        produtos.length + ' produtos · ' +
-        allVendasItens.length + ' itens';
+      st.textContent = '✓ ' + validos.length + ' arquivos · ' + clientes.length + ' clientes · ' + produtos.length + ' produtos · ' + allVendasItens.length + ' itens';
     }
     toast('✓ ' + validos.length + ' arquivos lidos!', 3000);
     renderBasesStatus();
+    done();
   });
 }
 
@@ -457,15 +458,17 @@ export function processar324(wb, filialId) {
 // ============================================================
 
 export function importar740(entrada, escopoAtual) {
-  const fid = filialParaImport(escopoAtual);
-  if (!fid) return;
+  return new Promise((resolve) => {
+    const fid = filialParaImport(escopoAtual);
+    if (!fid) return resolve();
 
-  const files = Array.isArray(entrada) ? entrada : [entrada];
-  if (files.length === 1) importar740Single(files[0], fid);
-  else importar740Multi(files, fid);
+    const files = Array.isArray(entrada) ? entrada : [entrada];
+    if (files.length === 1) importar740Single(files[0], fid, resolve);
+    else importar740Multi(files, fid, resolve);
+  });
 }
 
-function importar740Single(file, filialId) {
+function importar740Single(file, filialId, done) {
   const st = document.getElementById('status-740');
   if (st) {
     st.style.color = '#64748b';
@@ -483,7 +486,7 @@ function importar740Single(file, filialId) {
           st.textContent = '⚠ Formato não reconhecido.';
         }
         toast('⚠ Formato do 740 não reconhecido.', 3000);
-        return;
+        return done();
       }
 
       basesPreview.cidades = result.cidades;
@@ -508,18 +511,20 @@ function importar740Single(file, filialId) {
       }
       toast('✓ ' + result.cidades.length + ' cidades lidas do 740!', 3000);
       renderBasesStatus();
+      done();
     } catch (e) {
       if (st) {
         st.style.color = '#dc2626';
         st.textContent = 'Erro: ' + e.message;
       }
       toast('❌ Erro ao ler 740: ' + e.message, 4000);
+      done();
     }
   };
   r.readAsArrayBuffer(file);
 }
 
-function importar740Multi(files, filialId) {
+function importar740Multi(files, filialId, done) {
   const st = document.getElementById('status-740');
   if (st) {
     st.style.color = '#64748b';
@@ -549,7 +554,7 @@ function importar740Multi(files, filialId) {
         st.textContent = '⚠ Nenhum arquivo válido.';
       }
       toast('⚠ Nenhum arquivo válido.', 3000);
-      return;
+      return done();
     }
 
     validos.sort((a, b) => (a.periodoInicio || '').localeCompare(b.periodoInicio || ''));
@@ -583,6 +588,7 @@ function importar740Multi(files, filialId) {
       periodoFim: r.periodoFim
     }));
     renderBasesStatus();
+    done();
   });
 }
 
@@ -788,15 +794,17 @@ export function processar740(wb, filialId) {
 // ============================================================
 
 export function importar361(entrada, escopoAtual) {
-  const fid = filialParaImport(escopoAtual);
-  if (!fid) return;
+  return new Promise((resolve) => {
+    const fid = filialParaImport(escopoAtual);
+    if (!fid) return resolve();
 
-  const files = Array.isArray(entrada) ? entrada : [entrada];
-  if (files.length === 1) importar361Single(files[0], fid);
-  else importar361Multi(files, fid);
+    const files = Array.isArray(entrada) ? entrada : [entrada];
+    if (files.length === 1) importar361Single(files[0], fid, resolve);
+    else importar361Multi(files, fid, resolve);
+  });
 }
 
-function importar361Single(file, filialId) {
+function importar361Single(file, filialId, done) {
   const st = document.getElementById('abc-status-import');
   if (st) {
     st.style.color = '#64748b';
@@ -815,7 +823,7 @@ function importar361Single(file, filialId) {
           st.textContent = '⚠ Nenhum item.';
         }
         toast('⚠ Nenhum item encontrado no 361.', 3000);
-        return;
+        return done();
       }
 
       basesPreview.estoqueABC = result.itens;
@@ -834,18 +842,20 @@ function importar361Single(file, filialId) {
       }
       toast('✓ ' + result.itens.length + ' itens lidos do 361!', 3000);
       renderBasesStatus();
+      done();
     } catch (e) {
       if (st) {
         st.style.color = '#dc2626';
         st.textContent = 'Erro: ' + e.message;
       }
       toast('❌ Erro ao ler 361: ' + e.message, 4000);
+      done();
     }
   };
   r.readAsArrayBuffer(file);
 }
 
-function importar361Multi(files, filialId) {
+function importar361Multi(files, filialId, done) {
   const st = document.getElementById('abc-status-import');
   if (st) {
     st.style.color = '#64748b';
@@ -875,7 +885,7 @@ function importar361Multi(files, filialId) {
         st.textContent = '⚠ Nenhum arquivo válido.';
       }
       toast('⚠ Nenhum arquivo válido.', 3000);
-      return;
+      return done();
     }
 
     validos.sort((a, b) => (a.periodoInicio || '').localeCompare(b.periodoInicio || ''));
@@ -897,6 +907,7 @@ function importar361Multi(files, filialId) {
     }
     toast('✓ ' + validos.length + ' meses lidos do 361!', 3000);
     renderBasesStatus();
+    done();
   });
 }
 
@@ -1005,100 +1016,104 @@ export function processar361(wb) {
 // ============================================================
 
 export function importarComparativo(file, escopoAtual) {
-  const fid = filialParaImport(escopoAtual);
-  if (!fid) return;
+  return new Promise((resolve) => {
+    const fid = filialParaImport(escopoAtual);
+    if (!fid) return resolve();
 
-  const st = document.getElementById('comp-status');
-  if (st) {
-    st.style.color = '#64748b';
-    st.textContent = 'Lendo...';
-  }
-
-  const r = new FileReader();
-  r.onload = function (evt) {
-    try {
-      const wb = XLSX.read(new Uint8Array(evt.target.result), { type: 'array' });
-      const sn = wb.SheetNames.find(n => n.toLowerCase().indexOf('compar') >= 0);
-      if (!sn) {
-        if (st) {
-          st.style.color = '#dc2626';
-          st.textContent = '⚠ Aba Comparativo não encontrada.';
-        }
-        toast('⚠ Aba Comparativo não encontrada.', 3000);
-        return;
-      }
-
-      const rows = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, defval: null });
-      const meses = ['JANEIRO', 'FEVEREIRO', 'MARÇO', 'ABRIL', 'MAIO', 'JUNHO',
-                     'JULHO', 'AGOSTO', 'SETEMBRO', 'OUTUBRO', 'NOVEMBRO', 'DEZEMBRO'];
-      const comp = [];
-      let i = 0;
-
-      while (i < rows.length) {
-        const r = rows[i];
-        if (!r) { i++; continue; }
-
-        const m25 = String(r[0] || '').toUpperCase().trim();
-        if (meses.indexOf(m25) >= 0) {
-          const mes = m25;
-          const tot = rows[i + 1];
-          if (!tot) { i++; continue; }
-
-          const f25 = parseValorBR(tot[1]) || 0;
-          const p25 = parseValorBR(tot[2]) || 0;
-          const f26 = parseValorBR(tot[6]) || 0;
-          const p26 = parseValorBR(tot[7]) || 0;
-
-          const vends = {};
-          let j = i + 2;
-          while (j < rows.length && j < i + 12) {
-            const rv = rows[j];
-            if (!rv || !rv[0]) { j++; continue; }
-            const nome = String(rv[0]).trim().toUpperCase();
-            if (meses.indexOf(nome) >= 0 || nome.indexOf('TOTAL') >= 0) break;
-            const vf25 = parseValorBR(rv[1]) || 0;
-            const vf26 = parseValorBR(rv[6]) || 0;
-            if (vf25 > 0 || vf26 > 0) vends[nome] = { fat2025: vf25, fat2026: vf26 };
-            j++;
-          }
-
-          comp.push({
-            mes: mes.charAt(0) + mes.slice(1).toLowerCase(),
-            fat2025: f25, ped2025: p25,
-            fat2026: f26, ped2026: p26,
-            vendedores: vends, filialId: fid
-          });
-          i = j;
-        } else i++;
-      }
-
-      if (comp.length === 0) {
-        if (st) {
-          st.style.color = '#dc2626';
-          st.textContent = '⚠ Nenhum mês.';
-        }
-        toast('⚠ Nenhum mês encontrado.', 3000);
-        return;
-      }
-
-      basesPreview.comparativo = comp;
-      basesPreview.filialImport = fid;
-
-      if (st) {
-        st.style.color = '#16a34a';
-        st.textContent = '✓ ' + comp.length + ' meses.';
-      }
-      toast('✓ ' + comp.length + ' meses lidos do comparativo!', 3000);
-      renderBasesStatus();
-    } catch (e) {
-      if (st) {
-        st.style.color = '#dc2626';
-        st.textContent = 'Erro: ' + e.message;
-      }
-      toast('❌ Erro ao ler comparativo: ' + e.message, 4000);
+    const st = document.getElementById('comp-status');
+    if (st) {
+      st.style.color = '#64748b';
+      st.textContent = 'Lendo...';
     }
-  };
-  r.readAsArrayBuffer(file);
+
+    const r = new FileReader();
+    r.onload = function (evt) {
+      try {
+        const wb = XLSX.read(new Uint8Array(evt.target.result), { type: 'array' });
+        const sn = wb.SheetNames.find(n => n.toLowerCase().indexOf('compar') >= 0);
+        if (!sn) {
+          if (st) {
+            st.style.color = '#dc2626';
+            st.textContent = '⚠ Aba Comparativo não encontrada.';
+          }
+          toast('⚠ Aba Comparativo não encontrada.', 3000);
+          return resolve();
+        }
+
+        const rows = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, defval: null });
+        const meses = ['JANEIRO', 'FEVEREIRO', 'MARÇO', 'ABRIL', 'MAIO', 'JUNHO',
+                       'JULHO', 'AGOSTO', 'SETEMBRO', 'OUTUBRO', 'NOVEMBRO', 'DEZEMBRO'];
+        const comp = [];
+        let i = 0;
+
+        while (i < rows.length) {
+          const r = rows[i];
+          if (!r) { i++; continue; }
+
+          const m25 = String(r[0] || '').toUpperCase().trim();
+          if (meses.indexOf(m25) >= 0) {
+            const mes = m25;
+            const tot = rows[i + 1];
+            if (!tot) { i++; continue; }
+
+            const f25 = parseValorBR(tot[1]) || 0;
+            const p25 = parseValorBR(tot[2]) || 0;
+            const f26 = parseValorBR(tot[6]) || 0;
+            const p26 = parseValorBR(tot[7]) || 0;
+
+            const vends = {};
+            let j = i + 2;
+            while (j < rows.length && j < i + 12) {
+              const rv = rows[j];
+              if (!rv || !rv[0]) { j++; continue; }
+              const nome = String(rv[0]).trim().toUpperCase();
+              if (meses.indexOf(nome) >= 0 || nome.indexOf('TOTAL') >= 0) break;
+              const vf25 = parseValorBR(rv[1]) || 0;
+              const vf26 = parseValorBR(rv[6]) || 0;
+              if (vf25 > 0 || vf26 > 0) vends[nome] = { fat2025: vf25, fat2026: vf26 };
+              j++;
+            }
+
+            comp.push({
+              mes: mes.charAt(0) + mes.slice(1).toLowerCase(),
+              fat2025: f25, ped2025: p25,
+              fat2026: f26, ped2026: p26,
+              vendedores: vends, filialId: fid
+            });
+            i = j;
+          } else i++;
+        }
+
+        if (comp.length === 0) {
+          if (st) {
+            st.style.color = '#dc2626';
+            st.textContent = '⚠ Nenhum mês.';
+          }
+          toast('⚠ Nenhum mês encontrado.', 3000);
+          return resolve();
+        }
+
+        basesPreview.comparativo = comp;
+        basesPreview.filialImport = fid;
+
+        if (st) {
+          st.style.color = '#16a34a';
+          st.textContent = '✓ ' + comp.length + ' meses.';
+        }
+        toast('✓ ' + comp.length + ' meses lidos do comparativo!', 3000);
+        renderBasesStatus();
+        resolve();
+      } catch (e) {
+        if (st) {
+          st.style.color = '#dc2626';
+          st.textContent = 'Erro: ' + e.message;
+        }
+        toast('❌ Erro ao ler comparativo: ' + e.message, 4000);
+        resolve();
+      }
+    };
+    r.readAsArrayBuffer(file);
+  });
 }
 
 // ============================================================
