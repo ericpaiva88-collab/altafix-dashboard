@@ -98,7 +98,7 @@ function renderModoListaView() {
     if (tel) {
       btnZap = `<button class="btn btn-sm" style="background:#25D366; color:#fff; border-color:#25D366;" onclick="event.stopPropagation(); window._abrirWhatsApp('${tel}', '${escapeHtml(f.cliente)}', '${escapeHtml(f.vendedor)}')">💬 Zap</button>`;
     } else {
-      btnZap = `<button class="btn btn-sm" style="background:#e2e8f0; color:#94a3b8; border-color:#cbd5e1;" onclick="event.stopPropagation(); toast('⚠ Cliente sem telefone.')">💬 Zap</button>`;
+      btnZap = `<button class="btn btn-sm" style="background:#e2e8f0; color:#94a3b8; border-color:#cbd5e1;" onclick="event.stopPropagation(); toast('⚠ Cliente sem telefone. Clique em Ligar para cadastrar.')">💬 Zap</button>`;
     }
 
     return `
