@@ -16,9 +16,10 @@ import { renderEquipe } from './views/equipe.js';
 import { renderClientes } from './views/clientes.js';
 import { renderProdutos } from './views/produtos.js';
 import { abrirModalLigacao } from './views/ligacoes.js';
-
-// FIX: Importar setupConfig e renderTudo para a aba de Configurações funcionar
 import { setupConfig, renderConfig, renderTudo } from './views/config.js';
+
+// FIX: Importação da nova aba de Análise
+import { renderComparativo, renderCidades, renderFabricantes } from './views/analise.js';
 
 export function parseEscopo(str) {
   if (!str || str === 'ALL') return { tipo: 'all' };
@@ -77,8 +78,6 @@ function popularModoVendedor() {
 window._popularEscopoSelect = popularEscopoSelect;
 window._popularModoVendedor = popularModoVendedor;
 window._abrirModalLigacao = abrirModalLigacao;
-
-// FIX: Expõe a função renderTudo para o config.js conseguir atualizar o Cockpit
 window._renderTudo = renderTudo;
 
 function mostrarLogin() {
@@ -125,6 +124,7 @@ function setupTabs() {
   const sidebar = document.getElementById('sidebar');
   const mobileBtn = document.getElementById('mobile-menu-btn');
   if (mobileBtn) mobileBtn.onclick = () => sidebar.classList.toggle('open');
+  
   document.querySelectorAll('.sidebar-nav button').forEach(b => {
     b.onclick = () => {
       if (window.innerWidth <= 768 && sidebar) sidebar.classList.remove('open');
@@ -139,29 +139,59 @@ function setupTabs() {
       if (b.dataset.tab === 'clientes') setTimeout(() => { try { renderClientes(); } catch (e) { console.error(e); } }, 50);
       if (b.dataset.tab === 'produtos') setTimeout(() => { try { renderProdutos(); } catch (e) { console.error('Erro Produtos:', e); } }, 50);
       if (b.dataset.tab === 'config') setTimeout(() => { try { renderConfig(); } catch (e) { console.error('Erro Config:', e); } }, 50);
+      
+      // FIX: Ao abrir a aba Análise, já renderiza o Comparativo por padrão
+      if (b.dataset.tab === 'analise') setTimeout(() => { try { renderComparativo(); } catch (e) { console.error('Erro Análise:', e); } }, 50);
     };
+  });
+
+  // FIX: Controle das sub-abas (Comparativo, Cidades, Fabricantes)
+  document.querySelectorAll('.subtabs').forEach(bar => {
+    const parent = bar.dataset.parent;
+    bar.querySelectorAll('button').forEach(btn => {
+      btn.onclick = () => {
+        bar.querySelectorAll('button').forEach(x => x.classList.remove('active'));
+        btn.classList.add('active');
+        
+        document.querySelectorAll(`#tab-${parent} .subtab-content`).forEach(x => x.classList.remove('active'));
+        const target = document.getElementById(`subtab-${parent}-${btn.dataset.subtab}`);
+        if (target) target.classList.add('active');
+
+        if (btn.dataset.subtab === 'comparativo') { try { renderComparativo(); } catch (e) {} }
+        if (btn.dataset.subtab === 'cidades') { try { renderCidades(); } catch (e) {} }
+        if (btn.dataset.subtab === 'fabricantes') { try { renderFabricantes(); } catch (e) {} }
+      };
+    });
   });
 }
 
 function setupFiltros() {
+  // Agenda
   const agendaBusca = document.getElementById('agenda-busca'); if (agendaBusca) agendaBusca.oninput = () => renderAgenda();
   const agendaTipo = document.getElementById('agenda-filtro-tipo'); if (agendaTipo) agendaTipo.onchange = () => renderAgenda();
   const agendaVend = document.getElementById('agenda-filtro-vendedor'); if (agendaVend) agendaVend.onchange = () => renderAgenda();
   
+  // Clientes
   const cliBusca = document.getElementById('filtro-cliente-busca'); if (cliBusca) cliBusca.oninput = () => renderClientes();
   const cliVend = document.getElementById('filtro-cliente-vend'); if (cliVend) cliVend.onchange = () => renderClientes();
   const cliStatus = document.getElementById('filtro-cliente-status'); if (cliStatus) cliStatus.onchange = () => renderClientes();
 
+  // Produtos
   const prodBusca = document.getElementById('filtro-produto-busca'); if (prodBusca) prodBusca.oninput = () => renderProdutos();
   const prodCurva = document.getElementById('filtro-produto-curva'); if (prodCurva) prodCurva.onchange = () => renderProdutos();
   const prodFab = document.getElementById('filtro-produto-fabricante'); if (prodFab) prodFab.onchange = () => renderProdutos();
+
+  // FIX: Filtros da aba Análise
+  const cidBusca = document.getElementById('filtro-cidade-busca'); if (cidBusca) cidBusca.oninput = () => renderCidades();
+  const fabBusca = document.getElementById('fab-busca'); if (fabBusca) fabBusca.oninput = () => renderFabricantes();
+  const cidMes = document.getElementById('cidade-mes-select'); if (cidMes) cidMes.onchange = (e) => { ui.mesCidadesSelecionado = e.target.value; renderCidades(); };
+  const fabMes = document.getElementById('fab-mes-select'); if (fabMes) fabMes.onchange = () => renderFabricantes();
 }
 
 function setupBotoes() {
   const helpBtn = document.getElementById('help-btn'); if (helpBtn) helpBtn.onclick = () => document.getElementById('help-modal').classList.add('show');
   const helpClose = document.getElementById('help-close'); if (helpClose) helpClose.onclick = () => document.getElementById('help-modal').classList.remove('show');
   
-  // FIX: Ao mudar o escopo ou o vendedor, renderiza o painel com os dados novos
   const escopo = document.getElementById('escopo-select'); 
   if (escopo) escopo.onchange = e => { ui.escopoAtual = e.target.value; renderPainel(); };
   
@@ -193,10 +223,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupTabs();
     setupFiltros();
     setupBotoes();
-    
-    // FIX: Inicializa os eventos de configuração
     setupConfig();
-    
     renderPainel();
     toast('✓ Pronto');
   } catch (e) {

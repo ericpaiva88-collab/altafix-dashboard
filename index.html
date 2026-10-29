@@ -193,7 +193,96 @@
       </div>
     </section>
 
-    <section id="tab-analise" class="tab-content"><div class="page-header"><h2>Análise</h2><p>Em breve.</p></div></section>
+    <!-- ABA ANÁLISE -->
+    <section id="tab-analise" class="tab-content">
+      <div class="page-header" style="display:flex; justify-content:space-between; align-items:flex-end;">
+        <div>
+          <h2>Análise & Performance</h2>
+          <p>Visão macro de crescimento, distribuição geográfica e portfólio de fabricantes.</p>
+        </div>
+      </div>
+
+      <!-- Sub-abas -->
+      <div class="subtabs" data-parent="analise" style="margin-bottom: 24px;">
+        <button data-subtab="comparativo" class="active">📅 Comparativo YoY</button>
+        <button data-subtab="cidades">🗺️ Cidades</button>
+        <button data-subtab="fabricantes">🏭 Fabricantes</button>
+      </div>
+
+      <!-- Sub-aba: COMPARATIVO -->
+      <div id="subtab-analise-comparativo" class="subtab-content active">
+        <div class="grid-kpis" id="comparativo-kpis" style="margin-bottom:24px; grid-template-columns: repeat(3, 1fr);"></div>
+        
+        <div class="card-painel" style="padding: 20px; margin-bottom: 24px;">
+          <div class="card-title-row"><h3>Evolução 2025 × 2026</h3></div>
+          <div style="height: 300px;"><canvas id="chart-yoy"></canvas></div>
+        </div>
+
+        <div class="card-painel">
+          <div class="card-title-row" style="padding: 16px 20px; border-bottom: 1px solid #eee;"><h3>Detalhamento Mensal</h3></div>
+          <div style="overflow-x:auto;">
+            <table class="tabela-cockpit">
+              <thead>
+                <tr><th>Mês</th><th class="num">2025 Fat.</th><th class="num">2026 Fat.</th><th class="num">Cresc. R$</th><th class="num">Cresc. %</th></tr>
+              </thead>
+              <tbody id="tbody-comparativo"></tbody>
+              <tfoot id="tfoot-comparativo"></tfoot>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sub-aba: CIDADES -->
+      <div id="subtab-analise-cidades" class="subtab-content">
+        <div class="periodo-bar" style="margin-bottom: 24px;">
+          <span style="font-size:13px;color:var(--af-t2);font-weight:600;">📆 Mês:</span>
+          <select id="cidade-mes-select" class="select-clean" style="min-width:180px;"></select>
+        </div>
+
+        <div class="grid-kpis" id="cidades-kpis" style="margin-bottom:24px; grid-template-columns: repeat(3, 1fr);"></div>
+
+        <div class="card-painel">
+          <div class="card-title-row" style="padding: 16px 20px; border-bottom: 1px solid #eee; display:flex; justify-content:space-between; align-items:center;">
+            <h3>Ranking de Cidades</h3>
+            <input type="text" id="filtro-cidade-busca" placeholder="Buscar cidade..." style="padding: 6px 12px; border: 1px solid var(--af-borda); border-radius: 6px; font-size: 13px;">
+          </div>
+          <div style="overflow-x:auto;">
+            <table class="tabela-cockpit">
+              <thead>
+                <tr><th>Cidade</th><th>UF</th><th class="num">Faturamento</th><th class="num">Clientes</th><th class="num">Vendas</th><th class="num">Ticket Médio</th></tr>
+              </thead>
+              <tbody id="tbody-cidades"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sub-aba: FABRICANTES -->
+      <div id="subtab-analise-fabricantes" class="subtab-content">
+        <div class="periodo-bar" style="margin-bottom: 24px;">
+          <span style="font-size:13px;color:var(--af-t2);font-weight:600;">📆 Mês:</span>
+          <select id="fab-mes-select" class="select-clean" style="min-width:180px;"></select>
+        </div>
+
+        <div class="grid-kpis" id="fab-kpis" style="margin-bottom:24px; grid-template-columns: repeat(3, 1fr);"></div>
+
+        <div class="card-painel">
+          <div class="card-title-row" style="padding: 16px 20px; border-bottom: 1px solid #eee; display:flex; justify-content:space-between; align-items:center;">
+            <h3>Ranking de Fabricantes</h3>
+            <input type="text" id="fab-busca" placeholder="Buscar fabricante..." style="padding: 6px 12px; border: 1px solid var(--af-borda); border-radius: 6px; font-size: 13px;">
+          </div>
+          <div style="overflow-x:auto;">
+            <table class="tabela-cockpit">
+              <thead>
+                <tr><th>Fabricante</th><th class="num">Faturamento</th><th class="num">Qtd. Produtos</th><th class="num">Qtd. Vendida</th><th class="num">% Total</th></tr>
+              </thead>
+              <tbody id="tbody-fabricantes"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+    
         <section id="tab-config" class="tab-content">
       <div class="page-header">
         <h2>Configurações</h2>
