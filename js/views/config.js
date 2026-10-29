@@ -1,43 +1,23 @@
 // ============================================================
-// views/config.js — Importação, Metas, Lançamentos e Geral
+// views/config.js — Importação, Metas e Vendedores
 // ============================================================
 
 import { state, ui, session, basesPreview, salvar } from '../state.js';
-import { derivarHistorico } from '../calc.js';
-import {
-  fmtBRL, fmtNum, fmtPct, parseValorBR, isoDate, escapeHtml,
-  toast, copiarTexto, normalizarNomeCliente
-} from '../utils.js';
-import {
-  filialNoEscopo, matchVendedor, mesclarCliente, mesclarProduto,
-  escopoFilialAtiva, calcVendedor
-} from '../calc.js';
-import {
-  importar324, importar740, importar361, importarComparativo,
-  renderBasesStatus
-} from '../importer.js';
-import {
-  construirMapaVendedores, sbSincronizarBasesPendentes, sbCarregarTudo,
-  aplicarDadosDoBanco
-} from '../supabase.js';
-
-import { renderPainel } from './painel.js';
-import { renderClientes } from './clientes.js';
-import { renderProdutos } from './produtos.js';
-
-const MESES = [
-  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
-];
+import { toast, escapeHtml, parseValorBR } from '../utils.js';
+import { importar324, importar740, importar361, renderBasesStatus } from '../importer.js';
+import { sbSincronizarBasesPendentes, sbCarregarTudo, aplicarDadosDoBanco } from '../supabase.js';
 
 export function setupConfig() {
-  setupDrop('drop-erp', 'erp-input', (files) => importar324(files, ui.escopoAtual), true);
-  setupDrop('drop-740', 'input-740', (files) => importar740(files, ui.escopoAtual), true);
-  setupDrop('drop-abc', 'abc-input', (files) => importar361(files, ui.escopoAtual), true);
+  // 1. Configurar Dropzones com Feedback Visual
+  setupDrop('drop-erp', 'erp-input', (files) => importar324(files, ui.escopoAtual), true, 'erp-status');
+  setupDrop('drop-740', 'input-740', (files) => importar740(files, ui.escopoAtual), true, 'status-740');
+  setupDrop('drop-abc', 'abc-input', (files) => importar361(files, ui.escopoAtual), true, 'abc-status-import');
 
+  // 2. Botão Salvar Bases
   const btnSalvar = document.getElementById('btn-salvar-bases');
   if (btnSalvar) btnSalvar.onclick = salvarBases;
 
+  // 3. Eventos da Tabela de Metas
   const btnAddVend = document.getElementById('btn-add-vend');
   if (btnAddVend) {
     btnAddVend.onclick = () => {
@@ -60,24 +40,63 @@ export function setupConfig() {
   };
 }
 
-function setupDrop(dropId, inputId, handler, multiplos) {
+function setupDrop(dropId, inputId, handler, multiplos, statusId) {
   const d = document.getElementById(dropId);
   const i = document.getElementById(inputId);
+  const statusEl = document.getElementById(statusId);
   if (!d || !i) return;
 
   d.onclick = () => i.click();
-  i.onchange = e => {
+  
+  i.onchange = async e => {
     const files = Array.from(e.target.files || []);
-    if (files.length > 0) handler(multiplos ? files : files[0]);
+    if (files.length === 0) return;
+    
+    if (statusEl) {
+      statusEl.style.color = 'var(--af-azul)';
+      statusEl.textContent = `⏳ Lendo ${files.length} arquivo(s)...`;
+    }
+    
+    try {
+      await handler(multiplos ? files : files[0]);
+      if (statusEl) {
+        statusEl.style.color = 'var(--af-verde)';
+        statusEl.textContent = `✓ ${files.length} arquivo(s) processado(s) com sucesso.`;
+      }
+    } catch (err) {
+      if (statusEl) {
+        statusEl.style.color = 'var(--af-vermelho)';
+        statusEl.textContent = `❌ Erro: ${err.message}`;
+      }
+    }
     e.target.value = '';
   };
+  
   d.ondragover = e => { e.preventDefault(); d.classList.add('over'); };
   d.ondragleave = () => d.classList.remove('over');
-  d.ondrop = e => {
+  d.ondrop = async e => {
     e.preventDefault();
     d.classList.remove('over');
     const files = Array.from(e.dataTransfer.files || []).filter(f => f.name.match(/\.(xlsx|xls)$/i));
-    if (files.length > 0) handler(multiplos ? files : files[0]);
+    if (files.length === 0) return;
+
+    if (statusEl) {
+      statusEl.style.color = 'var(--af-azul)';
+      statusEl.textContent = `⏳ Lendo ${files.length} arquivo(s)...`;
+    }
+
+    try {
+      await handler(multiplos ? files : files[0]);
+      if (statusEl) {
+        statusEl.style.color = 'var(--af-verde)';
+        statusEl.textContent = `✓ ${files.length} arquivo(s) processado(s) com sucesso.`;
+      }
+    } catch (err) {
+      if (statusEl) {
+        statusEl.style.color = 'var(--af-vermelho)';
+        statusEl.textContent = `❌ Erro: ${err.message}`;
+      }
+    }
   };
 }
 
@@ -161,9 +180,7 @@ export async function salvarBases() {
     aplicarDadosDoBanco(dados);
     
     toast('✓ Bases sincronizadas com sucesso!');
-    
-    // A MÁGICA ACONTECE AQUI: Atualiza a tela do Cockpit na hora
-    if (window._renderTudo) window._renderTudo();
+    renderConfig();
     
     if (window._popularEscopoSelect) window._popularEscopoSelect();
     
@@ -247,8 +264,9 @@ async function salvarMetasServidor() {
 }
 
 export function renderTudo() {
-  try { renderPainel(); } catch (e) { console.error('renderPainel', e); }
-  try { renderClientes(); } catch (e) { console.error('renderClientes', e); }
-  try { renderProdutos(); } catch (e) { console.error('renderProdutos', e); }
-  try { renderConfig(); } catch (e) { console.error('renderConfig', e); }
+  import('./painel.js').then(m => m.renderPainel()).catch(console.error);
+  import('./clientes.js').then(m => m.renderClientes()).catch(console.error);
+  import('./produtos.js').then(m => m.renderProdutos()).catch(console.error);
+  import('./analise.js').then(m => m.renderAnalise()).catch(console.error);
+  renderConfig();
 }
