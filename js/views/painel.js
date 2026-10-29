@@ -233,7 +233,6 @@ export function renderSemana() {
 
   const duMes = calcDiasUteisNoMes(ini.getFullYear(), ini.getMonth());
   
-  // FIX: O cálculo da meta semanal agora usa o array 'ativos' (que já está filtrado pelo Modo Vendedor)
   const metaSemTotal = ativos
     .filter(v => !v.supervisor)
     .reduce((s, v) => s + (getMetaVendedor(v, ini.getFullYear(), ini.getMonth()).meta || 0), 0);
@@ -260,21 +259,28 @@ export function renderSemana() {
 
   let b = '';
   dados.forEach(row => {
-    b += '<tr><td><strong>' + escapeHtml(row.v.nome) + '</strong></td>';
+    b += '<tr><td data-label="Vendedor"><strong>' + escapeHtml(row.v.nome) + '</strong></td>';
     for (let i = 0; i < 6; i++) {
-      b += '<td class="num">' + (row.porDia[i] > 0 ? fmtBRL(row.porDia[i]) : '—') + '</td>';
+      b += '<td class="num" data-label="' + ds[i] + '">' + (row.porDia[i] > 0 ? fmtBRL(row.porDia[i]) : '—') + '</td>';
     }
-    b += '<td class="num"><strong>' + fmtBRL(row.total) + '</strong></td></tr>';
+    b += '<td class="num" data-label="Total"><strong>' + fmtBRL(row.total) + '</strong></td></tr>';
   });
   
-  b += '<tr><td class="bg-preto" style="color:#fff; font-weight:700;">TOTAL</td>';
+  b += '<tr><td class="bg-preto" data-label="Vendedor" style="color:#fff; font-weight:700;">TOTAL</td>';
   for (let j = 0; j < 6; j++) {
-    b += '<td class="num bg-preto" style="color:#fff; font-weight:700;">' + (td[j] > 0 ? fmtBRL(td[j]) : '—') + '</td>';
+    b += '<td class="num bg-preto" data-label="' + ds[j] + '" style="color:#fff; font-weight:700;">' + (td[j] > 0 ? fmtBRL(td[j]) : '—') + '</td>';
   }
-  b += '<td class="num bg-preto" style="color:#fff; font-weight:700;">' + fmtBRL(tg) + '</td></tr>';
+  b += '<td class="num bg-preto" data-label="Total" style="color:#fff; font-weight:700;">' + fmtBRL(tg) + '</td></tr>';
 
   const semDesktop = document.getElementById('sem-desktop');
-  if (semDesktop) semDesktop.innerHTML = '<div style="overflow-x:auto;"><table class="tabela-cockpit">' + h + b + '</table></div>';
+  if (semDesktop) {
+    // FIX: O scroll horizontal permite ver todas as colunas no mobile sem quebrar o layout
+    semDesktop.innerHTML = `
+      <div style="overflow-x:auto; -webkit-overflow-scrolling: touch;">
+        <table class="tabela-cockpit" style="min-width: 600px;">${h}${b}</table>
+      </div>
+    `;
+  }
 
   const tabs = document.getElementById('sem-tabs');
   if (tabs) {
@@ -310,7 +316,7 @@ function renderTabelaEquipe(a, m, f) {
     return;
   }
 
-    tbody.innerHTML = vendedores.map(d => {
+  tbody.innerHTML = vendedores.map(d => {
     const v = d.vendedor;
     const pct = d.pctMeta || 0;
     const gap = d.meta > 0 ? d.meta * (calcDiasUteisDecorridos(a, m) / calcDiasUteisNoMes(a, m)) : 0;
