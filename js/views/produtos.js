@@ -91,7 +91,7 @@ export function renderProdutos() {
     return;
   }
 
-  // --- RENDERIZA TABELA ---
+  // --- RENDERIZA TABELA COM DATA-LABEL ---
   tbody.innerHTML = filtrados.slice(0, 500).map(p => {
     const curva = p.curva || p.curvaOficial || 'C';
     let curvaBadge = '<span class="badge neutral">C</span>';
@@ -108,14 +108,14 @@ export function renderProdutos() {
 
     return `
       <tr>
-        <td>${curvaBadge}</td>
-        <td style="color:var(--af-t2);">${escapeHtml(p.codigo || '—')}</td>
-        <td><strong>${escapeHtml(p.descricao)}</strong></td>
-        <td style="font-size:12px; color:var(--af-t2);">${escapeHtml(p.fabricante || '—')}</td>
-        <td class="num">${fmtNum(p.qtdVendida, 0)}</td>
-        <td class="num"><strong>${fmtBRL(p.valorVendido)}</strong></td>
-        <td class="num" style="${estoqueStyle}">${estoque}</td>
-        <td class="num" style="color:var(--af-t3);">${minimo}</td>
+        <td data-label="Curva">${curvaBadge}</td>
+        <td data-label="Código" style="color:var(--af-t2);">${escapeHtml(p.codigo || '—')}</td>
+        <td data-label="Descrição"><strong>${escapeHtml(p.descricao)}</strong></td>
+        <td data-label="Fabricante" style="font-size:12px; color:var(--af-t2);">${escapeHtml(p.fabricante || '—')}</td>
+        <td class="num" data-label="Qtd Vendida">${fmtNum(p.qtdVendida, 0)}</td>
+        <td class="num" data-label="Faturamento"><strong>${fmtBRL(p.valorVendido)}</strong></td>
+        <td class="num" data-label="Estoque" style="${estoqueStyle}">${estoque}</td>
+        <td class="num" data-label="Mínimo" style="color:var(--af-t3);">${minimo}</td>
       </tr>
     `;
   }).join('');

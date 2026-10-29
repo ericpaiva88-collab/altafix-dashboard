@@ -310,7 +310,7 @@ function renderTabelaEquipe(a, m, f) {
     return;
   }
 
-  tbody.innerHTML = vendedores.map(d => {
+    tbody.innerHTML = vendedores.map(d => {
     const v = d.vendedor;
     const pct = d.pctMeta || 0;
     const gap = d.meta > 0 ? d.meta * (calcDiasUteisDecorridos(a, m) / calcDiasUteisNoMes(a, m)) : 0;
@@ -325,9 +325,9 @@ function renderTabelaEquipe(a, m, f) {
 
     return `
       <tr>
-        <td><strong>${escapeHtml(v.nome)}</strong></td>
-        <td class="num">${fmtBRL(d.faturado)}</td>
-        <td style="width: 180px;">
+        <td data-label="Vendedor"><strong>${escapeHtml(v.nome)}</strong></td>
+        <td class="num" data-label="Faturado">${fmtBRL(d.faturado)}</td>
+        <td data-label="% Meta" style="width: 180px;">
           <div class="tabela-barra-wrap">
             <div class="tabela-barra-bg">
               <div class="tabela-barra-fill ${barraCls}" style="width: ${Math.min(100, pct)}%"></div>
@@ -336,10 +336,10 @@ function renderTabelaEquipe(a, m, f) {
             <span style="font-size:11px; font-weight:600; width:35px;">${pct.toFixed(0)}%</span>
           </div>
         </td>
-        <td class="num">${fmtBRL(d.projecao)}</td>
-        <td class="num ${isAbaixo ? 'vermelho' : ''}">${fmtBRL(d.metaDia)}</td>
-        <td class="num">${fmtBRL(d.ticket)}</td>
-        <td>${statusBadge}</td>
+        <td class="num" data-label="Projeção">${fmtBRL(d.projecao)}</td>
+        <td class="num ${isAbaixo ? 'vermelho' : ''}" data-label="Precisa/Dia">${fmtBRL(d.metaDia)}</td>
+        <td class="num" data-label="Ticket">${fmtBRL(d.ticket)}</td>
+        <td data-label="Status">${statusBadge}</td>
       </tr>
     `;
   }).join('');

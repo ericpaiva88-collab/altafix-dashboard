@@ -166,7 +166,7 @@ function renderRankingComLeitura(dadosPorMes) {
   let lista = Object.values(vendedoresMap).filter(v => v.f26 > 0 || v.f25 > 0);
   lista.sort((a, b) => b.f26 - a.f26);
 
-  tbody.innerHTML = lista.map((v, i) => {
+    tbody.innerHTML = lista.map((v, i) => {
     const crescRS = v.f26 - v.f25;
     const crescPct = v.f25 > 0 ? (crescRS / v.f25) * 100 : null;
     let variacaoHtml = '<span class="badge neutral">—</span>';
@@ -186,12 +186,12 @@ function renderRankingComLeitura(dadosPorMes) {
 
     return `
       <tr>
-        <td><strong>${i+1}º ${escapeHtml(v.nome)}</strong></td>
-        <td class="num" style="color:var(--af-t2)">${fmtBRL(v.f25)}</td>
-        <td class="num"><strong>${fmtBRL(v.f26)}</strong></td>
-        <td class="num">${variacaoHtml}</td>
-        <td class="num" style="color:var(--af-t2)">${v.p25} → ${v.p26}</td>
-        <td style="font-size:12px; color:var(--af-t2);">${leituraHtml}</td>
+        <td data-label="Vendedor"><strong>${i+1}º ${escapeHtml(v.nome)}</strong></td>
+        <td class="num" data-label="2025" style="color:var(--af-t2)">${fmtBRL(v.f25)}</td>
+        <td class="num" data-label="2026"><strong>${fmtBRL(v.f26)}</strong></td>
+        <td class="num" data-label="Variação">${variacaoHtml}</td>
+        <td class="num" data-label="Pedidos" style="color:var(--af-t2)">${v.p25} → ${v.p26}</td>
+        <td data-label="Leitura" style="font-size:12px; color:var(--af-t2);">${leituraHtml}</td>
       </tr>
     `;
   }).join('');

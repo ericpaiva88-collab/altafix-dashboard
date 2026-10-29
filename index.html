@@ -404,7 +404,40 @@
   </div>
 </div>
 
-<div class="modal" id="help-modal"><div class="modal-content"><h2>Ajuda</h2><p style="margin-top:12px; color:#555;">O Cockpit foi desenhado para mostrar a saúde da operação em 5 segundos.</p><button class="btn btn-primary" style="margin-top:20px;" id="help-close">Entendi</button></div></div>
+<div class="modal" id="help-modal">
+  <div class="modal-content">
+    <h2 style="margin-bottom:16px;">Guia Rápido — Alta Fix</h2>
+    
+    <div style="display:flex; flex-direction:column; gap:16px; font-size:13px; color:var(--af-t2);">
+      <div>
+        <strong style="color:var(--af-t1); display:block; margin-bottom:4px;">🎯 Cockpit (O que fazer agora?)</strong>
+        Abra o Cockpit para ver os KPIs vitais (Meta, Falta, Precisa/Dia). O bloco "Atenção Agora" mostra os 5 maiores problemas do dia (vendedores abaixo do ritmo ou clientes valiosos inativos).
+      </div>
+
+      <div>
+        <strong style="color:var(--af-t1); display:block; margin-bottom:4px;">📱 Relatório Matinal</strong>
+        Clique no botão preto no topo do Cockpit para gerar um texto pronto com a situação do mês e as prioridades. O texto é copiado automaticamente para você colar no WhatsApp do time.
+      </div>
+
+      <div>
+        <strong style="color:var(--af-t1); display:block; margin-bottom:4px;">🎯 Agenda (Modo Foco)</strong>
+        Na aba Agenda, use o "Modo Foco" para ver um cliente por vez. O sistema já filtra quem precisa de ligação (retornos atrasados ou clientes no ciclo de recompra). Ao finalizar, ele puxa o próximo da fila.
+      </div>
+
+      <div>
+        <strong style="color:var(--af-t1); display:block; margin-bottom:4px;">👥 Equipe (Ficha 1:1)</strong>
+        Clique no card do vendedor para ver o histórico dele. Use o "Diário de Bordo" para anotar o que foi combinado na reunião. Essas anotações ficam salvas no seu navegador.
+      </div>
+
+      <div>
+        <strong style="color:var(--af-t1); display:block; margin-bottom:4px;">⚙️ Importações</strong>
+        Antes de importar, selecione a Filial no topo. Arraste as planilhas para a aba Configurações. O botão "Salvar e Sincronizar" envia os dados para a nuvem e atualiza as telas sem precisar de F5.
+      </div>
+    </div>
+
+    <button class="btn btn-primary" style="margin-top:24px; width:100%;" id="help-close">Entendi</button>
+  </div>
+</div>
 <div class="toast" id="toast"></div>
 <script type="module" src="./js/main.js"></script>
 </body>

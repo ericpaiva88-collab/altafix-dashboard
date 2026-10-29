@@ -96,13 +96,13 @@ function renderModoListaView() {
     return;
   }
 
-  tbody.innerHTML = focoFila.map(f => `
+    tbody.innerHTML = focoFila.map(f => `
       <tr>
-        <td><span class="badge ${f.tipoBadge}">${f.tipoLabel}</span></td>
-        <td><strong>${escapeHtml(f.cliente)}</strong></td>
-        <td style="color:var(--af-t2); font-size:12px;">${escapeHtml(f.contexto)}</td>
-        <td>${escapeHtml(f.vendedor)}</td>
-        <td class="num">${fmtBRL(f.valor)}</td>
+        <td data-label="Tipo"><span class="badge ${f.tipoBadge}">${f.tipoLabel}</span></td>
+        <td data-label="Cliente"><strong>${escapeHtml(f.cliente)}</strong></td>
+        <td data-label="Contexto" style="color:var(--af-t2); font-size:12px;">${escapeHtml(f.contexto)}</td>
+        <td data-label="Vendedor">${escapeHtml(f.vendedor)}</td>
+        <td class="num" data-label="Vale/Mês">${fmtBRL(f.valor)}</td>
         <td style="text-align:center;"><button class="btn-ligar" data-agenda-ligar="${f.id}">Ligar</button></td>
       </tr>
   `).join('');

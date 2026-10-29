@@ -87,7 +87,7 @@ export function renderLigacoes() {
     return;
   }
 
-  tbody.innerHTML = filtradas.slice(0, 500).map(l => {
+    tbody.innerHTML = filtradas.slice(0, 500).map(l => {
     const v = state.vendedores.find(x => x.id === l.vendedor);
     const st = STATUS[l.status] || STATUS.prospeccao;
     
@@ -95,17 +95,17 @@ export function renderLigacoes() {
 
     return `
       <tr>
-        <td>${fmtDataBR(l.data)}</td>
-        <td><strong>${escapeHtml(v ? v.nome : '—')}</strong></td>
-        <td>${escapeHtml(l.empresa)}</td>
-        <td>
+        <td data-label="Data">${fmtDataBR(l.data)}</td>
+        <td data-label="Vendedor"><strong>${escapeHtml(v ? v.nome : '—')}</strong></td>
+        <td data-label="Empresa">${escapeHtml(l.empresa)}</td>
+        <td data-label="Status">
           <span class="badge" style="background:${st.cor}15; color:${st.cor}; border:1px solid ${st.cor}30;">
             ${st.emoji} ${st.label}
           </span>
         </td>
-        <td class="num">${l.valor > 0 ? fmtBRL(l.valor) : '—'}</td>
-        <td class="num" style="color:var(--af-t2)">${proxTxt}</td>
-        <td style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--af-t3);" title="${escapeHtml(l.obs || '')}">
+        <td class="num" data-label="Valor">${l.valor > 0 ? fmtBRL(l.valor) : '—'}</td>
+        <td class="num" data-label="Próximo">${proxTxt}</td>
+        <td data-label="Observações" style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--af-t3);" title="${escapeHtml(l.obs || '')}">
           ${escapeHtml(l.obs || '—')}
         </td>
       </tr>

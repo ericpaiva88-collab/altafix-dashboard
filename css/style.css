@@ -706,3 +706,79 @@ body {
 #agenda-modo-foco {
   animation: fadein 0.3s ease-in-out;
 }
+/* =========================================
+   Responsividade Mobile e Tabelas em Card
+   ========================================= */
+@media (max-width: 768px) {
+  body { flex-direction: column; overflow: auto; height: auto; padding-bottom: 0; }
+  
+  /* Sidebar Mobile */
+  .sidebar { position: fixed; top: 0; bottom: 0; left: 0; z-index: 1000; transform: translateX(-100%); }
+  .sidebar.open { transform: translateX(0); box-shadow: 10px 0 30px rgba(0,0,0,0.2); }
+  .mobile-menu-btn { display: block; }
+  
+  /* Topbar Mobile */
+  .topbar { padding: 0 16px; justify-content: flex-start; gap: 16px; height: auto; min-height: 60px; flex-wrap: wrap; }
+  .topbar-filters { flex-direction: column; align-items: flex-start; gap: 8px; flex: 1; margin: 8px 0; }
+  .topbar-filters select { width: 100%; max-width: none; }
+  .topbar-actions { display: none; } /* Oculta Excel e Backup no mobile para dar espaço */
+  
+  /* Layout Geral */
+  .content-area { padding: 16px 12px; }
+  .grid-kpis { grid-template-columns: 1fr; gap: 12px; }
+  .kpi-card { padding: 16px; }
+  .numero-grande { font-size: 36px; }
+  .painel-hero-top { flex-direction: column; align-items: stretch; gap: 12px; }
+  .painel-hero-top > div:last-child { flex-direction: column; align-items: flex-start; }
+  
+  /* Tabelas em formato Card */
+  .tabela-cockpit thead { display: none; }
+  .tabela-cockpit, .tabela-cockpit tbody, .tabela-cockpit tr, .tabela-cockpit td { display: block; width: 100%; }
+  
+  .tabela-cockpit tr { 
+    margin-bottom: 12px; 
+    border: 1px solid var(--af-borda); 
+    border-radius: 8px; 
+    background: var(--af-bg-card); 
+    padding: 12px; 
+    box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+  }
+  
+  .tabela-cockpit td { 
+    padding: 8px 0; 
+    border: none; 
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center;
+    text-align: right; 
+    border-bottom: 1px dashed #f1f5f9;
+  }
+  .tabela-cockpit td:last-child { border-bottom: none; }
+  
+  /* Cria o rótulo (nome da coluna) na esquerda */
+  .tabela-cockpit td::before { 
+    content: attr(data-label); 
+    font-weight: 600; 
+    color: var(--af-t3); 
+    font-size: 11px; 
+    text-transform: uppercase; 
+    letter-spacing: 0.05em;
+    text-align: left; 
+    flex-shrink: 0;
+    margin-right: 12px;
+  }
+  
+  /* Ajuste no conteúdo da célula */
+  .tabela-cockpit td > * { text-align: right; }
+  
+  /* Sub-abas com rolagem */
+  .subtabs { overflow-x: auto; white-space: nowrap; }
+  .subtabs button { flex: 0 0 auto; }
+  
+  /* Ajuste nos Gráficos */
+  .chart-wrap { height: 220px !important; }
+  
+  /* Modo Foco da Agenda */
+  #agenda-modo-foco .card-painel { margin: 20px 0; padding: 20px; }
+  #agenda-modo-foco h2 { font-size: 24px; }
+}
