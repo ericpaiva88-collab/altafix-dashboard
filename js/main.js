@@ -186,6 +186,11 @@ function setupFiltros() {
   const fabBusca = document.getElementById('fab-busca'); if (fabBusca) fabBusca.oninput = () => renderFabricantes();
   const cidMes = document.getElementById('cidade-mes-select'); if (cidMes) cidMes.onchange = (e) => { ui.mesCidadesSelecionado = e.target.value; renderCidades(); };
   const fabMes = document.getElementById('fab-mes-select'); if (fabMes) fabMes.onchange = () => renderFabricantes();
+  const compVend = document.getElementById('comp-filtro-vendedor'); 
+  if (compVend) compVend.onchange = (e) => { ui.filtroCompVendedor = e.target.value; renderComparativo(); };
+  
+  const cidEvo = document.getElementById('cidade-filtro-evolucao'); 
+  if (cidEvo) cidEvo.onchange = () => renderCidades();
 }
 
 function setupBotoes() {

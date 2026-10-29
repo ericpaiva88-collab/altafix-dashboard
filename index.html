@@ -194,6 +194,7 @@
     </section>
 
     <!-- ABA ANÁLISE -->
+        <!-- ABA ANÁLISE -->
     <section id="tab-analise" class="tab-content">
       <div class="page-header" style="display:flex; justify-content:space-between; align-items:flex-end;">
         <div>
@@ -211,6 +212,13 @@
 
       <!-- Sub-aba: COMPARATIVO -->
       <div id="subtab-analise-comparativo" class="subtab-content active">
+        <div class="periodo-bar" style="margin-bottom: 24px; background:#FAFAFA; padding:12px 16px; border-radius:8px; border:1px solid var(--af-borda); display:flex; align-items:center; gap:12px;">
+          <label style="font-size:13px; font-weight:600; color:var(--af-t2);">Analisar Vendedor:</label>
+          <select id="comp-filtro-vendedor" class="select-clean" style="min-width:200px;">
+            <option value="">Todos os vendedores</option>
+          </select>
+        </div>
+
         <div class="grid-kpis" id="comparativo-kpis" style="margin-bottom:24px; grid-template-columns: repeat(3, 1fr);"></div>
         
         <div class="card-painel" style="padding: 20px; margin-bottom: 24px;">
@@ -234,9 +242,38 @@
 
       <!-- Sub-aba: CIDADES -->
       <div id="subtab-analise-cidades" class="subtab-content">
-        <div class="periodo-bar" style="margin-bottom: 24px;">
-          <span style="font-size:13px;color:var(--af-t2);font-weight:600;">📆 Mês:</span>
-          <select id="cidade-mes-select" class="select-clean" style="min-width:180px;"></select>
+        <div class="periodo-bar" style="margin-bottom: 24px; display:flex; justify-content:space-between; align-items:center;">
+          <div style="display:flex; gap:12px; align-items:center;">
+            <span style="font-size:13px;color:var(--af-t2);font-weight:600;">📆 Mês:</span>
+            <select id="cidade-mes-select" class="select-clean" style="min-width:180px;"></select>
+            <span style="font-size:13px;color:var(--af-t2);font-weight:600;margin-left:12px;">🏙️ Cidade:</span>
+            <select id="cidade-filtro-evolucao" class="select-clean" style="min-width:240px;"><option value="">Todas (top 5 no gráfico)</option></select>
+          </div>
+        </div>
+
+        <!-- Bloco de Top Movers -->
+        <div class="card-painel" id="card-top-movers" style="display:none; margin-bottom: 24px;">
+          <div class="card-title-row" style="padding: 16px 20px; border-bottom: 1px solid #eee;">
+            <h3>🚀 Maiores Movimentos <span class="text-xs text-muted">vs mês anterior</span></h3>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; padding:20px;">
+            <div>
+              <div style="font-size:11px;font-weight:700;color:var(--af-verde);margin-bottom:12px;text-transform:uppercase;">▲ Cresceram</div>
+              <div id="top-subiram"></div>
+            </div>
+            <div style="border-left:1px solid #eee; padding-left:20px;">
+              <div style="font-size:11px;font-weight:700;color:var(--af-vermelho);margin-bottom:12px;text-transform:uppercase;">▼ Caíram</div>
+              <div id="top-cairam"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Gráfico de Evolução -->
+        <div class="card-painel" id="card-evolucao" style="display:none; margin-bottom: 24px;">
+          <div class="card-title-row" style="padding: 16px 20px; border-bottom: 1px solid #eee;">
+            <h3>📈 Evolução por Cidade</h3>
+          </div>
+          <div style="padding:20px; height:300px;"><canvas id="chart-evolucao"></canvas></div>
         </div>
 
         <div class="grid-kpis" id="cidades-kpis" style="margin-bottom:24px; grid-template-columns: repeat(3, 1fr);"></div>
@@ -249,7 +286,7 @@
           <div style="overflow-x:auto;">
             <table class="tabela-cockpit">
               <thead>
-                <tr><th>Cidade</th><th>UF</th><th class="num">Faturamento</th><th class="num">Clientes</th><th class="num">Vendas</th><th class="num">Ticket Médio</th></tr>
+                <tr><th>Cidade</th><th>UF</th><th class="num">Faturamento</th><th class="num">Δ% vs Mês Ant.</th><th class="num">Clientes</th><th class="num">Ticket Médio</th></tr>
               </thead>
               <tbody id="tbody-cidades"></tbody>
             </table>
@@ -274,7 +311,7 @@
           <div style="overflow-x:auto;">
             <table class="tabela-cockpit">
               <thead>
-                <tr><th>Fabricante</th><th class="num">Faturamento</th><th class="num">Qtd. Produtos</th><th class="num">Qtd. Vendida</th><th class="num">% Total</th></tr>
+                <tr><th>Fabricante</th><th class="num">Faturamento</th><th class="num">Δ% vs Mês Ant.</th><th class="num">Qtd. Produtos</th><th class="num">% Total</th></tr>
               </thead>
               <tbody id="tbody-fabricantes"></tbody>
             </table>
@@ -282,7 +319,7 @@
         </div>
       </div>
     </section>
-    
+
         <section id="tab-config" class="tab-content">
       <div class="page-header">
         <h2>Configurações</h2>
