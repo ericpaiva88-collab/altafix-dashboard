@@ -696,3 +696,13 @@ body {
   .semana-desktop { display: none; }
   .semana-mobile { display: block; }
 }
+/* Modo Foco da Agenda */
+#btn-agenda-lista.active, #btn-agenda-foco.active {
+  background: var(--af-preto);
+  color: #fff;
+  border-color: var(--af-preto);
+}
+
+#agenda-modo-foco {
+  animation: fadein 0.3s ease-in-out;
+}

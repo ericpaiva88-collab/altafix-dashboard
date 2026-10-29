@@ -162,28 +162,58 @@
           <h2>Operação / Agenda</h2>
           <p>Quem contatar hoje: retornos agendados, clientes no ciclo de recompra e clientes para reativar.</p>
         </div>
-        <button class="btn btn-primary" id="btn-nova-ligacao-agenda">+ Nova Ligação</button>
-      </div>
-      <div class="grid-kpis" id="agenda-kpis" style="margin-bottom:24px; grid-template-columns: repeat(4, 1fr);"></div>
-      <div class="card-painel">
-        <div class="card-title-row" style="padding:16px 20px; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center;"><h3>Todas as tarefas</h3><span class="text-xs text-muted" id="agenda-count">0 itens</span></div>
-        <div class="filtros-bar" style="padding: 16px 20px; border-bottom: 1px solid #eee; background: #FAFAFA;">
-          <input type="text" id="agenda-busca" placeholder="Buscar empresa..." style="flex:1; min-width:200px;">
-          <select id="agenda-filtro-tipo">
-            <option value="todos">Todos os tipos</option>
-            <option value="atrasados">🔴 Retornos Atrasados</option>
-            <option value="hoje">🟡 Retornos Hoje</option>
-            <option value="recompra">🟢 Recompra Esperada</option>
-            <option value="reativar">⚪ Reativar</option>
-            <option value="sumido">💤 Sumidos</option>
-            <option value="lento">⏳ Recuperação Lenta</option>
-          </select>
-          <select id="agenda-filtro-vendedor"><option value="">Todos vendedores</option></select>
+        <div style="display:flex; gap:8px;">
+          <button class="btn btn-sm active" id="btn-agenda-lista">📋 Lista</button>
+          <button class="btn btn-sm" id="btn-agenda-foco">🎯 Modo Foco</button>
+          <button class="btn btn-primary" id="btn-nova-ligacao-agenda">+ Nova Ligação</button>
         </div>
-        <div style="overflow-x:auto;"><table class="tabela-cockpit"><thead><tr><th>TIPO</th><th>CLIENTE</th><th>CONTEXTO</th><th>VENDEDOR</th><th class="num">VALE/MÊS</th><th style="width: 100px; text-align:center;">AÇÃO</th></tr></thead><tbody id="agenda-tbody"></tbody></table></div>
+      </div>
+
+      <!-- Container do Modo Lista -->
+      <div id="agenda-modo-lista">
+        <div class="grid-kpis" id="agenda-kpis" style="margin-bottom:24px; grid-template-columns: repeat(4, 1fr);"></div>
+        <div class="card-painel">
+          <div class="card-title-row" style="padding:16px 20px; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center;"><h3>Todas as tarefas</h3><span class="text-xs text-muted" id="agenda-count">0 itens</span></div>
+          <div class="filtros-bar" style="padding: 16px 20px; border-bottom: 1px solid #eee; background: #FAFAFA;">
+            <input type="text" id="agenda-busca" placeholder="Buscar empresa..." style="flex:1; min-width:200px;">
+            <select id="agenda-filtro-tipo">
+              <option value="todos">Todos os tipos</option>
+              <option value="atrasados">🔴 Retornos Atrasados</option>
+              <option value="hoje">🟡 Retornos Hoje</option>
+              <option value="recompra">🟢 Recompra Esperada</option>
+              <option value="reativar">⚪ Reativar</option>
+              <option value="sumido">💤 Sumidos</option>
+              <option value="lento">⏳ Recuperação Lenta</option>
+            </select>
+            <select id="agenda-filtro-vendedor"><option value="">Todos vendedores</option></select>
+          </div>
+          <div style="overflow-x:auto;"><table class="tabela-cockpit"><thead><tr><th>TIPO</th><th>CLIENTE</th><th>CONTEXTO</th><th>VENDEDOR</th><th class="num">VALE/MÊS</th><th style="width: 100px; text-align:center;">AÇÃO</th></tr></thead><tbody id="agenda-tbody"></tbody></table></div>
+        </div>
+      </div>
+
+      <!-- Container do Modo Foco -->
+      <div id="agenda-modo-foco" style="display:none;">
+        <div class="card-painel" style="max-width: 600px; margin: 40px auto; padding: 40px; text-align: center; border-top: 4px solid var(--af-vermelho);">
+          <div id="foco-tipo" style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:16px;"></div>
+          <h2 id="foco-nome" style="font-size:28px; margin-bottom:8px; color:var(--af-preto);">—</h2>
+          <p id="foco-contexto" style="font-size:14px; color:var(--af-t2); margin-bottom:24px;">—</p>
+          
+          <div style="background: #FAFAFA; padding: 16px; border-radius: 8px; margin-bottom: 32px;">
+            <div style="font-size:12px; color:var(--af-t3); text-transform:uppercase; font-weight:600; margin-bottom:4px;">Valor em Jogo</div>
+            <div id="foco-valor" style="font-size:24px; font-weight:800; color:var(--af-preto);">R$ 0,00</div>
+          </div>
+
+          <div style="display:flex; gap:12px; justify-content:center;">
+            <button class="btn" id="btn-foco-pular" style="flex:1;">Pular (⏭)</button>
+            <button class="btn btn-primary" id="btn-foco-ligar" style="flex:2; font-size: 16px; padding: 16px;">📞 Ligar Agora</button>
+          </div>
+          <div style="margin-top:24px; font-size:12px; color:var(--af-t3);">
+            <span id="foco-progresso">0 de 0</span> na fila
+          </div>
+        </div>
       </div>
     </section>
-
+    
     <!-- ABA EQUIPE -->
     <section id="tab-equipe" class="tab-content">
       <div class="page-header"><h2>Equipe</h2><p>Acompanhe a performance individual. Clique no vendedor para ver a ficha 1:1.</p></div>
