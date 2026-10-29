@@ -3,7 +3,7 @@ import { derivarHistorico } from './calc.js';
 import { fmtBRL, toast, isoDate, normalizarNomeCliente, copiarTexto } from './utils.js';
 import { sbInit, sbLogin, sbLogout, sbSessaoAtual, sbCarregarPerfil, sbCarregarTudo, aplicarDadosDoBanco } from './supabase.js';
 
-import { renderPainel } from './views/painel.js';
+import { renderPainel, renderSemana } from './views/painel.js';
 import { renderAgenda } from './views/agenda.js'; 
 import { renderEquipe } from './views/equipe.js';
 import { renderClientes } from './views/clientes.js';
