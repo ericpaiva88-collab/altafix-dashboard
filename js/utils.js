@@ -111,6 +111,11 @@ function fallbackCopy(t) {
   document.body.removeChild(ta);
 }
 
+// FIX: Função necessária para a aba de Produtos
+export function ehProdutoValido(p) {
+  return p && p.descricao && p.descricao.trim() !== '' && p.descricao.trim() !== '—' && p.descricao.trim() !== '-';
+}
+
 // NOVO: Integração com WhatsApp
 export function abrirWhatsApp(telefone, nomeCliente) {
   if (!telefone) {
