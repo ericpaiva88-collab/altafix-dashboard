@@ -1,5 +1,5 @@
 // ============================================================
-// supabase.js — Comunicação com o backend Supabase
+// supabase.js — Comunicação com o backend Supabase (Otimizado)
 // ============================================================
 
 import { state, session, basesPreview } from './state.js';
@@ -77,9 +77,8 @@ export async function sbSessaoAtual() {
 
 export async function sbFetchAll(table, opts) {
   opts = opts || {};
-  const pageSize = 1000; // <-- AQUI ESTÁ A CORREÇÃO (antes era 10000)
+  const pageSize = 1000;
 
-  // Primeira chamada: pega total + primeira página
   let q0 = session.sb
     .from(table)
     .select(opts.select || '*', { count: 'exact' })
@@ -93,13 +92,11 @@ export async function sbFetchAll(table, opts) {
   if (!r0.data || r0.data.length === 0) return { data: [], error: null };
 
   const total = r0.count != null ? r0.count : r0.data.length;
-  
-  // Se a primeira página já tem tudo ou o total é menor que o limite, retorna
+
   if (r0.data.length < pageSize || total <= pageSize) {
     return { data: r0.data, error: null };
   }
 
-  // Demais páginas em paralelo
   const numPaginas = Math.ceil(total / pageSize);
   const promessas = [];
   for (let i = 1; i < numPaginas; i++) {
@@ -123,52 +120,79 @@ export async function sbFetchAll(table, opts) {
 }
 
 // ============================================================
-// CARREGAR TUDO
+// CARREGAR TUDO (Com modo Lite para carregamento rápido)
 // ============================================================
 
-export async function sbCarregarTudo() {
+export async function sbCarregarTudo(lite = false) {
   const out = {
     filiais: [], grupos: [], vendedores: [], clientes: [], produtos: [],
     lancamentos: [], comparativo: [], cidades: [], metas: [],
     produtosMes: [], vendasItens: [], ligacoes: [], ligacoesVendas: [],
-    acoesTratadas: {}, config: {}
+    clientesImportacoes: [],
+    acoesTratadas: {}, config: {}, _falhas: []
   };
 
-  const q = await Promise.all([
-    sbFetchAll('filiais', { order: { column: 'nome' } }),
-    sbFetchAll('grupos', { order: { column: 'nome' } }),
-    sbFetchAll('vendedores', { order: { column: 'nome' } }),
-    sbFetchAll('clientes', { order: { column: 'nome' } }),
-    sbFetchAll('produtos', { order: { column: 'codigo' } }),
-    sbFetchAll('lancamentos', { order: { column: 'data', options: { ascending: false } } }),
-    sbFetchAll('comparativo'),
-    sbFetchAll('cidades'),
-    sbFetchAll('acoes_tratadas'),
-    sbFetchAll('config'),
-    sbFetchAll('metas'),
-    sbFetchAll('produtos_mes', { order: { column: 'mes', options: { ascending: false } } }),
-    sbFetchAll('vendas_itens', { order: { column: 'periodo_fim', options: { ascending: false } } }),
-    sbFetchAll('ligacoes'),
-    sbFetchAll('ligacoes_vendas'),
-    sbFetchAll('clientes_importacoes', { order: { column: 'periodo_fim', options: { ascending: false } } })
-  ]);
+  const promessas = [
+    ['filiais',            sbFetchAll('filiais', { order: { column: 'nome' } })],
+    ['grupos',             sbFetchAll('grupos', { order: { column: 'nome' } })],
+    ['vendedores',         sbFetchAll('vendedores', { order: { column: 'nome' } })],
+    ['clientes',           sbFetchAll('clientes', { order: { column: 'nome' } })],
+    ['lancamentos',        sbFetchAll('lancamentos', { order: { column: 'data', options: { ascending: false } } })],
+    ['metas',              sbFetchAll('metas')],
+    ['config',             sbFetchAll('config')],
+    ['ligacoes',           sbFetchAll('ligacoes')]
+  ];
 
-  if (q[0].data) out.filiais = q[0].data;
-  if (q[1].data) out.grupos = q[1].data;
-  if (q[2].data) out.vendedores = q[2].data;
-  if (q[3].data) out.clientes = q[3].data;
-  if (q[4].data) out.produtos = q[4].data;
-  if (q[5].data) out.lancamentos = q[5].data;
-  if (q[6].data) out.comparativo = q[6].data;
-  if (q[7].data) out.cidades = q[7].data;
-  if (q[8].data) q[8].data.forEach(a => { out.acoesTratadas[a.acao_id] = new Date(a.tratado_em).getTime(); });
-  if (q[9].data) q[9].data.forEach(c => { out.config[c.chave] = c.valor; });
-  if (q[10].data) out.metas = q[10].data;
-  if (q[11].data) out.produtosMes = q[11].data;
-  if (q[12].data) out.vendasItens = q[12].data;
-  if (q[13].data) out.ligacoes = q[13].data;
-  if (q[14].data) out.ligacoesVendas = q[14].data;
-  if (q[15].data) out.clientesImportacoes = q[15].data;
+  // Se NÃO for modo lite, adiciona as tabelas pesadas
+  if (!lite) {
+    promessas.push(['produtos',           sbFetchAll('produtos', { order: { column: 'codigo' } })]);
+    promessas.push(['comparativo',        sbFetchAll('comparativo')]);
+    promessas.push(['cidades',            sbFetchAll('cidades')]);
+    promessas.push(['acoes_tratadas',     sbFetchAll('acoes_tratadas')]);
+    promessas.push(['produtos_mes',       sbFetchAll('produtos_mes', { order: { column: 'mes', options: { ascending: false } } })]);
+    promessas.push(['vendas_itens',       sbFetchAll('vendas_itens', { order: { column: 'periodo_fim', options: { ascending: false } } })]);
+    promessas.push(['ligacoes_vendas',    sbFetchAll('ligacoes_vendas')]);
+    promessas.push(['clientes_importacoes', sbFetchAll('clientes_importacoes', { order: { column: 'periodo_fim', options: { ascending: false } } })]);
+  }
+
+  const resultados = await Promise.allSettled(promessas.map(p => p[1]));
+
+  resultados.forEach((r, i) => {
+    const nome = promessas[i][0];
+    if (r.status === 'rejected') {
+      out._falhas.push({ tabela: nome, erro: r.reason && r.reason.message ? r.reason.message : 'desconhecido' });
+      console.warn('[sbCarregarTudo] falha em ' + nome + ':', r.reason);
+      return;
+    }
+    if (r.value && r.value.error) {
+      out._falhas.push({ tabela: nome, erro: r.value.error.message });
+      return;
+    }
+    if (!r.value || !r.value.data) return;
+
+    switch (nome) {
+      case 'filiais':              out.filiais = r.value.data; break;
+      case 'grupos':               out.grupos = r.value.data; break;
+      case 'vendedores':           out.vendedores = r.value.data; break;
+      case 'clientes':             out.clientes = r.value.data; break;
+      case 'produtos':             out.produtos = r.value.data; break;
+      case 'lancamentos':          out.lancamentos = r.value.data; break;
+      case 'comparativo':          out.comparativo = r.value.data; break;
+      case 'cidades':              out.cidades = r.value.data; break;
+      case 'metas':                out.metas = r.value.data; break;
+      case 'produtos_mes':         out.produtosMes = r.value.data; break;
+      case 'vendas_itens':         out.vendasItens = r.value.data; break;
+      case 'ligacoes':             out.ligacoes = r.value.data; break;
+      case 'ligacoes_vendas':      out.ligacoesVendas = r.value.data; break;
+      case 'clientes_importacoes': out.clientesImportacoes = r.value.data; break;
+      case 'acoes_tratadas':
+        r.value.data.forEach(a => { out.acoesTratadas[a.acao_id] = new Date(a.tratado_em).getTime(); });
+        break;
+      case 'config':
+        r.value.data.forEach(c => { out.config[c.chave] = c.valor; });
+        break;
+    }
+  });
 
   return out;
 }
@@ -178,121 +202,137 @@ export async function sbCarregarTudo() {
 // ============================================================
 
 export function aplicarDadosDoBanco(d) {
-  state.filiais = (d.filiais || []).map(f => ({
-    id: f.id, nome: f.nome, uf: f.uf, grupoId: f.grupo_id, ativo: f.ativo
-  }));
+  if (d.filiais && d.filiais.length > 0) {
+    state.filiais = d.filiais.map(f => ({
+      id: f.id, nome: f.nome, uf: f.uf, grupoId: f.grupo_id, ativo: f.ativo
+    }));
+  }
 
-  state.grupos = (d.grupos || []).map(g => ({ id: g.id, nome: g.nome }));
+  if (d.grupos) {
+    state.grupos = d.grupos.map(g => ({ id: g.id, nome: g.nome }));
+  }
 
-  state.vendedores = (d.vendedores || []).map(v => ({
-    id: v.id, user_id: v.user_id, nome: v.nome, email: v.email,
-    meta: Number(v.meta), metaTicket: Number(v.meta_ticket),
-    ativo: v.ativo, papel: v.papel,
-    supervisor: v.papel === 'diretor', filialId: v.filial_id
-  }));
+  if (d.vendedores && d.vendedores.length > 0) {
+    state.vendedores = d.vendedores.map(v => ({
+      id: v.id, user_id: v.user_id, nome: v.nome, email: v.email,
+      meta: Number(v.meta), metaTicket: Number(v.meta_ticket),
+      ativo: v.ativo, papel: v.papel,
+      supervisor: v.papel === 'diretor', filialId: v.filial_id
+    }));
+  }
 
-  state.clientes = (d.clientes || []).map(c => ({
-    id: c.id, filialId: c.filial_id, vendedor: c.vendedor_id,
-    nome: c.nome, codigo: c.codigo, cidade: c.cidade, uf: c.uf,
-    valorTotal: Number(c.valor_total), numCompras: c.num_compras,
-    ultimaCompra: c.ultima_compra, primeiraCompra: c.primeira_compra,
-    intervaloMedio: c.intervalo_medio, valorMedioMensal: Number(c.valor_medio_mensal),
-    _datas: []
-  }));
+  if (d.clientes && d.clientes.length > 0) {
+    state.clientes = d.clientes.map(c => ({
+      id: c.id, filialId: c.filial_id, vendedor: c.vendedor_id,
+      nome: c.nome, codigo: c.codigo, cidade: c.cidade, uf: c.uf,
+      valorTotal: Number(c.valor_total), numCompras: c.num_compras,
+      ultimaCompra: c.ultima_compra, primeiraCompra: c.primeira_compra,
+      intervaloMedio: c.intervalo_medio, valorMedioMensal: Number(c.valor_medio_mensal),
+      _datas: []
+    }));
+  }
 
-  state.produtos = (d.produtos || []).map(p => ({
-    id: p.id, filialId: p.filial_id, codigo: p.codigo,
-    descricao: p.descricao, fabricante: p.fabricante,
-    curva: p.curva, curvaOficial: p.curva,
-    qtdVendida: Number(p.qtd_vendida), valorVendido: Number(p.valor_vendido),
-    estoqueAtual: p.estoque_atual, estoqueMinimo: p.estoque_minimo
-  }));
+  if (d.produtos && d.produtos.length > 0) {
+    state.produtos = d.produtos.map(p => ({
+      id: p.id, filialId: p.filial_id, codigo: p.codigo,
+      descricao: p.descricao, fabricante: p.fabricante,
+      curva: p.curva, curvaOficial: p.curva,
+      qtdVendida: Number(p.qtd_vendida), valorVendido: Number(p.valor_vendido),
+      estoqueAtual: p.estoque_atual, estoqueMinimo: p.estoque_minimo
+    }));
+  }
 
-  state.lancamentos = (d.lancamentos || []).map(l => ({
-    id: l.id, filialId: l.filial_id, vendedor: l.vendedor_id,
-    data: l.data, valor: Number(l.valor), pedidos: l.pedidos,
-    desconto: Number(l.desconto), obs: l.obs
-  }));
+  if (d.lancamentos && d.lancamentos.length > 0) {
+    state.lancamentos = d.lancamentos.map(l => ({
+      id: l.id, filialId: l.filial_id, vendedor: l.vendedor_id,
+      data: l.data, valor: Number(l.valor), pedidos: l.pedidos,
+      desconto: Number(l.desconto), obs: l.obs
+    }));
+  }
 
-  state.comparativo = (d.comparativo || []).map(m => ({
-    id: m.id, filialId: m.filial_id, mes: m.mes,
-    fat2025: Number(m.fat2025), ped2025: m.ped2025,
-    fat2026: Number(m.fat2026), ped2026: m.ped2026,
-    vendedores: m.vendedores || {}
-  }));
+  if (d.comparativo && d.comparativo.length > 0) {
+    state.comparativo = d.comparativo.map(m => ({
+      id: m.id, filialId: m.filial_id, mes: m.mes,
+      fat2025: Number(m.fat2025), ped2025: m.ped2025,
+      fat2026: Number(m.fat2026), ped2026: m.ped2026,
+      vendedores: m.vendedores || {}
+    }));
+  }
 
-  state.cidades = (d.cidades || []).map(c => ({
-    id: c.id, filialId: c.filial_id, nome: c.nome, uf: c.uf,
-    totalValor: Number(c.total_valor), qtdVendas: c.qtd_vendas,
-    numClientes: c.num_clientes, clientes: c.clientes || [],
-    ticketMedio: c.qtd_vendas > 0 ? Number(c.total_valor) / c.qtd_vendas : 0,
-    mesKey: c.mes || ''
-  }));
+  if (d.cidades && d.cidades.length > 0) {
+    state.cidades = d.cidades.map(c => ({
+      id: c.id, filialId: c.filial_id, nome: c.nome, uf: c.uf,
+      totalValor: Number(c.total_valor), qtdVendas: c.qtd_vendas,
+      numClientes: c.num_clientes, clientes: c.clientes || [],
+      ticketMedio: c.qtd_vendas > 0 ? Number(c.total_valor) / c.qtd_vendas : 0,
+      mesKey: c.mes || ''
+    }));
+  }
 
-  state.metas = (d.metas || []).map(m => ({
-    id: m.id, vendedorId: m.vendedor_id, mes: m.mes,
-    metaFaturamento: Number(m.meta_faturamento),
-    metaTicket: Number(m.meta_ticket)
-  }));
+  if (d.metas && d.metas.length > 0) {
+    state.metas = d.metas.map(m => ({
+      id: m.id, vendedorId: m.vendedor_id, mes: m.mes,
+      metaFaturamento: Number(m.meta_faturamento),
+      metaTicket: Number(m.meta_ticket)
+    }));
+  }
 
-  state.produtosMes = (d.produtosMes || []).map(p => ({
-    filialId: p.filial_id, mes: p.mes, codigo: p.codigo,
-    descricao: p.descricao, fabricante: p.fabricante || '',
-    curva: p.curva || '',
-    qtd: Number(p.qtd) || 0, valor: Number(p.valor) || 0
-  }));
+  if (d.produtosMes && d.produtosMes.length > 0) {
+    state.produtosMes = d.produtosMes.map(p => ({
+      filialId: p.filial_id, mes: p.mes, codigo: p.codigo,
+      descricao: p.descricao, fabricante: p.fabricante || '',
+      curva: p.curva || '',
+      qtd: Number(p.qtd) || 0, valor: Number(p.valor) || 0
+    }));
+  }
 
-  state.vendasItens = (d.vendasItens || []).map(v => ({
-    filialId: v.filial_id,
-    periodoIni: v.periodo_ini, periodoFim: v.periodo_fim,
-    clienteNorm: v.cliente_norm,
-    produtoCodigo: v.produto_codigo, produtoDescricao: v.produto_descricao,
-    vendedor: v.vendedor_id,
-    valor: Number(v.valor) || 0, qtd: Number(v.qtd) || 0
-  }));
+  if (d.vendasItens && d.vendasItens.length > 0) {
+    state.vendasItens = d.vendasItens.map(v => ({
+      filialId: v.filial_id,
+      periodoIni: v.periodo_ini, periodoFim: v.periodo_fim,
+      clienteNorm: v.cliente_norm,
+      produtoCodigo: v.produto_codigo, produtoDescricao: v.produto_descricao,
+      vendedor: v.vendedor_id,
+      valor: Number(v.valor) || 0, qtd: Number(v.qtd) || 0
+    }));
+  }
 
-  state.ligacoes = (d.ligacoes || []).map(l => ({
-    id: l.id,
-    filialId: l.filial_id,
-    vendedor: l.vendedor_id,
-    data: l.data,
-    codigo: l.codigo,
-    empresa: l.empresa,
-    clienteNorm: l.cliente_norm,
-    contato: l.contato,
-    telefone: l.telefone,
-    cidade: l.cidade,
-    estado: l.estado,
-    status: l.status,
-    valor: Number(l.valor) || 0,
-    proximo: l.proximo,
-    obs: l.obs
-  }));
+  if (d.ligacoes && d.ligacoes.length > 0) {
+    state.ligacoes = d.ligacoes.map(l => ({
+      id: l.id, filialId: l.filial_id, vendedor: l.vendedor_id,
+      data: l.data, codigo: l.codigo, empresa: l.empresa,
+      clienteNorm: l.cliente_norm, contato: l.contato, telefone: l.telefone,
+      cidade: l.cidade, estado: l.estado, status: l.status,
+      valor: Number(l.valor) || 0, proximo: l.proximo, obs: l.obs
+    }));
+  }
 
-  state.ligacoesVendas = (d.ligacoesVendas || []).map(lv => ({
-    id: lv.id,
-    ligacaoId: lv.ligacao_id,
-    clienteNorm: lv.cliente_norm,
-    filialId: lv.filial_id,
-    vendedor: lv.vendedor_id,
-    dataLigacao: lv.data_ligacao,
-    dataVenda: lv.data_venda,
-    valorVenda: Number(lv.valor_venda) || 0,
-    diasEntre: lv.dias_entre
-  }));
+  if (d.ligacoesVendas && d.ligacoesVendas.length > 0) {
+    state.ligacoesVendas = d.ligacoesVendas.map(lv => ({
+      id: lv.id, ligacaoId: lv.ligacao_id,
+      clienteNorm: lv.cliente_norm, filialId: lv.filial_id,
+      vendedor: lv.vendedor_id,
+      dataLigacao: lv.data_ligacao, dataVenda: lv.data_venda,
+      valorVenda: Number(lv.valor_venda) || 0, diasEntre: lv.dias_entre
+    }));
+  }
 
-  state.clientesImportacoes = (d.clientesImportacoes || []).map(r => ({
-    filialId: r.filial_id,
-    periodoIni: r.periodo_ini, periodoFim: r.periodo_fim,
-    clienteNorm: r.cliente_norm,
-    nome: r.nome, codigo: r.codigo, cidade: r.cidade, uf: r.uf,
-    vendedor: r.vendedor_id,
-    valor: Number(r.valor) || 0,
-    numCompras: r.num_compras || 0,
-    ultimaCompra: r.ultima_compra
-  }));
+  if (d.clientesImportacoes && d.clientesImportacoes.length > 0) {
+    state.clientesImportacoes = d.clientesImportacoes.map(r => ({
+      filialId: r.filial_id,
+      periodoIni: r.periodo_ini, periodoFim: r.periodo_fim,
+      clienteNorm: r.cliente_norm,
+      nome: r.nome, codigo: r.codigo, cidade: r.cidade, uf: r.uf,
+      vendedor: r.vendedor_id,
+      valor: Number(r.valor) || 0,
+      numCompras: r.num_compras || 0,
+      ultimaCompra: r.ultima_compra
+    }));
+  }
 
-  state.acoesTratadas = d.acoesTratadas || {};
+  if (d.acoesTratadas) {
+    state.acoesTratadas = Object.assign(state.acoesTratadas, d.acoesTratadas);
+  }
 
   if (d.config && d.config.geral) {
     state.config = Object.assign(state.config, d.config.geral);
@@ -313,10 +353,6 @@ export function construirMapaVendedores() {
   });
   return mapa;
 }
-
-// ------------------------------------------------------------
-// CLIENTES — por período de importação
-// ------------------------------------------------------------
 
 export async function sbUpsertClientes(lista, filialId, vendedoresMap) {
   if (!lista || lista.length === 0) return 0;
@@ -385,10 +421,9 @@ export async function sbUpsertClientes(lista, filialId, vendedoresMap) {
     }
   }
 
-  // Rebuild clientes agregado
-  const todas = await sbFetchAll('clientes_importacoes', { 
+  const todas = await sbFetchAll('clientes_importacoes', {
     eq: { filial_id: filialId },
-    order: { column: 'periodo_fim', options: { ascending: false } } 
+    order: { column: 'periodo_fim', options: { ascending: false } }
   });
 
   const agregado = {};
@@ -442,7 +477,6 @@ export async function sbUpsertClientes(lista, filialId, vendedoresMap) {
       intervaloMedio = Math.max(1, Math.round(span / (a._datas.length - 1)));
     }
 
-    // Valor médio mensal: últimos 90 dias de atividade
     let valorMedioMensal = 0;
     if (a._periodos.length > 0 && a.ultima_compra) {
       a._periodos.sort((p1, p2) => (p1.periodoIni || '').localeCompare(p2.periodoIni || ''));
@@ -498,10 +532,6 @@ export async function sbUpsertClientes(lista, filialId, vendedoresMap) {
   return total;
 }
 
-// ------------------------------------------------------------
-// PRODUTOS
-// ------------------------------------------------------------
-
 export async function sbUpsertProdutos(lista, filialId) {
   if (!lista || lista.length === 0) return 0;
 
@@ -525,8 +555,6 @@ export async function sbUpsertProdutos(lista, filialId) {
     }
   });
 
-  // Busca descrição/fabricante/curva de produtos_mes COM PAGINAÇÃO
-  // A descrição do 361 (cadastro) tem prioridade sobre a do 324 (pedido do vendedor)
   const pm = await sbFetchAll('produtos_mes', {
     select: 'codigo, descricao, fabricante, curva',
     eq: { filial_id: filialId },
@@ -555,7 +583,7 @@ export async function sbUpsertProdutos(lista, filialId) {
 
     return {
       filial_id: filialId, codigo: p.codigo,
-      descricao: p.descricao,   // 324 sempre — é o produto que foi vendido
+      descricao: pmInfo.descricao || p.descricao,
       fabricante: pmInfo.fabricante || (ant && ant.fabricante) || p.fabricante || null,
       curva: pmInfo.curva || (ant && ant.curva) || p.curva || null,
       qtd_vendida: p.qtdVendida || 0,
@@ -578,24 +606,18 @@ export async function sbUpsertProdutos(lista, filialId) {
   return total;
 }
 
-// ------------------------------------------------------------
-// LANÇAMENTOS
-// ------------------------------------------------------------
-
 export async function sbUpsertLancamentos(lista, filialId, vendedoresMap) {
   if (!lista || lista.length === 0) return 0;
 
   const datas = [];
   lista.forEach(l => { if (datas.indexOf(l.data) < 0) datas.push(l.data); });
 
-  // Delete dos lançamentos dessas datas (substituição, não soma)
   const del = await session.sb.from('lancamentos')
     .delete()
     .eq('filial_id', filialId)
     .in('data', datas);
   if (del.error) throw new Error('lancamentos delete: ' + del.error.message);
 
-  // Insert limpo, sem id (deixa o default gerar)
   const paraInserir = [];
   lista.forEach(l => {
     const vid = vendedoresMap[l.vendedor] || l.vendedor;
@@ -620,9 +642,6 @@ export async function sbUpsertLancamentos(lista, filialId, vendedoresMap) {
   }
   return total;
 }
-// ------------------------------------------------------------
-// CIDADES (mensal)
-// ------------------------------------------------------------
 
 export async function sbUpsertCidades(lista, filialId, mesKey) {
   if (!lista || lista.length === 0) return 0;
@@ -648,10 +667,6 @@ export async function sbUpsertCidades(lista, filialId, mesKey) {
   return total;
 }
 
-// ------------------------------------------------------------
-// COMPARATIVO
-// ------------------------------------------------------------
-
 export async function sbUpsertComparativo(lista, filialId) {
   if (!lista || lista.length === 0) return 0;
   const meses = lista.map(m => m.mes);
@@ -669,10 +684,6 @@ export async function sbUpsertComparativo(lista, filialId) {
   if (r.error) throw new Error('comparativo: ' + r.error.message);
   return payload.length;
 }
-
-// ------------------------------------------------------------
-// PRODUTOS_MES (mensal)
-// ------------------------------------------------------------
 
 export async function sbUpsertProdutosMes(lista, filialId, mes) {
   if (!lista || lista.length === 0) return 0;
@@ -707,10 +718,6 @@ export async function sbUpsertProdutosMes(lista, filialId, mes) {
   }
   return total;
 }
-
-// ------------------------------------------------------------
-// VENDAS_ITENS — por período de importação
-// ------------------------------------------------------------
 
 export async function sbUpsertVendasItens(lista, filialId) {
   if (!lista || lista.length === 0) return 0;
@@ -759,14 +766,15 @@ export async function sbUpsertVendasItens(lista, filialId) {
   return total;
 }
 
-// ------------------------------------------------------------
-// ESTOQUE / ABC
-// ------------------------------------------------------------
-
-export async function sbAplicarEstoqueABC(lista) {
+export async function sbAplicarEstoqueABC(lista, filialId) {
   if (!lista || lista.length === 0) return 0;
+  if (!filialId) throw new Error('sbAplicarEstoqueABC: filialId é obrigatório');
 
-  const todos = await session.sb.from('produtos').select('id, codigo');
+  const todos = await session.sb
+    .from('produtos')
+    .select('id, codigo')
+    .eq('filial_id', filialId);
+
   if (todos.error) throw new Error('produtos select: ' + todos.error.message);
 
   const mapa = {};
@@ -794,10 +802,6 @@ export async function sbAplicarEstoqueABC(lista) {
   }
   return total;
 }
-
-// ------------------------------------------------------------
-// SINCRONIZAR BASES PENDENTES
-// ------------------------------------------------------------
 
 export async function sbSincronizarBasesPendentes() {
   const st = document.getElementById('erp-status');
@@ -865,7 +869,7 @@ export async function sbSincronizarBasesPendentes() {
     }
     status('⏳ Aplicando curva/estoque em produtos...');
     try {
-      const n = await sbAplicarEstoqueABC(basesPreview.estoqueABC);
+      const n = await sbAplicarEstoqueABC(basesPreview.estoqueABC, filialId);
       status('✓ ' + n + ' itens com curva/estoque');
     } catch (errAplicar) {
       status('⚠ falha ao aplicar curva: ' + errAplicar.message);

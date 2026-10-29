@@ -1,3 +1,7 @@
+// ============================================================
+// main.js — Ponto de entrada do app (Otimizado)
+// ============================================================
+
 import { state, ui, session, carregar, salvar } from './state.js';
 import { derivarHistorico } from './calc.js';
 import { fmtBRL, toast, isoDate, normalizarNomeCliente, copiarTexto } from './utils.js';
@@ -160,7 +164,7 @@ function setupBotoes() {
   const mv = document.getElementById('modo-vendedor'); if (mv) mv.onchange = e => { ui.modoVendedor = e.target.value; renderPainel(); };
   const painelMesSel = document.getElementById('painel-mes-select'); if (painelMesSel) painelMesSel.onchange = e => { ui.mesPainelSelecionado = e.target.value; renderPainel(); };
   const btnNovaLigAgenda = document.getElementById('btn-nova-ligacao-agenda'); if (btnNovaLigAgenda) btnNovaLigAgenda.onclick = () => { if (window._abrirModalLigacao) window._abrirModalLigacao(); };
-  // FIX: Navegação do Ritmo Semanal
+
   const sp = document.getElementById('sem-prev');
   if (sp) sp.onclick = () => { ui.semanaRef.setDate(ui.semanaRef.getDate() - 7); renderSemana(); };
 
@@ -184,20 +188,36 @@ document.addEventListener('DOMContentLoaded', async () => {
     const perfilOk = await sbCarregarPerfil();
     if (!perfilOk) { document.getElementById('tela-login').style.display = 'flex'; document.getElementById('login-erro').textContent = 'Usuário sem vínculo na tabela vendedores.'; return; }
     
-    toast('⏳ Carregando dados...');
-    const dados = await sbCarregarTudo().catch(e => { console.error(e); toast('❌ Erro ao carregar: ' + e.message); return { vendedores: [], clientes: [], produtos: [], lancamentos: [], cidades: [], comparativo: [] }; });
+    toast('⏳ Carregando...');
+    // OTIMIZAÇÃO: Carrega primeiro as tabelas que o Cockpit precisa
+    const dadosBase = await sbCarregarTudo(true).catch(e => { console.error(e); return null; });
     
-    aplicarDadosDoBanco(dados);
-    derivarHistorico();
-    ajustarUIUsuario();
-    popularEscopoSelect();
-    popularModoVendedor();
-    setupTabs();
-    setupFiltros();
-    setupBotoes();
-    setupConfig();
-    renderPainel();
-    toast('✓ Pronto');
+    if (dadosBase) {
+      aplicarDadosDoBanco(dadosBase);
+      derivarHistorico();
+      ajustarUIUsuario();
+      popularEscopoSelect();
+      popularModoVendedor();
+      setupTabs();
+      setupFiltros();
+      setupBotoes();
+      setupConfig();
+      renderPainel();
+      toast('✓ Pronto');
+    }
+
+    // OTIMIZAÇÃO: Carrega o resto das tabelas pesadas em background (lazy)
+    setTimeout(async () => {
+      try {
+        const dadosCompletos = await sbCarregarTudo(false);
+        aplicarDadosDoBanco(dadosCompletos);
+        // Não precisamos re-renderizar tudo, apenas avisamos os módulos que dependem dos dados completos
+        if (window._renderTudo) window._renderTudo();
+      } catch (e) {
+        console.error('Erro no carregamento lazy:', e);
+      }
+    }, 1000);
+
   } catch (e) {
     console.error('[Alta Fix] Erro fatal:', e);
     alert('Erro ao carregar a tela: ' + e.message);
