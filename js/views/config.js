@@ -1,5 +1,5 @@
 // ============================================================
-// views/config.js — Importação, Metas e Vendedores
+// views/config.js — Importação, Metas e Vendedores (Com Debug)
 // ============================================================
 
 import { state, ui, session, basesPreview, salvar } from '../state.js';
@@ -41,26 +41,58 @@ function setupDrop(dropId, inputId, handler, multiplos, statusId) {
   const d = document.getElementById(dropId);
   const i = document.getElementById(inputId);
   const statusEl = document.getElementById(statusId);
-  if (!d || !i) return;
+  if (!d || !i) {
+    alert("Erro interno: Dropzone não encontrado no HTML.");
+    return;
+  }
 
-  d.onclick = () => i.click();
+  // Garante que o status apareça na tela
+  if (statusEl) {
+    statusEl.style.display = 'block';
+    statusEl.style.marginTop = '10px';
+    statusEl.style.fontWeight = 'bold';
+  }
+
+  i.style.display = 'block';
+  i.style.position = 'absolute';
+  i.style.inset = '0';
+  i.style.opacity = '0';
+  i.style.cursor = 'pointer';
+  i.style.width = '100%';
+  i.style.height = '100%';
+  i.style.zIndex = '10';
   
+  d.style.position = 'relative';
+  d.appendChild(i);
+
   i.onchange = async e => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
     
-    if (statusEl) {
-      statusEl.style.color = 'var(--af-t2)';
-      statusEl.textContent = `⏳ Lendo ${files.length} arquivo(s)...`;
-    }
+    // O PRIMEIRO DEBUG: O arquivo chegou no JavaScript?
+    if (statusEl) statusEl.textContent = `⏳ Lendo ${files.length} arquivo(s)...`;
     
     try {
+      // Chama a função de importação
       await handler(multiplos ? files : files[0]);
+      
+      // SEGUNDO DEBUG: A função terminou de rodar?
       if (statusEl) {
         statusEl.style.color = 'var(--af-verde)';
         statusEl.textContent = `✓ ${files.length} arquivo(s) processado(s) com sucesso.`;
       }
+      
+      // TERCEIRO DEBUG: Os dados estão na memória?
+      if (basesPreview.clientes || basesPreview.cidades || basesPreview.produtos) {
+        alert("✓ Planilha lida com sucesso! Clique em 'Salvar e Sincronizar' para enviar ao banco de dados.");
+        renderBasesStatus();
+      } else {
+        alert("⚠ O arquivo foi lido, mas nenhuma base nova foi encontrada. Verifique se a planilha está no formato correto (324, 740 ou 361).");
+      }
+
     } catch (err) {
+      // QUARTO DEBUG: Deu erro?
+      alert("❌ Erro ao processar planilha: \n\n" + err.message);
       if (statusEl) {
         statusEl.style.color = 'var(--af-vermelho)';
         statusEl.textContent = `❌ Erro: ${err.message}`;
@@ -77,18 +109,24 @@ function setupDrop(dropId, inputId, handler, multiplos, statusId) {
     const files = Array.from(e.dataTransfer.files || []).filter(f => f.name.match(/\.(xlsx|xls)$/i));
     if (files.length === 0) return;
 
-    if (statusEl) {
-      statusEl.style.color = 'var(--af-t2)';
-      statusEl.textContent = `⏳ Lendo ${files.length} arquivo(s)...`;
-    }
+    if (statusEl) statusEl.textContent = `⏳ Lendo ${files.length} arquivo(s)...`;
 
     try {
       await handler(multiplos ? files : files[0]);
+      
       if (statusEl) {
         statusEl.style.color = 'var(--af-verde)';
         statusEl.textContent = `✓ ${files.length} arquivo(s) processado(s) com sucesso.`;
       }
+
+      if (basesPreview.clientes || basesPreview.cidades || basesPreview.produtos) {
+        alert("✓ Planilha lida com sucesso! Clique em 'Salvar e Sincronizar' para enviar ao banco de dados.");
+        renderBasesStatus();
+      } else {
+        alert("⚠ O arquivo foi lido, mas nenhuma base nova foi encontrada. Verifique se a planilha está no formato correto.");
+      }
     } catch (err) {
+      alert("❌ Erro ao processar planilha: \n\n" + err.message);
       if (statusEl) {
         statusEl.style.color = 'var(--af-vermelho)';
         statusEl.textContent = `❌ Erro: ${err.message}`;
