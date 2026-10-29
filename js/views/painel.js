@@ -45,7 +45,6 @@ export function renderPainel() {
     f = calcFilial(a, m, ui.escopoAtual);
   }
 
-  // --- KPIs ---
   const faturado = isModoVendedor ? f.faturado : f.faturadoTotal;
   const meta = isModoVendedor ? f.meta : f.metaTotal;
   const falta = isModoVendedor ? Math.max(0, meta - faturado) : f.falta;
@@ -94,10 +93,8 @@ export function renderPainel() {
   const diaEl = document.getElementById('painel-precisadia');
   if (diaEl) diaEl.innerHTML = fmtBRL(porDia);
   
-  // --- GRÁFICO ---
   renderGraficoAcumulado(a, m, meta, isModoVendedor ? vendedorFoco.id : null);
   
-  // --- TABELA EQUIPE ---
   const cardEquipe = document.getElementById('painel-equipe-container')?.closest('.card-painel');
   if (cardEquipe) {
     if (isModoVendedor) {
@@ -108,7 +105,7 @@ export function renderPainel() {
     }
   }
 
-  // --- ATENÇÃO AGORA ---
+  renderGraficoSemanal(a, m, isModoVendedor ? vendedorFoco.id : null);
   renderAtencaoAgora(a, m, vendedorFoco);
 }
 
@@ -182,6 +179,49 @@ function renderGraficoAcumulado(a, m, meta, vendedorId) {
   });
 }
 
+let chartSemanalInstance = null;
+function renderGraficoSemanal(a, m, vendedorId) {
+  const ctx = document.getElementById('chart-semanal');
+  if (!ctx || typeof Chart === 'undefined') return;
+  if (chartSemanalInstance) chartSemanalInstance.destroy();
+
+  const semanas = [0, 0, 0, 0, 0];
+  const prefix = a + '-' + String(m + 1).padStart(2, '0');
+  
+  state.lancamentos.forEach(l => {
+    if (l.data.indexOf(prefix) !== 0) return;
+    if (vendedorId && l.vendedor !== vendedorId) return;
+    
+    const dia = parseInt(l.data.slice(8, 10), 10);
+    const semanaIdx = Math.ceil(dia / 7) - 1;
+    if (semanaIdx >= 0 && semanaIdx < 5) {
+      semanas[semanaIdx] += (l.valor || 0);
+    }
+  });
+
+  chartSemanalInstance = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: ['Semana 1', 'Semana 2', 'Semana 3', 'Semana 4', 'Semana 5'],
+      datasets: [{
+        label: 'Faturamento',
+        data: semanas,
+        backgroundColor: '#0B0B0B',
+        borderRadius: 4,
+        barThickness: 40
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => fmtBRL(c.parsed.y) } } },
+      scales: {
+        y: { beginAtZero: true, grid: { color: '#f0f0f0' }, ticks: { callback: v => 'R$ ' + (v/1000).toFixed(0) + 'k' } },
+        x: { grid: { display: false } }
+      }
+    }
+  });
+}
+
 function renderTabelaEquipe(a, m, f) {
   const tbody = document.getElementById('painel-equipe-container');
   if (!tbody) return;
@@ -238,68 +278,26 @@ function renderAtencaoAgora(a, m, vendedorFoco) {
   if (vendedorFoco) {
     const d = calcVendedor(vendedorFoco, a, m);
     const gap = d.meta * (calcDiasUteisDecorridos(a, m) / calcDiasUteisNoMes(a, m));
-    
     if (d.faturado < gap && d.faturado > 0) {
-      alertas.push({
-        tipo: 'vendedor',
-        titulo: 'Atenção ao seu ritmo',
-        desc: `${fmtBRL(gap - d.faturado)} atrás do esperado. Precisa de ${fmtBRL(d.metaDia)}/dia.`,
-        peso: 999999
-      });
+      alertas.push({ tipo: 'vendedor', titulo: 'Atenção ao seu ritmo', desc: `${fmtBRL(gap - d.faturado)} atrás do esperado. Precisa de ${fmtBRL(d.metaDia)}/dia.`, peso: 999999 });
     }
-
-    let clientesRisco = state.clientes
-      .filter(c => c.vendedor === vendedorFoco.id && (c.diasSemComprar || 0) > 30 && c.valorMedioMensal > 1000)
-      .sort((a, b) => b.valorMedioMensal - a.valorMedioMensal)
-      .slice(0, 4);
-
-    clientesRisco.forEach(c => {
-      alertas.push({
-        tipo: 'cliente',
-        titulo: c.nome,
-        desc: `${c.diasSemComprar} dias sem comprar. Valor: ${fmtBRL(c.valorMedioMensal)}/mês.`,
-        peso: c.valorMedioMensal
-      });
-    });
-
+    let clientesRisco = state.clientes.filter(c => c.vendedor === vendedorFoco.id && (c.diasSemComprar || 0) > 30 && c.valorMedioMensal > 1000).sort((a, b) => b.valorMedioMensal - a.valorMedioMensal).slice(0, 4);
+    clientesRisco.forEach(c => { alertas.push({ tipo: 'cliente', titulo: c.nome, desc: `${c.diasSemComprar} dias sem comprar. Valor: ${fmtBRL(c.valorMedioMensal)}/mês.`, peso: c.valorMedioMensal }); });
   } else {
     const f = calcFilial(a, m, ui.escopoAtual);
     const dadosVendedores = f.dados || [];
-    
     dadosVendedores.filter(d => d.vendedor.papel === 'vendedor').forEach(d => {
       const gap = d.meta * (calcDiasUteisDecorridos(a, m) / calcDiasUteisNoMes(a, m));
       if (d.faturado < gap && d.faturado > 0) {
-        alertas.push({
-          tipo: 'vendedor',
-          titulo: d.vendedor.nome + ' está abaixo do ritmo',
-          desc: `${fmtBRL(gap - d.faturado)} atrás. Precisa de ${fmtBRL(d.metaDia)}/dia.`,
-          peso: gap - d.faturado
-        });
+        alertas.push({ tipo: 'vendedor', titulo: d.vendedor.nome + ' está abaixo do ritmo', desc: `${fmtBRL(gap - d.faturado)} atrás. Precisa de ${fmtBRL(d.metaDia)}/dia.`, peso: gap - d.faturado });
       }
     });
-
-    let clientesRisco = state.clientes
-      .filter(c => filialNoEscopo(c.filialId, ui.escopoAtual) && (c.diasSemComprar || 0) > 30 && c.valorMedioMensal > 5000)
-      .sort((a, b) => b.valorMedioMensal - a.valorMedioMensal)
-      .slice(0, 2);
-
-    clientesRisco.forEach(c => {
-      alertas.push({
-        tipo: 'cliente',
-        titulo: c.nome,
-        desc: `${c.diasSemComprar} dias sem comprar. Valor: ${fmtBRL(c.valorMedioMensal)}/mês.`,
-        peso: c.valorMedioMensal * 1.5
-      });
-    });
-
-    alertas.sort((x, y) => y.peso - x.peso);
-    alertas = alertas.slice(0, 5);
+    let clientesRisco = state.clientes.filter(c => filialNoEscopo(c.filialId, ui.escopoAtual) && (c.diasSemComprar || 0) > 30 && c.valorMedioMensal > 5000).sort((a, b) => b.valorMedioMensal - a.valorMedioMensal).slice(0, 2);
+    clientesRisco.forEach(c => { alertas.push({ tipo: 'cliente', titulo: c.nome, desc: `${c.diasSemComprar} dias sem comprar. Valor: ${fmtBRL(c.valorMedioMensal)}/mês.`, peso: c.valorMedioMensal * 1.5 }); });
+    alertas.sort((x, y) => y.peso - x.peso); alertas = alertas.slice(0, 5);
   }
 
-  if (alertas.length === 0) {
-    el.innerHTML = '<div style="padding:32px; text-align:center; color:#888;">Tudo tranquilo no radar.</div>';
-    return;
-  }
+  if (alertas.length === 0) { el.innerHTML = '<div style="padding:32px; text-align:center; color:#888;">Tudo tranquilo no radar.</div>'; return; }
 
   el.innerHTML = alertas.map(al => `
     <div class="acao-item">

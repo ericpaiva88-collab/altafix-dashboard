@@ -1,14 +1,7 @@
-// ============================================================
-// main.js — Ponto de entrada do app (Cockpit v3)
-// ============================================================
-
 import { state, ui, session, carregar, salvar } from './state.js';
 import { derivarHistorico } from './calc.js';
 import { fmtBRL, toast, isoDate, normalizarNomeCliente, copiarTexto } from './utils.js';
-import {
-  sbInit, sbLogin, sbLogout, sbSessaoAtual, sbCarregarPerfil,
-  sbCarregarTudo, aplicarDadosDoBanco
-} from './supabase.js';
+import { sbInit, sbLogin, sbLogout, sbSessaoAtual, sbCarregarPerfil, sbCarregarTudo, aplicarDadosDoBanco } from './supabase.js';
 
 import { renderPainel } from './views/painel.js';
 import { renderAgenda } from './views/agenda.js'; 
@@ -17,9 +10,7 @@ import { renderClientes } from './views/clientes.js';
 import { renderProdutos } from './views/produtos.js';
 import { abrirModalLigacao } from './views/ligacoes.js';
 import { setupConfig, renderConfig, renderTudo } from './views/config.js';
-
-// FIX: Importação da nova aba de Análise
-import { renderComparativo, renderCidades, renderFabricantes } from './views/analise.js';
+import { renderAnalise } from './views/analise.js';
 
 export function parseEscopo(str) {
   if (!str || str === 'ALL') return { tipo: 'all' };
@@ -137,77 +128,38 @@ function setupTabs() {
       if (b.dataset.tab === 'agenda') setTimeout(() => { try { renderAgenda(); } catch (e) { console.error(e); } }, 50); 
       if (b.dataset.tab === 'equipe') setTimeout(() => { try { renderEquipe(); } catch (e) { console.error(e); } }, 50);
       if (b.dataset.tab === 'clientes') setTimeout(() => { try { renderClientes(); } catch (e) { console.error(e); } }, 50);
-      if (b.dataset.tab === 'produtos') setTimeout(() => { try { renderProdutos(); } catch (e) { console.error('Erro Produtos:', e); } }, 50);
-      if (b.dataset.tab === 'config') setTimeout(() => { try { renderConfig(); } catch (e) { console.error('Erro Config:', e); } }, 50);
-      
-      // FIX: Ao abrir a aba Análise, já renderiza o Comparativo por padrão
-      if (b.dataset.tab === 'analise') setTimeout(() => { try { renderComparativo(); } catch (e) { console.error('Erro Análise:', e); } }, 50);
+      if (b.dataset.tab === 'produtos') setTimeout(() => { try { renderProdutos(); } catch (e) { console.error(e); } }, 50);
+      if (b.dataset.tab === 'config') setTimeout(() => { try { renderConfig(); } catch (e) { console.error(e); } }, 50);
+      if (b.dataset.tab === 'analise') setTimeout(() => { try { renderAnalise(); } catch (e) { console.error(e); } }, 50);
     };
-  });
-
-  // FIX: Controle das sub-abas (Comparativo, Cidades, Fabricantes)
-  document.querySelectorAll('.subtabs').forEach(bar => {
-    const parent = bar.dataset.parent;
-    bar.querySelectorAll('button').forEach(btn => {
-      btn.onclick = () => {
-        bar.querySelectorAll('button').forEach(x => x.classList.remove('active'));
-        btn.classList.add('active');
-        
-        document.querySelectorAll(`#tab-${parent} .subtab-content`).forEach(x => x.classList.remove('active'));
-        const target = document.getElementById(`subtab-${parent}-${btn.dataset.subtab}`);
-        if (target) target.classList.add('active');
-
-        if (btn.dataset.subtab === 'comparativo') { try { renderComparativo(); } catch (e) {} }
-        if (btn.dataset.subtab === 'cidades') { try { renderCidades(); } catch (e) {} }
-        if (btn.dataset.subtab === 'fabricantes') { try { renderFabricantes(); } catch (e) {} }
-      };
-    });
   });
 }
 
 function setupFiltros() {
-  // Agenda
   const agendaBusca = document.getElementById('agenda-busca'); if (agendaBusca) agendaBusca.oninput = () => renderAgenda();
   const agendaTipo = document.getElementById('agenda-filtro-tipo'); if (agendaTipo) agendaTipo.onchange = () => renderAgenda();
   const agendaVend = document.getElementById('agenda-filtro-vendedor'); if (agendaVend) agendaVend.onchange = () => renderAgenda();
   
-  // Clientes
   const cliBusca = document.getElementById('filtro-cliente-busca'); if (cliBusca) cliBusca.oninput = () => renderClientes();
   const cliVend = document.getElementById('filtro-cliente-vend'); if (cliVend) cliVend.onchange = () => renderClientes();
   const cliStatus = document.getElementById('filtro-cliente-status'); if (cliStatus) cliStatus.onchange = () => renderClientes();
 
-  // Produtos
   const prodBusca = document.getElementById('filtro-produto-busca'); if (prodBusca) prodBusca.oninput = () => renderProdutos();
   const prodCurva = document.getElementById('filtro-produto-curva'); if (prodCurva) prodCurva.onchange = () => renderProdutos();
   const prodFab = document.getElementById('filtro-produto-fabricante'); if (prodFab) prodFab.onchange = () => renderProdutos();
 
-  // FIX: Filtros da aba Análise
-  const cidBusca = document.getElementById('filtro-cidade-busca'); if (cidBusca) cidBusca.oninput = () => renderCidades();
-  const fabBusca = document.getElementById('fab-busca'); if (fabBusca) fabBusca.oninput = () => renderFabricantes();
-  const cidMes = document.getElementById('cidade-mes-select'); if (cidMes) cidMes.onchange = (e) => { ui.mesCidadesSelecionado = e.target.value; renderCidades(); };
-  const fabMes = document.getElementById('fab-mes-select'); if (fabMes) fabMes.onchange = () => renderFabricantes();
-  const compVend = document.getElementById('comp-filtro-vendedor'); 
-  if (compVend) compVend.onchange = (e) => { ui.filtroCompVendedor = e.target.value; renderComparativo(); };
-  
-  const cidEvo = document.getElementById('cidade-filtro-evolucao'); 
-  if (cidEvo) cidEvo.onchange = () => renderCidades();
+  const analiseVend = document.getElementById('analise-filtro-vendedor'); if (analiseVend) analiseVend.onchange = () => renderAnalise();
+  const analisePeriodo = document.getElementById('analise-periodo'); if (analisePeriodo) analisePeriodo.onchange = () => renderAnalise();
 }
 
 function setupBotoes() {
   const helpBtn = document.getElementById('help-btn'); if (helpBtn) helpBtn.onclick = () => document.getElementById('help-modal').classList.add('show');
   const helpClose = document.getElementById('help-close'); if (helpClose) helpClose.onclick = () => document.getElementById('help-modal').classList.remove('show');
   
-  const escopo = document.getElementById('escopo-select'); 
-  if (escopo) escopo.onchange = e => { ui.escopoAtual = e.target.value; renderPainel(); };
-  
-  const mv = document.getElementById('modo-vendedor'); 
-  if (mv) mv.onchange = e => { ui.modoVendedor = e.target.value; renderPainel(); };
-  
-  const painelMesSel = document.getElementById('painel-mes-select'); 
-  if (painelMesSel) painelMesSel.onchange = e => { ui.mesPainelSelecionado = e.target.value; renderPainel(); };
-  
-  const btnNovaLigAgenda = document.getElementById('btn-nova-ligacao-agenda'); 
-  if (btnNovaLigAgenda) btnNovaLigAgenda.onclick = () => { if (window._abrirModalLigacao) window._abrirModalLigacao(); };
+  const escopo = document.getElementById('escopo-select'); if (escopo) escopo.onchange = e => { ui.escopoAtual = e.target.value; renderPainel(); };
+  const mv = document.getElementById('modo-vendedor'); if (mv) mv.onchange = e => { ui.modoVendedor = e.target.value; renderPainel(); };
+  const painelMesSel = document.getElementById('painel-mes-select'); if (painelMesSel) painelMesSel.onchange = e => { ui.mesPainelSelecionado = e.target.value; renderPainel(); };
+  const btnNovaLigAgenda = document.getElementById('btn-nova-ligacao-agenda'); if (btnNovaLigAgenda) btnNovaLigAgenda.onclick = () => { if (window._abrirModalLigacao) window._abrirModalLigacao(); };
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -218,8 +170,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!sess) { mostrarLogin(); return; }
     const perfilOk = await sbCarregarPerfil();
     if (!perfilOk) { document.getElementById('tela-login').style.display = 'flex'; document.getElementById('login-erro').textContent = 'Usuário sem vínculo na tabela vendedores.'; return; }
+    
     toast('⏳ Carregando dados...');
     const dados = await sbCarregarTudo().catch(e => { console.error(e); toast('❌ Erro ao carregar: ' + e.message); return { vendedores: [], clientes: [], produtos: [], lancamentos: [], cidades: [], comparativo: [] }; });
+    
     aplicarDadosDoBanco(dados);
     derivarHistorico();
     ajustarUIUsuario();

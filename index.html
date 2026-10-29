@@ -71,6 +71,8 @@
   </div>
 
   <main class="content-area">
+    
+    <!-- ABA COCKPIT -->
     <section id="tab-painel" class="tab-content active">
       <div class="grid-kpis">
         <div class="kpi-card">
@@ -82,16 +84,23 @@
         <div class="kpi-card"><div class="kpi-header"><span>PROJEÇÃO</span></div><div class="kpi-value" id="painel-projecao">—</div><div class="kpi-hint" id="painel-projecao-hint">—</div></div>
         <div class="kpi-card"><div class="kpi-header"><span>PRECISA / DIA</span></div><div class="kpi-value" id="painel-precisadia">—</div><div class="kpi-hint">Para bater a meta no prazo</div></div>
       </div>
+      
       <div class="grid-meio">
         <div class="card-painel" style="padding:20px;">
           <div class="card-title-row"><h3>Acumulado vs Meta</h3><span class="text-xs text-muted">Linha tracejada = ritmo ideal</span></div>
-          <div style="height: 280px; position:relative; margin-top:16px;"><canvas id="chart-meta-cockpit"></canvas></div>
+          <div style="height: 240px; position:relative; margin-top:16px;"><canvas id="chart-meta-cockpit"></canvas></div>
         </div>
         <div class="card-painel">
           <div class="card-title-row" style="padding:16px 20px; border-bottom:1px solid #eee;"><h3>⚠️ Atenção Agora</h3><a href="#" class="text-xs" style="color:var(--af-vermelho); font-weight:600;" onclick="document.querySelector('[data-tab=\'agenda\']').click(); return false;">Ver todos</a></div>
-          <div id="painel-acoes-container" class="lista-acoes"></div>
+          <div id="painel-acoes-container" class="lista-acoes" style="max-height: 240px; overflow-y:auto;"></div>
         </div>
       </div>
+
+      <div class="card-painel" style="margin-top:20px; padding:20px;">
+        <div class="card-title-row"><h3>Ritmo Semanal</h3><span class="text-xs text-muted">Faturamento por semana do mês</span></div>
+        <div style="height: 160px; position:relative; margin-top:16px;"><canvas id="chart-semanal"></canvas></div>
+      </div>
+
       <div class="card-painel" style="margin-top:20px;">
         <div class="card-title-row" style="padding:16px 20px; border-bottom:1px solid #eee;"><h3>Equipe</h3><span class="text-xs text-muted">Marcador na barra = onde deveria estar hoje</span></div>
         <div style="overflow-x:auto;">
@@ -100,14 +109,21 @@
       </div>
     </section>
 
+    <!-- ABA AGENDA -->
     <section id="tab-agenda" class="tab-content">
-      <div class="page-header" style="display:flex; justify-content:space-between; align-items:flex-end;"><div><h2>Operação / Agenda</h2><p>Quem contatar hoje: retornos agendados, clientes no ciclo de recompra e clientes para reativar.</p></div><button class="btn btn-primary" id="btn-nova-ligacao-agenda">+ Nova Ligação</button></div>
+      <div class="page-header" style="display:flex; justify-content:space-between; align-items:flex-end;">
+        <div>
+          <h2>Operação / Agenda</h2>
+          <p>Quem contatar hoje: retornos agendados, clientes no ciclo de recompra e clientes para reativar.</p>
+        </div>
+        <button class="btn btn-primary" id="btn-nova-ligacao-agenda">+ Nova Ligação</button>
+      </div>
       <div class="grid-kpis" id="agenda-kpis" style="margin-bottom:24px; grid-template-columns: repeat(4, 1fr);"></div>
       <div class="card-painel">
         <div class="card-title-row" style="padding:16px 20px; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center;"><h3>Todas as tarefas</h3><span class="text-xs text-muted" id="agenda-count">0 itens</span></div>
         <div class="filtros-bar" style="padding: 16px 20px; border-bottom: 1px solid #eee; background: #FAFAFA;">
           <input type="text" id="agenda-busca" placeholder="Buscar empresa..." style="flex:1; min-width:200px;">
-                  <select id="agenda-filtro-tipo">
+          <select id="agenda-filtro-tipo">
             <option value="todos">Todos os tipos</option>
             <option value="atrasados">🔴 Retornos Atrasados</option>
             <option value="hoje">🟡 Retornos Hoje</option>
@@ -122,11 +138,13 @@
       </div>
     </section>
 
+    <!-- ABA EQUIPE -->
     <section id="tab-equipe" class="tab-content">
       <div class="page-header"><h2>Equipe</h2><p>Acompanhe a performance individual. Clique no vendedor para ver a ficha 1:1.</p></div>
       <div id="equipe-cards-container" class="grid-cards-vendedores"></div>
     </section>
 
+    <!-- ABA CLIENTES -->
     <section id="tab-clientes" class="tab-content">
       <div class="page-header"><h2>Clientes</h2><p>Ordenados pelo valor mensal atual.</p></div>
       <div class="grid-kpis" id="clientes-kpis" style="margin-bottom:24px; grid-template-columns: repeat(4, 1fr);"></div>
@@ -143,227 +161,89 @@
 
     <!-- ABA PRODUTOS -->
     <section id="tab-produtos" class="tab-content">
-      <div class="page-header">
-        <h2>Produtos</h2>
-        <p>Dados do relatório 361 (curva ABC e estoque).</p>
-      </div>
-
-      <div class="grid-kpis" id="produtos-kpis" style="margin-bottom:24px; grid-template-columns: repeat(4, 1fr);">
-      </div>
-
+      <div class="page-header"><h2>Produtos</h2><p>Dados do relatório 361 (curva ABC e estoque).</p></div>
+      <div class="grid-kpis" id="produtos-kpis" style="margin-bottom:24px; grid-template-columns: repeat(4, 1fr);"></div>
       <div class="card-painel">
         <div class="card-title-row" style="padding:16px 20px; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center;">
-          <h3>Portfólio de Produtos</h3>
-          <span class="text-xs text-muted" id="produtos-count">0 itens</span>
+          <h3>Portfólio de Produtos</h3><span class="text-xs text-muted" id="produtos-count">0 itens</span>
         </div>
-        
         <div class="filtros-bar" style="padding: 16px 20px; border-bottom: 1px solid #eee; background: #FAFAFA;">
           <input type="text" id="filtro-produto-busca" placeholder="Buscar código ou descrição..." style="flex:1; min-width:250px;">
-          
           <select id="filtro-produto-curva">
-            <option value="TODAS">Todas as curvas</option>
-            <option value="A">Curva A</option>
-            <option value="B">Curva B</option>
-            <option value="C">Curva C</option>
+            <option value="TODAS">Todas as curvas</option><option value="A">Curva A</option><option value="B">Curva B</option><option value="C">Curva C</option>
           </select>
-
-          <select id="filtro-produto-fabricante">
-            <option value="">Todos fabricantes</option>
-          </select>
+          <select id="filtro-produto-fabricante"><option value="">Todos fabricantes</option></select>
         </div>
-
         <div style="overflow-x:auto;">
           <table class="tabela-cockpit">
-            <thead>
-              <tr>
-                <th style="width: 60px;">CURVA</th>
-                <th>CÓDIGO</th>
-                <th>DESCRIÇÃO</th>
-                <th>FABRICANTE</th>
-                <th class="num">QTD VENDIDA</th>
-                <th class="num">FATURAMENTO</th>
-                <th class="num">ESTOQUE</th>
-                <th class="num">MÍNIMO</th>
-              </tr>
-            </thead>
-            <tbody id="tbody-produtos">
-            </tbody>
+            <thead><tr><th style="width: 60px;">CURVA</th><th>CÓDIGO</th><th>DESCRIÇÃO</th><th>FABRICANTE</th><th class="num">QTD VENDIDA</th><th class="num">FATURAMENTO</th><th class="num">ESTOQUE</th><th class="num">MÍNIMO</th></tr></thead>
+            <tbody id="tbody-produtos"></tbody>
           </table>
         </div>
       </div>
     </section>
 
     <!-- ABA ANÁLISE -->
-        <!-- ABA ANÁLISE -->
     <section id="tab-analise" class="tab-content">
       <div class="page-header" style="display:flex; justify-content:space-between; align-items:flex-end;">
         <div>
           <h2>Análise & Performance</h2>
-          <p>Visão macro de crescimento, distribuição geográfica e portfólio de fabricantes.</p>
+          <p>Inteligência de crescimento e tendências de mercado.</p>
         </div>
       </div>
 
-      <!-- Sub-abas -->
-      <div class="subtabs" data-parent="analise" style="margin-bottom: 24px;">
-        <button data-subtab="comparativo" class="active">📅 Comparativo YoY</button>
-        <button data-subtab="cidades">🗺️ Cidades</button>
-        <button data-subtab="fabricantes">🏭 Fabricantes</button>
-      </div>
-
-      <!-- Sub-aba: COMPARATIVO -->
-      <div id="subtab-analise-comparativo" class="subtab-content active">
-        <div class="periodo-bar" style="margin-bottom: 24px; background:#FAFAFA; padding:12px 16px; border-radius:8px; border:1px solid var(--af-borda); display:flex; align-items:center; gap:12px;">
-          <label style="font-size:13px; font-weight:600; color:var(--af-t2);">Analisar Vendedor:</label>
-          <select id="comp-filtro-vendedor" class="select-clean" style="min-width:200px;">
-            <option value="">Todos os vendedores</option>
+      <div class="periodo-bar" style="background:#fff; padding:16px; border-radius:8px; border:1px solid var(--af-borda); display:flex; align-items:center; gap:16px; margin-bottom:24px;">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <label style="font-size:12px; font-weight:600; color:var(--af-t2);">PERÍODO:</label>
+          <select id="analise-periodo" class="select-clean" style="min-width:200px;">
+            <option value="ytd">Acumulado (Jan - Mês Atual)</option>
+            <option value="ano">Ano Inteiro</option>
           </select>
         </div>
-
-        <div class="grid-kpis" id="comparativo-kpis" style="margin-bottom:24px; grid-template-columns: repeat(3, 1fr);"></div>
-        
-        <div class="card-painel" style="padding: 20px; margin-bottom: 24px;">
-          <div class="card-title-row"><h3>Evolução 2025 × 2026</h3></div>
-          <div style="height: 300px;"><canvas id="chart-yoy"></canvas></div>
-        </div>
-
-        <div class="card-painel">
-          <div class="card-title-row" style="padding: 16px 20px; border-bottom: 1px solid #eee;"><h3>Detalhamento Mensal</h3></div>
-          <div style="overflow-x:auto;">
-            <table class="tabela-cockpit">
-              <thead>
-                <tr><th>Mês</th><th class="num">2025 Fat.</th><th class="num">2026 Fat.</th><th class="num">Cresc. R$</th><th class="num">Cresc. %</th></tr>
-              </thead>
-              <tbody id="tbody-comparativo"></tbody>
-              <tfoot id="tfoot-comparativo"></tfoot>
-            </table>
-          </div>
+        <div style="display:flex; align-items:center; gap:8px; border-left:1px solid #eee; padding-left:16px;">
+          <label style="font-size:12px; font-weight:600; color:var(--af-t2);">VENDEDOR:</label>
+          <select id="analise-filtro-vendedor" class="select-clean" style="min-width:200px;">
+            <option value="">Todo o time</option>
+          </select>
         </div>
       </div>
 
-      <!-- Sub-aba: CIDADES -->
-      <div id="subtab-analise-cidades" class="subtab-content">
-        <div class="periodo-bar" style="margin-bottom: 24px; display:flex; justify-content:space-between; align-items:center;">
-          <div style="display:flex; gap:12px; align-items:center;">
-            <span style="font-size:13px;color:var(--af-t2);font-weight:600;">📆 Mês:</span>
-            <select id="cidade-mes-select" class="select-clean" style="min-width:180px;"></select>
-            <span style="font-size:13px;color:var(--af-t2);font-weight:600;margin-left:12px;">🏙️ Cidade:</span>
-            <select id="cidade-filtro-evolucao" class="select-clean" style="min-width:240px;"><option value="">Todas (top 5 no gráfico)</option></select>
-          </div>
-        </div>
-
-        <!-- Bloco de Top Movers -->
-        <div class="card-painel" id="card-top-movers" style="display:none; margin-bottom: 24px;">
-          <div class="card-title-row" style="padding: 16px 20px; border-bottom: 1px solid #eee;">
-            <h3>🚀 Maiores Movimentos <span class="text-xs text-muted">vs mês anterior</span></h3>
-          </div>
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; padding:20px;">
-            <div>
-              <div style="font-size:11px;font-weight:700;color:var(--af-verde);margin-bottom:12px;text-transform:uppercase;">▲ Cresceram</div>
-              <div id="top-subiram"></div>
-            </div>
-            <div style="border-left:1px solid #eee; padding-left:20px;">
-              <div style="font-size:11px;font-weight:700;color:var(--af-vermelho);margin-bottom:12px;text-transform:uppercase;">▼ Caíram</div>
-              <div id="top-cairam"></div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Gráfico de Evolução -->
-        <div class="card-painel" id="card-evolucao" style="display:none; margin-bottom: 24px;">
-          <div class="card-title-row" style="padding: 16px 20px; border-bottom: 1px solid #eee;">
-            <h3>📈 Evolução por Cidade</h3>
-          </div>
-          <div style="padding:20px; height:300px;"><canvas id="chart-evolucao"></canvas></div>
-        </div>
-
-        <div class="grid-kpis" id="cidades-kpis" style="margin-bottom:24px; grid-template-columns: repeat(3, 1fr);"></div>
-
-        <div class="card-painel">
-          <div class="card-title-row" style="padding: 16px 20px; border-bottom: 1px solid #eee; display:flex; justify-content:space-between; align-items:center;">
-            <h3>Ranking de Cidades</h3>
-            <input type="text" id="filtro-cidade-busca" placeholder="Buscar cidade..." style="padding: 6px 12px; border: 1px solid var(--af-borda); border-radius: 6px; font-size: 13px;">
-          </div>
-          <div style="overflow-x:auto;">
-            <table class="tabela-cockpit">
-              <thead>
-                <tr><th>Cidade</th><th>UF</th><th class="num">Faturamento</th><th class="num">Δ% vs Mês Ant.</th><th class="num">Clientes</th><th class="num">Ticket Médio</th></tr>
-              </thead>
-              <tbody id="tbody-cidades"></tbody>
-            </table>
-          </div>
-        </div>
+      <div class="grid-kpis" id="analise-kpis" style="margin-bottom:24px; grid-template-columns: repeat(3, 1fr);"></div>
+      
+      <div class="card-painel" style="padding: 24px; margin-bottom: 24px;">
+        <div class="card-title-row"><h3>Sazonalidade — Ano contra Ano</h3><span class="text-xs text-muted">Passe o mouse nos pontos para ver a variação</span></div>
+        <div style="height: 320px; margin-top:16px;"><canvas id="chart-yoy-line"></canvas></div>
       </div>
 
-      <!-- Sub-aba: FABRICANTES -->
-      <div id="subtab-analise-fabricantes" class="subtab-content">
-        <div class="periodo-bar" style="margin-bottom: 24px;">
-          <span style="font-size:13px;color:var(--af-t2);font-weight:600;">📆 Mês:</span>
-          <select id="fab-mes-select" class="select-clean" style="min-width:180px;"></select>
-        </div>
-
-        <div class="grid-kpis" id="fab-kpis" style="margin-bottom:24px; grid-template-columns: repeat(3, 1fr);"></div>
-
-        <div class="card-painel">
-          <div class="card-title-row" style="padding: 16px 20px; border-bottom: 1px solid #eee; display:flex; justify-content:space-between; align-items:center;">
-            <h3>Ranking de Fabricantes</h3>
-            <input type="text" id="fab-busca" placeholder="Buscar fabricante..." style="padding: 6px 12px; border: 1px solid var(--af-borda); border-radius: 6px; font-size: 13px;">
-          </div>
-          <div style="overflow-x:auto;">
-            <table class="tabela-cockpit">
-              <thead>
-                <tr><th>Fabricante</th><th class="num">Faturamento</th><th class="num">Δ% vs Mês Ant.</th><th class="num">Qtd. Produtos</th><th class="num">% Total</th></tr>
-              </thead>
-              <tbody id="tbody-fabricantes"></tbody>
-            </table>
-          </div>
+      <div class="card-painel">
+        <div class="card-title-row" style="padding: 16px 20px; border-bottom: 1px solid #eee;"><h3>Ranking do time</h3></div>
+        <div style="overflow-x:auto;">
+          <table class="tabela-cockpit">
+            <thead><tr><th>VENDEDOR</th><th class="num">2025</th><th class="num">2026</th><th class="num">VARIAÇÃO</th><th class="num">PEDIDOS</th><th>LEITURA</th></tr></thead>
+            <tbody id="tbody-ranking-leitura"></tbody>
+          </table>
         </div>
       </div>
     </section>
 
-        <section id="tab-config" class="tab-content">
-      <div class="page-header">
-        <h2>Configurações</h2>
-        <p>Gestão de importações, metas da equipe e parâmetros do sistema.</p>
-      </div>
-
-      <!-- Bloco 1: Importação -->
+    <!-- ABA CONFIG -->
+    <section id="tab-config" class="tab-content">
+      <div class="page-header"><h2>Configurações</h2><p>Gestão de importações, metas da equipe e parâmetros do sistema.</p></div>
       <div class="card-painel" style="margin-bottom:24px;">
-        <div class="card-title-row" style="padding:16px 20px; border-bottom:1px solid #eee;">
-          <h3>📥 Importar Planilhas (ERP)</h3>
-          <span class="text-xs text-muted">Selecione a filial no topo antes de importar</span>
-        </div>
+        <div class="card-title-row" style="padding:16px 20px; border-bottom:1px solid #eee;"><h3>📥 Importar Planilhas (ERP)</h3><span class="text-xs text-muted">Selecione a filial no topo antes de importar</span></div>
         <div style="padding: 20px; display:grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap:16px;">
-          
-          <div class="drop-zone" id="drop-erp">
-            <div class="icone">📊</div>
-            <div class="texto">324 Detalhado</div>
-            <div class="sub">Arraste ou clique para selecionar</div>
-          </div>
+          <div class="drop-zone" id="drop-erp"><div class="icone">📊</div><div class="texto">324 Detalhado</div><div class="sub">Arraste ou clique</div></div>
           <input type="file" id="erp-input" accept=".xlsx,.xls" multiple hidden>
-          <div id="erp-status" style="display:none;"></div>
-
-          <div class="drop-zone" id="drop-740">
-            <div class="icone">🗺️</div>
-            <div class="texto">740 Cidades</div>
-            <div class="sub">Arraste ou clique para selecionar</div>
-          </div>
+          <div class="drop-zone" id="drop-740"><div class="icone">🗺️</div><div class="texto">740 Cidades</div><div class="sub">Arraste ou clique</div></div>
           <input type="file" id="input-740" accept=".xlsx,.xls" multiple hidden>
-
-          <div class="drop-zone" id="drop-abc">
-            <div class="icone">📦</div>
-            <div class="texto">361 Curva ABC</div>
-            <div class="sub">Arraste ou clique para selecionar</div>
-          </div>
+          <div class="drop-zone" id="drop-abc"><div class="icone">📦</div><div class="texto">361 Curva ABC</div><div class="sub">Arraste ou clique</div></div>
           <input type="file" id="abc-input" accept=".xlsx,.xls" multiple hidden>
-
         </div>
         <div style="padding: 0 20px 20px 20px; display:flex; justify-content:space-between; align-items:center; border-top: 1px solid #eee; padding-top: 16px;">
           <div id="bases-status" style="font-size:13px; color:var(--af-t2);">Nenhuma base pendente.</div>
           <button class="btn btn-primary" id="btn-salvar-bases">✓ Salvar e Sincronizar</button>
         </div>
       </div>
-
-      <!-- Bloco 2: Metas e Vendedores -->
       <div class="card-painel">
         <div class="card-title-row" style="padding:16px 20px; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center;">
           <h3>👤 Metas e Vendedores</h3>
@@ -374,28 +254,13 @@
         </div>
         <div style="overflow-x:auto;">
           <table class="tabela-cockpit">
-            <thead>
-              <tr>
-                <th>VENDEDOR</th>
-                <th>EMAIL</th>
-                <th>FILIAL</th>
-                <th class="num">META FATURAMENTO</th>
-                <th class="num">META TICKET</th>
-                <th style="text-align:center;">ADM</th>
-                <th style="text-align:center;">ATIVO</th>
-                <th style="text-align:center;">AÇÃO</th>
-              </tr>
-            </thead>
-            <tbody id="tbody-metas">
-              <!-- Preenchido via JS -->
-            </tbody>
+            <thead><tr><th>VENDEDOR</th><th>EMAIL</th><th>FILIAL</th><th class="num">META FAT.</th><th class="num">META TICKET</th><th style="text-align:center;">ADM</th><th style="text-align:center;">ATIVO</th><th style="text-align:center;">AÇÃO</th></tr></thead>
+            <tbody id="tbody-metas"></tbody>
           </table>
         </div>
         <div style="padding: 16px 20px; border-top:1px solid #eee; display:flex; justify-content:space-between;">
-          <button class="btn btn-sm" id="btn-add-vend">+ Adicionar Vendedor</button>
-          <div style="display:flex; gap:8px;">
-            <button class="btn btn-sm" id="btn-sinc-metas">☁️ Salvar no Servidor</button>
-          </div>
+          <button class="btn btn-sm" id="btn-add-vend">+ Adicionar</button>
+          <button class="btn btn-sm" id="btn-sinc-metas">☁️ Salvar no Servidor</button>
         </div>
       </div>
     </section>
