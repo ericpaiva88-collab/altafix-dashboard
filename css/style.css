@@ -602,3 +602,46 @@ body {
   height: 16px;
   cursor: pointer;
 }
+/* =========================================
+   Sub-abas (Análise)
+   ========================================= */
+.subtabs {
+  display: flex;
+  gap: 8px;
+  border-bottom: 1px solid var(--af-borda);
+  margin-bottom: 24px;
+  overflow-x: auto;
+}
+
+.subtabs button {
+  background: transparent;
+  border: none;
+  padding: 12px 16px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--af-t2);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.15s ease;
+  font-family: inherit;
+  white-space: nowrap;
+}
+
+.subtabs button:hover {
+  color: var(--af-t1);
+}
+
+.subtabs button.active {
+  color: var(--af-t1);
+  font-weight: 600;
+  border-bottom-color: var(--af-preto);
+}
+
+.subtab-content {
+  display: none;
+  animation: fadein 0.2s ease-in-out;
+}
+
+.subtab-content.active {
+  display: block;
+}
