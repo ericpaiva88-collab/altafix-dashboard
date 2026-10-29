@@ -3,9 +3,9 @@
 // ============================================================
 
 import { state, ui } from '../state.js';
-import { fmtBRL, fmtPct, escapeHtml, isoDate, normalizarNomeCliente, diffDias } from '../utils.js';
+import { fmtBRL, fmtPct, escapeHtml, isoDate, inicioSemana, normalizarNomeCliente, diffDias } from '../utils.js';
 import {
-  mesRefAtual, calcFilial, calcVendedor, calcDiasUteisNoMes, calcDiasUteisDecorridos, escopoNome, filialNoEscopo
+  mesRefAtual, calcFilial, calcVendedor, calcDiasUteisNoMes, calcDiasUteisDecorridos, escopoNome, filialNoEscopo, vendedoresNoEscopo, getMetaVendedor
 } from '../calc.js';
 
 export function renderPainel() {
@@ -35,15 +35,10 @@ export function renderPainel() {
   let vendedorFoco = null;
   let f = null;
 
-  if (isModoVendedor) {
-    vendedorFoco = state.vendedores.find(v => v.id === ui.modoVendedor);
-  }
+  if (isModoVendedor) vendedorFoco = state.vendedores.find(v => v.id === ui.modoVendedor);
 
-  if (vendedorFoco) {
-    f = calcVendedor(vendedorFoco, a, m);
-  } else {
-    f = calcFilial(a, m, ui.escopoAtual);
-  }
+  if (vendedorFoco) f = calcVendedor(vendedorFoco, a, m);
+  else f = calcFilial(a, m, ui.escopoAtual);
 
   const faturado = isModoVendedor ? f.faturado : f.faturadoTotal;
   const meta = isModoVendedor ? f.meta : f.metaTotal;
@@ -52,7 +47,6 @@ export function renderPainel() {
   const porDia = isModoVendedor ? f.metaDia : f.porDia;
   const pctMeta = meta > 0 ? (faturado / meta) * 100 : 0;
   const diasFaltam = f.diasFaltam;
-  
   let status = f.status;
 
   const numPct = document.getElementById('painel-pct');
@@ -97,15 +91,14 @@ export function renderPainel() {
   
   const cardEquipe = document.getElementById('painel-equipe-container')?.closest('.card-painel');
   if (cardEquipe) {
-    if (isModoVendedor) {
-      cardEquipe.style.display = 'none';
-    } else {
+    if (isModoVendedor) cardEquipe.style.display = 'none';
+    else {
       cardEquipe.style.display = 'block';
       renderTabelaEquipe(a, m, f);
     }
   }
 
-  renderGraficoSemanal(a, m, isModoVendedor ? vendedorFoco.id : null);
+  renderSemana();
   renderAtencaoAgora(a, m, vendedorFoco);
 }
 
@@ -135,9 +128,7 @@ function renderGraficoAcumulado(a, m, meta, vendedorId) {
       const iso = a + '-' + String(m + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
       state.lancamentos.forEach(l => {
         if (l.data === iso && filialNoEscopo(l.filialId, ui.escopoAtual)) {
-          if (!vendedorId || l.vendedor === vendedorId) {
-            acumulado += (l.valor || 0);
-          }
+          if (!vendedorId || l.vendedor === vendedorId) acumulado += (l.valor || 0);
         }
       });
       dataRealizado.push(acumulado);
@@ -179,47 +170,105 @@ function renderGraficoAcumulado(a, m, meta, vendedorId) {
   });
 }
 
-let chartSemanalInstance = null;
-function renderGraficoSemanal(a, m, vendedorId) {
-  const ctx = document.getElementById('chart-semanal');
-  if (!ctx || typeof Chart === 'undefined') return;
-  if (chartSemanalInstance) chartSemanalInstance.destroy();
+export function renderSemana() {
+  const ini = inicioSemana(ui.semanaRef);
+  const fim = new Date(ini);
+  fim.setDate(fim.getDate() + 5);
 
-  const semanas = [0, 0, 0, 0, 0];
-  const prefix = a + '-' + String(m + 1).padStart(2, '0');
+  const el = document.getElementById('sem-titulo');
+  if (!el) return;
+
+  el.textContent = String(ini.getDate()).padStart(2, '0') + '/' +
+    String(ini.getMonth() + 1).padStart(2, '0') + ' a ' +
+    String(fim.getDate()).padStart(2, '0') + '/' +
+    String(fim.getMonth() + 1).padStart(2, '0');
+
+  const ds = ['SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'];
+
+  let ativos = vendedoresNoEscopo(ui.escopoAtual).filter(v => v.ativo && v.papel !== 'administrativo');
+  if (ui.modoVendedor) ativos = ativos.filter(v => v.id === ui.modoVendedor);
+
+  const dados = ativos.map(v => {
+    const pd = {};
+    for (let i = 0; i < 6; i++) {
+      const d = new Date(ini);
+      d.setDate(d.getDate() + i);
+      const iso = isoDate(d);
+      const lancs = state.lancamentos.filter(l => l.vendedor === v.id && l.data === iso);
+      let val = 0;
+      lancs.forEach(l => { val += (l.valor || 0); });
+      pd[i] = val;
+    }
+    let t = 0;
+    for (let j = 0; j < 6; j++) t += pd[j];
+    return { v, porDia: pd, total: t };
+  });
+
+  const td = [0, 0, 0, 0, 0, 0];
+  dados.forEach(d => { for (let i = 0; i < 6; i++) td[i] += d.porDia[i]; });
+  const tg = td.reduce((a, b) => a + b, 0);
+
+  const duMes = calcDiasUteisNoMes(ini.getFullYear(), ini.getMonth());
+  const metaSem = vendedoresNoEscopo(ui.escopoAtual)
+    .filter(v => v.ativo && !v.supervisor && v.papel !== 'administrativo')
+    .reduce((s, v) => s + (getMetaVendedor(v, ini.getFullYear(), ini.getMonth()).meta || 0), 0) * (5 / Math.max(1, duMes));
   
-  state.lancamentos.forEach(l => {
-    if (l.data.indexOf(prefix) !== 0) return;
-    if (vendedorId && l.vendedor !== vendedorId) return;
-    
-    const dia = parseInt(l.data.slice(8, 10), 10);
-    const semanaIdx = Math.ceil(dia / 7) - 1;
-    if (semanaIdx >= 0 && semanaIdx < 5) {
-      semanas[semanaIdx] += (l.valor || 0);
-    }
-  });
+  const pct = metaSem > 0 ? (tg / metaSem) * 100 : 0;
 
-  chartSemanalInstance = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: ['Semana 1', 'Semana 2', 'Semana 3', 'Semana 4', 'Semana 5'],
-      datasets: [{
-        label: 'Faturamento',
-        data: semanas,
-        backgroundColor: '#0B0B0B',
-        borderRadius: 4,
-        barThickness: 40
-      }]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => fmtBRL(c.parsed.y) } } },
-      scales: {
-        y: { beginAtZero: true, grid: { color: '#f0f0f0' }, ticks: { callback: v => 'R$ ' + (v/1000).toFixed(0) + 'k' } },
-        x: { grid: { display: false } }
-      }
+  const fatEl = document.getElementById('semana-fat');
+  if (fatEl) fatEl.innerHTML = fmtBRL(tg);
+  const metaLabel = document.getElementById('semana-meta-label');
+  if (metaLabel) metaLabel.innerHTML = `Meta: ${fmtBRL(metaSem)}`;
+  const pctEl = document.getElementById('semana-pct');
+  if (pctEl) pctEl.innerHTML = `${pct.toFixed(0)}% da meta semanal`;
+  
+  const barra = document.getElementById('semana-barra');
+  if (barra) {
+    barra.style.width = Math.min(100, pct) + '%';
+    barra.className = 'tabela-barra-fill ' + (pct >= 100 ? 'verde' : (pct >= 80 ? '' : 'vermelho'));
+  }
+
+  let h = '<tr><th>Vendedor</th>';
+  for (let i = 0; i < 6; i++) h += '<th class="num">' + ds[i] + '</th>';
+  h += '<th class="num">Total</th></tr>';
+
+  let b = '';
+  dados.forEach(row => {
+    b += '<tr><td><strong>' + escapeHtml(row.v.nome) + '</strong></td>';
+    for (let i = 0; i < 6; i++) {
+      b += '<td class="num">' + (row.porDia[i] > 0 ? fmtBRL(row.porDia[i]) : '—') + '</td>';
     }
+    b += '<td class="num"><strong>' + fmtBRL(row.total) + '</strong></td></tr>';
   });
+  b += '<tr style="background:#0B0B0B;color:#fff;font-weight:700;"><td>TOTAL</td>';
+  for (let j = 0; j < 6; j++) {
+    b += '<td class="num">' + (td[j] > 0 ? fmtBRL(td[j]) : '—') + '</td>';
+  }
+  b += '<td class="num">' + fmtBRL(tg) + '</td></tr>';
+
+  const semDesktop = document.getElementById('sem-desktop');
+  if (semDesktop) semDesktop.innerHTML = '<div style="overflow-x:auto;"><table class="tabela-cockpit">' + h + b + '</table></div>';
+
+  const tabs = document.getElementById('sem-tabs');
+  if (tabs) {
+    tabs.querySelectorAll('button').forEach(btn => {
+      if (parseInt(btn.dataset.dia, 10) === ui.diaSemanaMobile) btn.classList.add('active');
+      else btn.classList.remove('active');
+    });
+  }
+
+  const idx = ui.diaSemanaMobile - 1;
+  const dd2 = new Date(ini);
+  dd2.setDate(dd2.getDate() + idx);
+
+  let hh = '<div style="margin-bottom:8px;font-weight:600;">' + ds[idx] + ' — ' + String(dd2.getDate()).padStart(2, '0') + '/' + String(dd2.getMonth() + 1).padStart(2, '0') + '</div>';
+  dados.forEach(row => {
+    const x = row.porDia[idx];
+    hh += '<div class="ficha-lista-item"><div class="nome">' + escapeHtml(row.v.nome) + '</div><div class="valor">' + (x > 0 ? fmtBRL(x) : '—') + '</div></div>';
+  });
+  
+  const semMobile = document.getElementById('sem-mobile');
+  if (semMobile) semMobile.innerHTML = hh;
 }
 
 function renderTabelaEquipe(a, m, f) {

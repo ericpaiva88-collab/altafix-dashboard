@@ -1,5 +1,5 @@
 // ============================================================
-// views/equipe.js — Cards e Ficha do Vendedor (Histórico)
+// views/equipe.js — Cards e Ficha do Vendedor (1:1)
 // ============================================================
 
 import { state, ui } from '../state.js';
@@ -75,71 +75,75 @@ window._abrirFichaVendedor = function(vendedorId) {
   const v = state.vendedores.find(x => x.id === vendedorId);
   if (!v) return;
 
-  const comp = comparativoNoEscopo(ui.escopoAtual);
-  let hist25 = [], hist26 = [];
-  const labels = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-  
-  let tot25 = 0, tot26 = 0, ped25 = 0, ped26 = 0;
+  const hj = isoDate(new Date());
+  const clientesDoVendedor = state.clientes.filter(c => c.vendedor === v.id);
 
-  labels.forEach(mes => {
-    const mComp = comp.find(c => c.mes.toLowerCase().startsWith(mes.toLowerCase()));
-    let f25 = 0, f26 = 0, p25 = 0, p26 = 0;
-    if (mComp && mComp.vendedores) {
-      const vd = mComp.vendedores[v.nome.toUpperCase()];
-      if (vd) {
-        f25 = vd.fat2025 || 0; f26 = vd.fat2026 || 0;
-        p25 = vd.ped2025 || 0; p26 = vd.ped2026 || 0;
-      }
-    }
-    hist25.push(f25); hist26.push(f26);
-    tot25 += f25; tot26 += f26; ped25 += p25; ped26 += p26;
-  });
+  const topClientes = clientesDoVendedor
+    .filter(c => c.ultimaCompra && diffDias(c.ultimaCompra, hj) < 30)
+    .sort((a, b) => (b.valorMedioMensal || 0) - (a.valorMedioMensal || 0))
+    .slice(0, 5);
 
-  const crescPct = tot25 > 0 ? ((tot26 - tot25) / tot25) * 100 : null;
+  const clientesRisco = clientesDoVendedor
+    .filter(c => {
+      if (!c.ultimaCompra) return false;
+      const d = diffDias(c.ultimaCompra, hj);
+      return d >= 30 && d <= 180;
+    })
+    .sort((a, b) => (b.valorMedioMensal || 0) - (a.valorMedioMensal || 0))
+    .slice(0, 5);
 
   let html = `
-    <div class="ficha-header">
+    <div class="ficha-header" style="padding-bottom:12px;">
       <div>
         <h2>${escapeHtml(v.nome)}</h2>
-        <p>Ficha de desempenho · Visão Histórica</p>
+        <p>Ficha de desempenho · Análise 1:1</p>
       </div>
-      <button class="btn" onclick="document.getElementById('ficha-vendedor-modal').classList.remove('show')">Fechar</button>
+      <div style="display:flex; align-items:center; gap:12px;">
+        <select id="ficha-filtro-periodo" class="select-clean" style="font-size:12px;">
+          <option value="6">Últimos 6 meses</option>
+          <option value="12" selected>Últimos 12 meses</option>
+        </select>
+        <button class="btn btn-sm" onclick="document.getElementById('ficha-vendedor-modal').classList.remove('show')">Fechar</button>
+      </div>
     </div>
-    <div class="ficha-body" style="grid-template-columns: 1fr;">
-      
-      <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:16px; margin-bottom:24px;">
-        <div class="ficha-kpi-box">
-          <div class="lbl">FATURAMENTO 2026</div>
-          <div class="val">${fmtBRL(tot26)}</div>
-          <div class="detalhe" style="font-size:11px; color:var(--af-verde); font-weight:600;">
-            ${crescPct != null ? (crescPct > 0 ? '▲ +' : '▼ ') + crescPct.toFixed(1) + '%' : 'Sem base 2025'}
-          </div>
-        </div>
-        <div class="ficha-kpi-box">
-          <div class="lbl">FATURAMENTO 2025</div>
-          <div class="val" style="color:var(--af-t3)">${fmtBRL(tot25)}</div>
-        </div>
-        <div class="ficha-kpi-box">
-          <div class="lbl">PEDIDOS (A→B)</div>
-          <div class="val">${ped25} → ${ped26}</div>
-        </div>
-        <div class="ficha-kpi-box">
-          <div class="lbl">TICKET MÉDIO 2026</div>
-          <div class="val">${fmtBRL(ped26 > 0 ? tot26/ped26 : 0)}</div>
-        </div>
-      </div>
 
-      <div style="height:260px; margin-bottom:24px;">
+    <div class="ficha-body" style="padding:24px; display:block;">
+      
+      <div style="height:240px; margin-bottom:24px;">
         <canvas id="chart-ficha-evolucao"></canvas>
       </div>
 
-      <div style="background:#FAFAFA; padding:16px; border-radius:8px; border-left:3px solid var(--af-preto); font-size:13px; color:var(--af-t2);">
-        <strong>Resumo para Feedback:</strong> No período comparado, <strong>${v.nome}</strong> 
-        ${crescPct > 0 ? 'cresceu' : (crescPct < 0 ? 'caiu' : 'manteve')} 
-        ${crescPct != null ? Math.abs(crescPct).toFixed(1) + '%' : ''} em relação a 2025 
-        (${fmtBRL(tot25)} → ${fmtBRL(tot26)}).
-      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:24px;">
+        
+        <div>
+          <div style="font-size:13px; font-weight:700; margin-bottom:12px; color:var(--af-verde);">🏆 Melhores Clientes (Ativos)</div>
+          <div class="ficha-lista">
+            ${topClientes.length === 0 ? '<div style="padding:16px; color:#888; font-size:12px;">Nenhum cliente ativo.</div>' : ''}
+            ${topClientes.map(c => `
+              <div class="ficha-lista-item">
+                <div><div class="nome">${escapeHtml(c.nome)}</div><div class="detalhe">Última: ${c.ultimaCompra.split('-').reverse().join('/')}</div></div>
+                <div class="valor">${fmtBRL(c.valorMedioMensal || 0)}</div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
 
+        <div>
+          <div style="font-size:13px; font-weight:700; margin-bottom:12px; color:var(--af-vermelho);">⚠️ Clientes em Risco</div>
+          <div class="ficha-lista">
+            ${clientesRisco.length === 0 ? '<div style="padding:16px; color:#888; font-size:12px;">Tudo em ordem.</div>' : ''}
+            ${clientesRisco.map(c => {
+              const dias = diffDias(c.ultimaCompra, hj);
+              return `
+              <div class="ficha-lista-item">
+                <div><div class="nome">${escapeHtml(c.nome)}</div><div class="detalhe" style="color:var(--af-vermelho);">${dias} dias parado</div></div>
+                <div class="valor">${fmtBRL(c.valorMedioMensal || 0)}</div>
+              </div>
+            `}).join('')}
+          </div>
+        </div>
+
+      </div>
     </div>
   `;
 
@@ -148,32 +152,66 @@ window._abrirFichaVendedor = function(vendedorId) {
     modal = document.createElement('div');
     modal.id = 'ficha-vendedor-modal';
     modal.className = 'modal modal-ficha';
-    modal.innerHTML = '<div class="modal-content" style="max-width:800px;"></div>';
+    modal.innerHTML = '<div class="modal-content" style="max-width:900px;"></div>';
     document.body.appendChild(modal);
   }
   modal.querySelector('.modal-content').innerHTML = html;
   modal.classList.add('show');
   modal.onclick = e => { if (e.target.id === 'ficha-vendedor-modal') modal.classList.remove('show'); };
 
-  setTimeout(() => {
+  const renderGrafico = (mesesQtd) => {
     const ctx = document.getElementById('chart-ficha-evolucao');
     if (!ctx) return;
     if (chartFichaInstance) chartFichaInstance.destroy();
-    
+
+    const comp = comparativoNoEscopo(ui.escopoAtual);
+    const labels = [];
+    const hist25 = [];
+    const hist26 = [];
+    const hjMes = new Date().getMonth();
+    const anoAtual = new Date().getFullYear();
+
+    for (let i = mesesQtd - 1; i >= 0; i--) {
+      const d = new Date(anoAtual, hjMes - i, 1);
+      const mIdx = d.getMonth();
+      const mAno = d.getFullYear();
+      const mNome = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][mIdx];
+      labels.push(mNome);
+
+      const mComp = comp.find(c => c.mes.toLowerCase().startsWith(mNome.toLowerCase()));
+      let f25 = 0;
+      if (mComp && mComp.vendedores && mComp.vendedores[v.nome.toUpperCase()]) {
+        f25 = mComp.vendedores[v.nome.toUpperCase()].fat2025 || 0;
+      }
+      hist25.push(f25);
+
+      let f26 = 0;
+      const prefix = mAno + '-' + String(mIdx + 1).padStart(2, '0');
+      state.lancamentos.forEach(l => {
+        if (l.vendedor === v.id && l.data.indexOf(prefix) === 0) f26 += (l.valor || 0);
+      });
+      hist26.push(f26);
+    }
+
     chartFichaInstance = new Chart(ctx, {
       type: 'line',
       data: {
         labels,
         datasets: [
-          { label: '2025', data: hist25, borderColor: '#D4D1CA', tension: 0.3 },
-          { label: '2026', data: hist26, borderColor: '#0B0B0B', borderWidth: 2, tension: 0.3 }
+          { label: '2025', data: hist25, borderColor: '#D4D1CA', borderWidth: 2, tension: 0.3 },
+          { label: '2026', data: hist26, borderColor: '#0B0B0B', borderWidth: 3, tension: 0.3 }
         ]
       },
       options: {
         responsive: true, maintainAspectRatio: false,
         plugins: { legend: { position: 'bottom' } },
-        scales: { y: { beginAtZero: true, ticks: { callback: v => 'R$ ' + (v/1000).toFixed(0) + 'k' } } }
+        scales: { y: { beginAtZero: true, ticks: { callback: val => 'R$ ' + (val/1000).toFixed(0) + 'k' } } }
       }
     });
+  };
+
+  setTimeout(() => {
+    renderGrafico(12);
+    document.getElementById('ficha-filtro-periodo').onchange = (e) => renderGrafico(parseInt(e.target.value, 10));
   }, 100);
 };

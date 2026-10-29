@@ -71,7 +71,6 @@
   </div>
 
   <main class="content-area">
-    
     <!-- ABA COCKPIT -->
     <section id="tab-painel" class="tab-content active">
       <div class="grid-kpis">
@@ -96,9 +95,40 @@
         </div>
       </div>
 
+      <!-- NAVEGAÇÃO SEMANAL -->
       <div class="card-painel" style="margin-top:20px; padding:20px;">
-        <div class="card-title-row"><h3>Ritmo Semanal</h3><span class="text-xs text-muted">Faturamento por semana do mês</span></div>
-        <div style="height: 160px; position:relative; margin-top:16px;"><canvas id="chart-semanal"></canvas></div>
+        <div class="card-title-row" style="margin-bottom:16px;">
+          <h3>Ritmo Semanal e Diário</h3>
+          <div style="display:flex; align-items:center; gap:12px;">
+            <button class="btn btn-sm" id="sem-prev" style="padding:4px 8px;">◀</button>
+            <span id="sem-titulo" style="font-weight:600; font-size:13px;">Carregando...</span>
+            <button class="btn btn-sm" id="sem-next" style="padding:4px 8px;">▶</button>
+          </div>
+        </div>
+        
+        <div style="display:flex; gap:20px; align-items:center; background:#FAFAFA; padding:12px 16px; border-radius:8px; border:1px solid var(--af-borda); margin-bottom:16px;">
+          <div>
+            <div class="text-xs text-muted" style="font-weight:600; text-transform:uppercase;">Faturado na Semana</div>
+            <div style="font-size:20px; font-weight:700; color:var(--af-t1);" id="semana-fat">R$ 0,00</div>
+          </div>
+          <div style="flex:1;">
+            <div style="display:flex; justify-content:space-between; font-size:11px; font-weight:600; color:var(--af-t2); margin-bottom:4px;">
+              <span id="semana-meta-label">Meta: R$ 0,00</span>
+              <span id="semana-pct">0%</span>
+            </div>
+            <div class="tabela-barra-bg" style="height:6px;">
+              <div class="tabela-barra-fill" id="semana-barra" style="width:0%;"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="semana-tabs" id="sem-tabs" style="display:flex; gap:8px; margin-bottom:12px;">
+          <button data-dia="1">SEG</button><button data-dia="2">TER</button>
+          <button data-dia="3">QUA</button><button data-dia="4">QUI</button>
+          <button data-dia="5">SEX</button><button data-dia="6">SÁB</button>
+        </div>
+        <div class="semana-desktop" id="sem-desktop"></div>
+        <div class="semana-mobile" id="sem-mobile"></div>
       </div>
 
       <div class="card-painel" style="margin-top:20px;">
@@ -211,7 +241,7 @@
       <div class="grid-kpis" id="analise-kpis" style="margin-bottom:24px; grid-template-columns: repeat(3, 1fr);"></div>
       
       <div class="card-painel" style="padding: 24px; margin-bottom: 24px;">
-        <div class="card-title-row"><h3>Sazonalidade — Ano contra Ano</h3><span class="text-xs text-muted">Passe o mouse nos pontos para ver a variação</span></div>
+        <div class="card-title-row"><h3>Sazonalidade — Ano contra Ano</h3><span class="text-xs text-muted">Dados de 2026 atualizados em tempo real</span></div>
         <div style="height: 320px; margin-top:16px;"><canvas id="chart-yoy-line"></canvas></div>
       </div>
 
