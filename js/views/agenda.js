@@ -1,9 +1,9 @@
 // ============================================================
-// views/agenda.js — Fila de Trabalho (Modo Foco + WhatsApp)
+// views/agenda.js — Fila de Trabalho (Lista + Modo Foco)
 // ============================================================
 
 import { state, ui } from '../state.js';
-import { fmtBRL, escapeHtml, isoDate, diffDias, normalizarNomeCliente, abrirWhatsApp } from '../utils.js';
+import { fmtBRL, escapeHtml, isoDate, diffDias, normalizarNomeCliente, abrirWhatsApp, toast } from '../utils.js';
 import { filialNoEscopo } from '../calc.js';
 
 let focoFila = [];
@@ -92,16 +92,31 @@ function renderModoListaView() {
     return;
   }
 
-  tbody.innerHTML = focoFila.map(f => `
+  tbody.innerHTML = focoFila.map(f => {
+    const tel = obterTelefoneCliente(f);
+    let btnZap = '';
+    if (tel) {
+      btnZap = `<button class="btn btn-sm" style="background:#25D366; color:#fff; border-color:#25D366;" onclick="event.stopPropagation(); window._abrirWhatsApp('${tel}', '${escapeHtml(f.cliente)}', '${escapeHtml(f.vendedor)}')">💬 Zap</button>`;
+    } else {
+      btnZap = `<button class="btn btn-sm" style="background:#e2e8f0; color:#94a3b8; border-color:#cbd5e1;" onclick="event.stopPropagation(); toast('⚠ Cliente sem telefone.')">💬 Zap</button>`;
+    }
+
+    return `
       <tr>
         <td data-label="Tipo"><span class="badge ${f.tipoBadge}">${f.tipoLabel}</span></td>
         <td data-label="Cliente"><strong>${escapeHtml(f.cliente)}</strong></td>
         <td data-label="Contexto" style="color:var(--af-t2); font-size:12px;">${escapeHtml(f.contexto)}</td>
         <td data-label="Vendedor">${escapeHtml(f.vendedor)}</td>
         <td class="num" data-label="Vale/Mês">${fmtBRL(f.valor)}</td>
-        <td style="text-align:center;"><button class="btn-ligar" data-agenda-ligar="${f.id}">Ligar</button></td>
+        <td style="text-align:center;">
+          <div style="display:flex; gap:6px; justify-content:center;">
+            ${btnZap}
+            <button class="btn-ligar" data-agenda-ligar="${f.id}">Ligar</button>
+          </div>
+        </td>
       </tr>
-  `).join('');
+    `;
+  }).join('');
 
   tbody.querySelectorAll('[data-agenda-ligar]').forEach(btn => {
     btn.onclick = () => {
@@ -128,6 +143,7 @@ function renderModoFocoView() {
   const elProg = document.getElementById('foco-progresso');
   const btnPular = document.getElementById('btn-foco-pular');
   const btnLigar = document.getElementById('btn-foco-ligar');
+  const btnWhats = document.getElementById('btn-foco-whats');
 
   if (!elTipo) return;
 
@@ -139,6 +155,7 @@ function renderModoFocoView() {
     elProg.innerHTML = '0 de 0';
     btnPular.style.display = 'none';
     btnLigar.style.display = 'none';
+    if (btnWhats) btnWhats.style.display = 'none';
     return;
   }
 
@@ -150,12 +167,12 @@ function renderModoFocoView() {
     elProg.innerHTML = focoFila.length + ' de ' + focoFila.length;
     btnPular.style.display = 'none';
     btnLigar.style.display = 'none';
+    if (btnWhats) btnWhats.style.display = 'none';
     return;
   }
 
   const item = focoFila[focoIndex];
   const telefone = obterTelefoneCliente(item);
-  // Pega o nome do vendedor responsável para passar para o WhatsApp
   const nomeVendedor = item.vendedor !== '—' ? item.vendedor : '';
 
   elTipo.innerHTML = `<span class="badge ${item.tipoBadge}">${item.tipoLabel}</span>`;
@@ -196,21 +213,18 @@ function renderModoFocoView() {
     }
   };
 
-  const btnWhats = document.getElementById('btn-foco-whats');
-  if (btnWhats) btnWhats.remove();
-
-  if (telefone) {
-    const btn = document.createElement('button');
-    btn.id = 'btn-foco-whats';
-    btn.className = 'btn btn-sm';
-    btn.style.cssText = 'background:#25D366; color:#fff; border-color:#25D366; flex:1; margin-left:8px;';
-    btn.innerHTML = '💬 WhatsApp';
-    // Passa o nomeVendedor para a função
-    btn.onclick = () => abrirWhatsApp(telefone, item.cliente, nomeVendedor);
-    
-    const btnWrap = btnLigar.parentNode;
-    btnWrap.appendChild(btn);
-    btnLigar.style.flex = '1';
+  if (btnWhats) {
+    if (telefone) {
+      btnWhats.style.display = 'block';
+      btnWhats.style.opacity = '1';
+      btnWhats.innerHTML = '💬 WhatsApp';
+      btnWhats.onclick = () => abrirWhatsApp(telefone, item.cliente, nomeVendedor);
+    } else {
+      btnWhats.style.display = 'block';
+      btnWhats.style.opacity = '0.5';
+      btnWhats.innerHTML = '⚠ Sem Telefone';
+      btnWhats.onclick = () => toast('⚠ Cliente sem telefone. Registre uma ligação primeiro.', 3000);
+    }
   }
 }
 
