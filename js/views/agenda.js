@@ -155,6 +155,8 @@ function renderModoFocoView() {
 
   const item = focoFila[focoIndex];
   const telefone = obterTelefoneCliente(item);
+  // Pega o nome do vendedor responsável para passar para o WhatsApp
+  const nomeVendedor = item.vendedor !== '—' ? item.vendedor : '';
 
   elTipo.innerHTML = `<span class="badge ${item.tipoBadge}">${item.tipoLabel}</span>`;
   elNome.innerHTML = escapeHtml(item.cliente);
@@ -182,7 +184,6 @@ function renderModoFocoView() {
       telefone: telefone || ''
     };
 
-    // O Callback: quando salvar, avança a fila
     const callbackAvancar = () => {
       focoIndex++;
       renderModoFocoView();
@@ -195,9 +196,8 @@ function renderModoFocoView() {
     }
   };
 
-  // Adiciona o botão de WhatsApp se tiver telefone
   const btnWhats = document.getElementById('btn-foco-whats');
-  if (btnWhats) btnWhats.remove(); // Remove se já existir
+  if (btnWhats) btnWhats.remove();
 
   if (telefone) {
     const btn = document.createElement('button');
@@ -205,9 +205,9 @@ function renderModoFocoView() {
     btn.className = 'btn btn-sm';
     btn.style.cssText = 'background:#25D366; color:#fff; border-color:#25D366; flex:1; margin-left:8px;';
     btn.innerHTML = '💬 WhatsApp';
-    btn.onclick = () => abrirWhatsApp(telefone, item.cliente);
+    // Passa o nomeVendedor para a função
+    btn.onclick = () => abrirWhatsApp(telefone, item.cliente, nomeVendedor);
     
-    // Insere ao lado do botão de ligar
     const btnWrap = btnLigar.parentNode;
     btnWrap.appendChild(btn);
     btnLigar.style.flex = '1';
@@ -215,13 +215,11 @@ function renderModoFocoView() {
 }
 
 function obterTelefoneCliente(item) {
-  // Se for uma ligação existente, já tem o telefone nela
   if (item.ligacaoId) {
     const lig = state.ligacoes.find(l => l.id === item.ligacaoId);
     if (lig && lig.telefone) return lig.telefone;
   }
   
-  // Senão, busca a última ligação para esse cliente
   const norm = normalizarNomeCliente(item.cliente);
   const ligs = state.ligacoes.filter(l => normalizarNomeCliente(l.empresa) === norm && l.telefone);
   if (ligs.length > 0) {

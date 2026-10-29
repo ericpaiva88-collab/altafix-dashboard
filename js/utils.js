@@ -111,31 +111,55 @@ function fallbackCopy(t) {
   document.body.removeChild(ta);
 }
 
-// FIX: Função necessária para a aba de Produtos
 export function ehProdutoValido(p) {
   return p && p.descricao && p.descricao.trim() !== '' && p.descricao.trim() !== '—' && p.descricao.trim() !== '-';
 }
 
-// NOVO: Integração com WhatsApp
-export function abrirWhatsApp(telefone, nomeCliente) {
+// NOVO: Inteligência para o WhatsApp B2B (com nome do vendedor)
+function obterNomeFantasia(nomeCompleto) {
+  if (!nomeCompleto) return '';
+  let limpo = String(nomeCompleto).toUpperCase();
+  
+  limpo = limpo.replace(/\b(LTDA|ME|EPP|EIRELI|S\/A|S\.A\.|CIA|COMERCIO|COMÉRCIO|DISTRIBUIDORA|DISTRIBUIDORA DE|DE PECAS|DE PEÇAS|E ACESSORIOS|E ACESSÓRIOS|AUTO PECAS|AUTO PEÇAS)\b/g, '');
+  limpo = limpo.replace(/[.,;:\-()\/\\'`"]/g, '');
+  limpo = limpo.replace(/\s+/g, ' ').trim();
+  
+  if (limpo.length < 4) return '';
+  
+  return limpo.toLowerCase().replace(/(?:^|\s)\S/g, function(a) { return a.toUpperCase(); });
+}
+
+export function abrirWhatsApp(telefone, nomeCliente, nomeVendedor) {
   if (!telefone) {
     toast('⚠ Cliente sem telefone cadastrado. Registre uma ligação primeiro.', 3000);
     return;
   }
 
-  // Limpa o telefone (deixa só números)
   let num = String(telefone).replace(/\D/g, '');
   if (num.length < 10) {
     toast('⚠ Telefone inválido.', 3000);
     return;
   }
 
-  // Adiciona o 55 (Brasil) se não tiver
   if (num.length <= 11) num = '55' + num;
 
-  const primeiroNome = nomeCliente.split(' ')[0];
-  const mensagem = `Olá ${primeiroNome}, tudo bem? Aqui é da Alta Fix Distribuidora. Notei que faz um tempinho que você não faz pedidos com a gente. Posso te mandar as novidades e condições especiais dessa semana?`;
+  const nomeFantasia = obterNomeFantasia(nomeCliente);
   
+  // Monta a apresentação do vendedor
+  let apresentacao = 'Aqui é da Alta Fix Distribuidora!';
+  if (nomeVendedor) {
+    const primeiroNomeVend = nomeVendedor.split(' ')[0]; // Pega só o primeiro nome do vendedor
+    apresentacao = `Aqui é o ${primeiroNomeVend}, da Alta Fix Distribuidora!`;
+  }
+
+  // Monta a mensagem final
+  let mensagem = '';
+  if (nomeFantasia) {
+    mensagem = `Olá, tudo bem? ${apresentacao} Notei que faz um tempinho desde o último pedido da ${nomeFantasia}. Temos novidades em peças e condições especiais para essa semana. Podemos conversar?`;
+  } else {
+    mensagem = `Olá, tudo bem? ${apresentacao} Notei que faz um tempinho desde o seu último pedido com a gente. Temos novidades em peças e condições especiais para essa semana. Podemos conversar?`;
+  }
+
   const url = `https://wa.me/${num}?text=${encodeURIComponent(mensagem)}`;
   window.open(url, '_blank');
 }

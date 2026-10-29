@@ -377,8 +377,11 @@ function renderAtencaoAgora(a, m, vendedorFoco, fCalculada) {
       botoes = `<button class="btn btn-sm" onclick="event.stopPropagation(); window._abrirFichaVendedor('${al.vendedorId}')">Ver Ficha</button>`;
     } else if (al.tipo === 'cliente' && al.clienteObj) {
       const tel = obterTelefoneCliente(al.clienteObj.nome);
+      const vendedorResp = state.vendedores.find(x => x.id === al.clienteObj.vendedor);
+      const nomeVendedor = vendedorResp ? vendedorResp.nome : '';
+      
       if (tel) {
-        botoes += `<button class="btn btn-sm" style="background:#25D366;color:#fff;border-color:#25D366;" onclick="event.stopPropagation(); window._abrirWhatsApp('${tel}', '${escapeHtml(al.clienteObj.nome)}')">💬 Zap</button>`;
+        botoes += `<button class="btn btn-sm" style="background:#25D366;color:#fff;border-color:#25D366;" onclick="event.stopPropagation(); window._abrirWhatsApp('${tel}', '${escapeHtml(al.clienteObj.nome)}', '${escapeHtml(nomeVendedor)}')">💬 Zap</button>`;
       }
       botoes += `<button class="btn btn-sm" onclick="event.stopPropagation(); window._abrirModalLigacao(null, { empresa: '${escapeHtml(al.clienteObj.nome)}', cidade: '${escapeHtml(al.clienteObj.cidade)}', estado: '${escapeHtml(al.clienteObj.uf)}', vendedor: '${al.clienteObj.vendedor}' })">Ligar</button>`;
     }

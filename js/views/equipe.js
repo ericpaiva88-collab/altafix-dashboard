@@ -136,7 +136,8 @@ window._abrirFichaVendedor = function(vendedorId) {
             ${clientesRisco.map(c => {
               const dias = diffDias(c.ultimaCompra, hj);
               const tel = obterTelefoneCliente(c.nome);
-              const btnZap = tel ? `<button class="btn btn-sm" style="background:#25D366;color:#fff;border-color:#25D366;padding:2px 8px;font-size:10px;margin-left:8px;" onclick="window._abrirWhatsApp('${tel}', '${escapeHtml(c.nome)}')">Zap</button>` : '';
+              // Passa o nome do vendedor (v.nome) para a função
+              const btnZap = tel ? `<button class="btn btn-sm" style="background:#25D366;color:#fff;border-color:#25D366;padding:2px 8px;font-size:10px;margin-left:8px;" onclick="window._abrirWhatsApp('${tel}', '${escapeHtml(c.nome)}', '${escapeHtml(v.nome)}')">Zap</button>` : '';
               return `
               <div class="ficha-lista-item">
                 <div><div class="nome">${escapeHtml(c.nome)}</div><div class="detalhe" style="color:var(--af-vermelho);">${dias} dias parado</div></div>
