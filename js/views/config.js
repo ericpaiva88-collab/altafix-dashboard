@@ -8,16 +8,13 @@ import { importar324, importar740, importar361, renderBasesStatus } from '../imp
 import { sbSincronizarBasesPendentes, sbCarregarTudo, aplicarDadosDoBanco } from '../supabase.js';
 
 export function setupConfig() {
-  // 1. Configurar Dropzones com Feedback Visual
   setupDrop('drop-erp', 'erp-input', (files) => importar324(files, ui.escopoAtual), true, 'erp-status');
   setupDrop('drop-740', 'input-740', (files) => importar740(files, ui.escopoAtual), true, 'status-740');
   setupDrop('drop-abc', 'abc-input', (files) => importar361(files, ui.escopoAtual), true, 'abc-status-import');
 
-  // 2. Botão Salvar Bases
   const btnSalvar = document.getElementById('btn-salvar-bases');
   if (btnSalvar) btnSalvar.onclick = salvarBases;
 
-  // 3. Eventos da Tabela de Metas
   const btnAddVend = document.getElementById('btn-add-vend');
   if (btnAddVend) {
     btnAddVend.onclick = () => {
@@ -53,7 +50,7 @@ function setupDrop(dropId, inputId, handler, multiplos, statusId) {
     if (files.length === 0) return;
     
     if (statusEl) {
-      statusEl.style.color = 'var(--af-azul)';
+      statusEl.style.color = 'var(--af-t2)';
       statusEl.textContent = `⏳ Lendo ${files.length} arquivo(s)...`;
     }
     
@@ -81,7 +78,7 @@ function setupDrop(dropId, inputId, handler, multiplos, statusId) {
     if (files.length === 0) return;
 
     if (statusEl) {
-      statusEl.style.color = 'var(--af-azul)';
+      statusEl.style.color = 'var(--af-t2)';
       statusEl.textContent = `⏳ Lendo ${files.length} arquivo(s)...`;
     }
 
@@ -229,10 +226,8 @@ async function salvarMetasServidor() {
 
     if (papel === 'vendedor' && (metaVal > 0 || metaTkt > 0) && orig.id && !orig.id.startsWith('novo_')) {
       metasDoMes.push({
-        vendedor_id: orig.id,
-        mes: mesRef,
-        meta_faturamento: metaVal,
-        meta_ticket: metaTkt
+        vendedor_id: orig.id, mes: mesRef,
+        meta_faturamento: metaVal, meta_ticket: metaTkt
       });
     }
   });

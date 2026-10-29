@@ -375,41 +375,26 @@ export async function sbUpsertClientes(lista, filialId, vendedoresMap) {
     const dedup = {};
     clientesDoPeriodo.forEach(c => {
       const k = normalizarNomeCliente(c.nome);
-      if (!dedup[k]) {
-        dedup[k] = Object.assign({}, c);
-      } else {
+      if (!dedup[k]) dedup[k] = Object.assign({}, c);
+      else {
         dedup[k].valorTotal = (dedup[k].valorTotal || 0) + (c.valorTotal || 0);
         dedup[k].numCompras = (dedup[k].numCompras || 0) + (c.numCompras || 0);
-        if (c.ultimaCompra && (!dedup[k].ultimaCompra || c.ultimaCompra > dedup[k].ultimaCompra)) {
-          dedup[k].ultimaCompra = c.ultimaCompra;
-        }
-        if (c.primeiraCompra && (!dedup[k].primeiraCompra || c.primeiraCompra < dedup[k].primeiraCompra)) {
-          dedup[k].primeiraCompra = c.primeiraCompra;
-        }
+        if (c.ultimaCompra && (!dedup[k].ultimaCompra || c.ultimaCompra > dedup[k].ultimaCompra)) dedup[k].ultimaCompra = c.ultimaCompra;
+        if (c.primeiraCompra && (!dedup[k].primeiraCompra || c.primeiraCompra < dedup[k].primeiraCompra)) dedup[k].primeiraCompra = c.primeiraCompra;
       }
     });
 
     const payload = Object.values(dedup).map(c => ({
-      filial_id: filialId,
-      periodo_ini: p.pIni,
-      periodo_fim: p.pFim,
-      cliente_norm: normalizarNomeCliente(c.nome),
-      nome: c.nome,
-      codigo: c.codigo || null,
-      cidade: c.cidade || null,
-      uf: c.uf || null,
+      filial_id: filialId, periodo_ini: p.pIni, periodo_fim: p.pFim,
+      cliente_norm: normalizarNomeCliente(c.nome), nome: c.nome,
+      codigo: c.codigo || null, cidade: c.cidade || null, uf: c.uf || null,
       vendedor_id: c.vendedor && vendedoresMap[c.vendedor] ? vendedoresMap[c.vendedor] : null,
-      valor: c.valorTotal || 0,
-      num_compras: c.numCompras || 0,
-      ultima_compra: c.ultimaCompra || null,
-      primeira_compra_no_mes: c.primeiraCompra || null
+      valor: c.valorTotal || 0, num_compras: c.numCompras || 0,
+      ultima_compra: c.ultimaCompra || null, primeira_compra_no_mes: c.primeiraCompra || null
     }));
 
     const del = await session.sb.from('clientes_importacoes')
-      .delete()
-      .eq('filial_id', filialId)
-      .eq('periodo_ini', p.pIni)
-      .eq('periodo_fim', p.pFim);
+      .delete().eq('filial_id', filialId).eq('periodo_ini', p.pIni).eq('periodo_fim', p.pFim);
     if (del.error) throw new Error('clientes_importacoes delete: ' + del.error.message);
 
     for (let i = 0; i < payload.length; i += 500) {
@@ -431,47 +416,30 @@ export async function sbUpsertClientes(lista, filialId, vendedoresMap) {
     const k = row.cliente_norm;
     if (!agregado[k]) {
       agregado[k] = {
-        filial_id: filialId,
-        vendedor_id: row.vendedor_id,
-        nome: row.nome,
-        codigo: row.codigo,
-        cidade: row.cidade,
-        uf: row.uf,
-        valor_total: 0,
-        num_compras: 0,
-        ultima_compra: null,
-        primeira_compra: null,
-        _datas: [],
-        _periodos: []
+        filial_id: filialId, vendedor_id: row.vendedor_id, nome: row.nome, codigo: row.codigo,
+        cidade: row.cidade, uf: row.uf, valor_total: 0, num_compras: 0,
+        ultima_compra: null, primeira_compra: null, _datas: [], _periodos: []
       };
     }
     const a = agregado[k];
     a.valor_total += Number(row.valor) || 0;
     a.num_compras += Number(row.num_compras) || 0;
 
-    if (row.periodo_ini) {
-      if (!a.primeira_compra || row.periodo_ini < a.primeira_compra) {
-        a.primeira_compra = row.periodo_ini;
-      }
-    }
+    if (row.periodo_ini && (!a.primeira_compra || row.periodo_ini < a.primeira_compra)) a.primeira_compra = row.periodo_ini;
     if (row.ultima_compra) {
-      if (!a.ultima_compra || row.ultima_compra > a.ultima_compra) {
-        a.ultima_compra = row.ultima_compra;
-      }
+      if (!a.ultima_compra || row.ultima_compra > a.ultima_compra) a.ultima_compra = row.ultima_compra;
       if (a._datas.indexOf(row.ultima_compra) < 0) a._datas.push(row.ultima_compra);
     }
     if (row.vendedor_id && !a.vendedor_id) a.vendedor_id = row.vendedor_id;
     if (row.cidade && !a.cidade) { a.cidade = row.cidade; a.uf = row.uf; }
 
-    a._periodos.push({
-      periodoIni: row.periodo_ini,
-      valor: Number(row.valor) || 0
-    });
+    a._periodos.push({ periodoIni: row.periodo_ini, valor: Number(row.valor) || 0 });
   });
 
   const payloadFinal = Object.values(agregado).map(a => {
     a._datas.sort();
-        // --- FIX: Cálculo de Mediana em vez de Média ---
+    
+    // --- FIX: Cálculo de Mediana ---
     let intervaloMedio = 30;
     if (a._datas.length > 1) {
       const diffs = [];
@@ -486,22 +454,14 @@ export async function sbUpsertClientes(lista, filialId, vendedoresMap) {
       }
     }
     if (intervaloMedio < 1) intervaloMedio = 1;
-    // ------------------------------------------------
 
     let valorMedioMensal = 0;
     if (a._periodos.length > 0 && a.ultima_compra) {
       a._periodos.sort((p1, p2) => (p1.periodoIni || '').localeCompare(p2.periodoIni || ''));
-
       const ultima = new Date(a.ultima_compra + 'T12:00:00');
-      const corte = new Date(ultima);
-      corte.setDate(corte.getDate() - 90);
-      const corteIso = corte.getFullYear() + '-' +
-        String(corte.getMonth() + 1).padStart(2, '0') + '-' +
-        String(corte.getDate()).padStart(2, '0');
-
-      const recentes = a._periodos.filter(p =>
-        p.periodoIni >= corteIso && p.periodoIni <= a.ultima_compra
-      );
+      const corte = new Date(ultima); corte.setDate(corte.getDate() - 90);
+      const corteIso = corte.getFullYear() + '-' + String(corte.getMonth() + 1).padStart(2, '0') + '-' + String(corte.getDate()).padStart(2, '0');
+      const recentes = a._periodos.filter(p => p.periodoIni >= corteIso && p.periodoIni <= a.ultima_compra);
 
       if (recentes.length > 0) {
         const somaRecente = recentes.reduce((s, p) => s + p.valor, 0);
@@ -514,18 +474,10 @@ export async function sbUpsertClientes(lista, filialId, vendedoresMap) {
     }
 
     return {
-      filial_id: a.filial_id,
-      vendedor_id: a.vendedor_id,
-      nome: a.nome,
-      codigo: a.codigo,
-      cidade: a.cidade,
-      uf: a.uf,
-      valor_total: a.valor_total,
-      num_compras: a.num_compras,
-      ultima_compra: a.ultima_compra,
-      primeira_compra: a.primeira_compra,
-      intervalo_medio: intervaloMedio,
-      valor_medio_mensal: valorMedioMensal
+      filial_id: a.filial_id, vendedor_id: a.vendedor_id, nome: a.nome, codigo: a.codigo,
+      cidade: a.cidade, uf: a.uf, valor_total: a.valor_total, num_compras: a.num_compras,
+      ultima_compra: a.ultima_compra, primeira_compra: a.primeira_compra,
+      intervalo_medio: intervaloMedio, valor_medio_mensal: valorMedioMensal
     };
   });
 

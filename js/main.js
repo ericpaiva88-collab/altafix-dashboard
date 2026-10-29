@@ -1,11 +1,6 @@
-// ============================================================
-// main.js — Ponto de entrada do app (Com Exportação)
-// ============================================================
-
 import { state, ui, session, carregar, salvar } from './state.js';
 import { derivarHistorico } from './calc.js';
-import { fmtBRL, toast, isoDate, normalizarNomeCliente, copiarTexto } from './utils.js';
-import { abrirWhatsApp } from './utils.js';
+import { fmtBRL, toast, isoDate, normalizarNomeCliente, copiarTexto, abrirWhatsApp } from './utils.js';
 import { sbInit, sbLogin, sbLogout, sbSessaoAtual, sbCarregarPerfil, sbCarregarTudo, aplicarDadosDoBanco } from './supabase.js';
 
 import { renderPainel, renderSemana, gerarRelatorioMatinal } from './views/painel.js';
@@ -77,86 +72,6 @@ window._abrirWhatsApp = abrirWhatsApp;
 window._abrirModalLigacao = abrirModalLigacao;
 window._renderTudo = renderTudo;
 
-// ============================================================
-// EXPORTAÇÃO (EXCEL E BACKUP)
-// ============================================================
-
-function exportarExcel() {
-  if (typeof XLSX === 'undefined') { toast('Erro: Biblioteca de Excel não carregada.'); return; }
-
-  try {
-    const wb = XLSX.utils.book_new();
-
-    // Aba 1: Resumo de Vendedores
-    const resumo = [
-      ['Alta Fix — Export de Dados'],
-      ['Data: ' + new Date().toLocaleDateString('pt-BR')],
-      ['Escopo: ' + escopoNome(ui.escopoAtual)],
-      [],
-      ['Vendedor', 'Filial', 'Meta Atual', 'Meta Ticket']
-    ];
-    state.vendedores.forEach(v => {
-      const fi = state.filiais.find(x => x.id === v.filialId);
-      resumo.push([v.nome, fi ? fi.nome : '', v.meta || 0, v.metaTicket || 0]);
-    });
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(resumo), 'Equipe');
-
-    // Aba 2: Clientes
-    const clientes = state.clientes.map(c => ({
-      'Cliente': c.nome, 'Cidade': c.cidade || '', 'Vendedor': state.vendedores.find(v => v.id === c.vendedor)?.nome || 'Sem vendedor',
-      'Valor Total (R$)': c.valorTotal, 'Compras': c.numCompras, 'Última Compra': c.ultimaCompra
-    }));
-    if (clientes.length > 0) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(clientes), 'Clientes');
-
-    // Aba 3: Produtos
-    const prods = state.produtos.map(p => ({
-      'Codigo': p.codigo, 'Descricao': p.descricao, 'Fabricante': p.fabricante || '',
-      'Curva': p.curva || '', 'Qtd Vendida': p.qtdVendida, 'Faturamento (R$)': p.valorVendido,
-      'Estoque Atual': p.estoqueAtual, 'Estoque Minimo': p.estoqueMinimo
-    }));
-    if (prods.length > 0) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(prods), 'Produtos');
-
-    XLSX.writeFile(wb, 'altafix-dados-' + isoDate(new Date()) + '.xlsx');
-    toast('✓ Excel gerado com sucesso');
-  } catch (e) {
-    console.error(e);
-    toast('❌ Erro ao gerar Excel: ' + e.message);
-  }
-}
-
-function exportarJSON() {
-  try {
-    const payload = {
-      _meta: { geradoEm: new Date().toISOString(), versao: 'v3' },
-      filiais: state.filiais,
-      grupos: state.grupos,
-      vendedores: state.vendedores,
-      clientes: state.clientes,
-      produtos: state.produtos,
-      lancamentos: state.lancamentos,
-      metas: state.metas,
-      ligacoes: state.ligacoes,
-      config: state.config
-    };
-    
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'altafix-backup-' + isoDate(new Date()) + '.json';
-    a.click();
-    URL.revokeObjectURL(url);
-    toast('✓ Backup JSON gerado');
-  } catch (e) {
-    console.error(e);
-    toast('❌ Erro ao gerar backup: ' + e.message);
-  }
-}
-
-// ============================================================
-// BOOTSTRAP E LOGIN
-// ============================================================
-
 function mostrarLogin() {
   const tela = document.getElementById('tela-login');
   if (tela) tela.style.display = 'flex';
@@ -196,10 +111,6 @@ function ajustarUIUsuario() {
     const se = document.getElementById('escopo-select'); if (se) se.style.display = 'none';
   }
 }
-
-// ============================================================
-// NAVEGAÇÃO E LISTENERS
-// ============================================================
 
 function setupTabs() {
   const sidebar = document.getElementById('sidebar');
@@ -248,37 +159,27 @@ function setupFiltros() {
 }
 
 function setupBotoes() {
-  // Modais
   const helpBtn = document.getElementById('help-btn'); if (helpBtn) helpBtn.onclick = () => document.getElementById('help-modal').classList.add('show');
   const helpClose = document.getElementById('help-close'); if (helpClose) helpClose.onclick = () => document.getElementById('help-modal').classList.remove('show');
-
-  // Exportação e Backup
-  const btnExcel = document.getElementById('btn-export-excel'); if (btnExcel) btnExcel.onclick = exportarExcel;
-  const btnBackup = document.getElementById('btn-backup'); if (btnBackup) btnBackup.onclick = exportarJSON;
-
-  // Escopo e Vendedor
+  
   const escopo = document.getElementById('escopo-select'); 
   if (escopo) escopo.onchange = e => { ui.escopoAtual = e.target.value; renderPainel(); renderAgenda(); };
   
   const mv = document.getElementById('modo-vendedor'); 
   if (mv) mv.onchange = e => { ui.modoVendedor = e.target.value; renderPainel(); renderAgenda(); };
   
-  // Data Painel
   const painelMesSel = document.getElementById('painel-mes-select'); 
   if (painelMesSel) painelMesSel.onchange = e => { ui.mesPainelSelecionado = e.target.value; renderPainel(); };
   
-  // Botões de Nova Ligação
   const btnNovaLigTopo = document.getElementById('btn-nova-ligacao-topo'); 
   if (btnNovaLigTopo) btnNovaLigTopo.onclick = () => { if (window._abrirModalLigacao) window._abrirModalLigacao(); };
   
   const btnNovaLigAgenda = document.getElementById('btn-nova-ligacao-agenda'); 
   if (btnNovaLigAgenda) btnNovaLigAgenda.onclick = () => { if (window._abrirModalLigacao) window._abrirModalLigacao(); };
 
-  // Relatório Matinal
   const btnRelatorio = document.getElementById('btn-relatorio-matinal');
   if (btnRelatorio) btnRelatorio.onclick = () => gerarRelatorioMatinal();
 
-  // Navegação Semanal
   const sp = document.getElementById('sem-prev');
   if (sp) sp.onclick = () => { ui.semanaRef.setDate(ui.semanaRef.getDate() - 7); renderSemana(); };
 
