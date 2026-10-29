@@ -645,3 +645,40 @@ body {
 .subtab-content.active {
   display: block;
 }
+/* Ajustes do Ritmo Semanal */
+@media (min-width: 769px) {
+  .semana-mobile { display: none !important; }
+}
+
+@media (max-width: 768px) {
+  .semana-desktop { display: none !important; }
+}
+
+#sem-tabs button {
+  padding: 6px 12px;
+  background: transparent;
+  border: 1px solid var(--af-borda);
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--af-t2);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+#sem-tabs button.active {
+  background: var(--af-preto);
+  color: #fff;
+  border-color: var(--af-preto);
+}
+
+/* Corrige o texto da linha TOTAL */
+.tabela-cockpit tr td.bg-preto {
+  background: var(--af-preto) !important;
+  color: #fff !important;
+}
+
+.tabela-cockpit tr:hover td.bg-preto {
+  background: var(--af-preto) !important;
+  color: #fff !important;
+}

@@ -240,11 +240,13 @@ export function renderSemana() {
     }
     b += '<td class="num"><strong>' + fmtBRL(row.total) + '</strong></td></tr>';
   });
-  b += '<tr style="background:#0B0B0B;color:#fff;font-weight:700;"><td>TOTAL</td>';
+  
+  // Linha TOTAL com fundo preto forçado
+  b += '<tr><td class="bg-preto" style="color:#fff; font-weight:700;">TOTAL</td>';
   for (let j = 0; j < 6; j++) {
-    b += '<td class="num">' + (td[j] > 0 ? fmtBRL(td[j]) : '—') + '</td>';
+    b += '<td class="num bg-preto" style="color:#fff; font-weight:700;">' + (td[j] > 0 ? fmtBRL(td[j]) : '—') + '</td>';
   }
-  b += '<td class="num">' + fmtBRL(tg) + '</td></tr>';
+  b += '<td class="num bg-preto" style="color:#fff; font-weight:700;">' + fmtBRL(tg) + '</td></tr>';
 
   const semDesktop = document.getElementById('sem-desktop');
   if (semDesktop) semDesktop.innerHTML = '<div style="overflow-x:auto;"><table class="tabela-cockpit">' + h + b + '</table></div>';
