@@ -1,9 +1,10 @@
 // ============================================================
-// views/config.js — Importação, Metas e Vendedores (Com Debug)
+// views/config.js — Importação, Metas e Vendedores
 // ============================================================
 
 import { state, ui, session, basesPreview, salvar } from '../state.js';
 import { toast, escapeHtml, parseValorBR } from '../utils.js';
+import { derivarHistorico } from '../calc.js';
 import { importar324, importar740, importar361, renderBasesStatus } from '../importer.js';
 import { sbSincronizarBasesPendentes, sbCarregarTudo, aplicarDadosDoBanco } from '../supabase.js';
 
@@ -41,17 +42,7 @@ function setupDrop(dropId, inputId, handler, multiplos, statusId) {
   const d = document.getElementById(dropId);
   const i = document.getElementById(inputId);
   const statusEl = document.getElementById(statusId);
-  if (!d || !i) {
-    alert("Erro interno: Dropzone não encontrado no HTML.");
-    return;
-  }
-
-  // Garante que o status apareça na tela
-  if (statusEl) {
-    statusEl.style.display = 'block';
-    statusEl.style.marginTop = '10px';
-    statusEl.style.fontWeight = 'bold';
-  }
+  if (!d || !i) return;
 
   i.style.display = 'block';
   i.style.position = 'absolute';
@@ -69,34 +60,25 @@ function setupDrop(dropId, inputId, handler, multiplos, statusId) {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
     
-    // O PRIMEIRO DEBUG: O arquivo chegou no JavaScript?
-    if (statusEl) statusEl.textContent = `⏳ Lendo ${files.length} arquivo(s)...`;
+    if (statusEl) {
+      statusEl.style.color = 'var(--af-t2)';
+      statusEl.textContent = `⏳ Lendo ${files.length} arquivo(s)...`;
+    }
     
     try {
-      // Chama a função de importação
       await handler(multiplos ? files : files[0]);
-      
-      // SEGUNDO DEBUG: A função terminou de rodar?
       if (statusEl) {
         statusEl.style.color = 'var(--af-verde)';
-        statusEl.textContent = `✓ ${files.length} arquivo(s) processado(s) com sucesso.`;
+        statusEl.textContent = `✓ ${files.length} arquivo(s) processado(s). Clique em "Salvar e Sincronizar".`;
       }
-      
-      // TERCEIRO DEBUG: Os dados estão na memória?
-      if (basesPreview.clientes || basesPreview.cidades || basesPreview.produtos) {
-        alert("✓ Planilha lida com sucesso! Clique em 'Salvar e Sincronizar' para enviar ao banco de dados.");
-        renderBasesStatus();
-      } else {
-        alert("⚠ O arquivo foi lido, mas nenhuma base nova foi encontrada. Verifique se a planilha está no formato correto (324, 740 ou 361).");
-      }
-
+      toast('✓ Arquivo lido! Clique em "Salvar e Sincronizar".', 4000);
+      renderBasesStatus();
     } catch (err) {
-      // QUARTO DEBUG: Deu erro?
-      alert("❌ Erro ao processar planilha: \n\n" + err.message);
       if (statusEl) {
         statusEl.style.color = 'var(--af-vermelho)';
         statusEl.textContent = `❌ Erro: ${err.message}`;
       }
+      toast('❌ Erro: ' + err.message, 4000);
     }
     e.target.value = '';
   };
@@ -109,28 +91,25 @@ function setupDrop(dropId, inputId, handler, multiplos, statusId) {
     const files = Array.from(e.dataTransfer.files || []).filter(f => f.name.match(/\.(xlsx|xls)$/i));
     if (files.length === 0) return;
 
-    if (statusEl) statusEl.textContent = `⏳ Lendo ${files.length} arquivo(s)...`;
+    if (statusEl) {
+      statusEl.style.color = 'var(--af-t2)';
+      statusEl.textContent = `⏳ Lendo ${files.length} arquivo(s)...`;
+    }
 
     try {
       await handler(multiplos ? files : files[0]);
-      
       if (statusEl) {
         statusEl.style.color = 'var(--af-verde)';
-        statusEl.textContent = `✓ ${files.length} arquivo(s) processado(s) com sucesso.`;
+        statusEl.textContent = `✓ ${files.length} arquivo(s) processado(s). Clique em "Salvar e Sincronizar".`;
       }
-
-      if (basesPreview.clientes || basesPreview.cidades || basesPreview.produtos) {
-        alert("✓ Planilha lida com sucesso! Clique em 'Salvar e Sincronizar' para enviar ao banco de dados.");
-        renderBasesStatus();
-      } else {
-        alert("⚠ O arquivo foi lido, mas nenhuma base nova foi encontrada. Verifique se a planilha está no formato correto.");
-      }
+      toast('✓ Arquivo lido! Clique em "Salvar e Sincronizar".', 4000);
+      renderBasesStatus();
     } catch (err) {
-      alert("❌ Erro ao processar planilha: \n\n" + err.message);
       if (statusEl) {
         statusEl.style.color = 'var(--af-vermelho)';
         statusEl.textContent = `❌ Erro: ${err.message}`;
       }
+      toast('❌ Erro: ' + err.message, 4000);
     }
   };
 }
@@ -200,7 +179,7 @@ function renderTabelaMetas() {
 }
 
 export async function salvarBases() {
-  const temPendencia = basesPreview.clientes || basesPreview.produtos || basesPreview.vendasItens || basesPreview.lancamentosMulti;
+  const temPendencia = basesPreview.clientes || basesPreview.produtos || basesPreview.vendasItens || basesPreview.lancamentosMulti || basesPreview.cidades;
   if (!temPendencia) {
     toast('Nenhuma base nova para salvar.');
     return;
@@ -213,11 +192,17 @@ export async function salvarBases() {
     await sbSincronizarBasesPendentes();
     const dados = await sbCarregarTudo();
     aplicarDadosDoBanco(dados);
+    derivarHistorico();
     
     toast('✓ Bases sincronizadas com sucesso!');
     renderConfig();
     
     if (window._popularEscopoSelect) window._popularEscopoSelect();
+    
+    // CORREÇÃO: Atualiza todas as views na hora (Cockpit, Agenda, Equipe, etc)
+    if (window._renderTudo) {
+      window._renderTudo();
+    }
     
   } catch (e) {
     toast('❌ Erro: ' + e.message);
@@ -288,6 +273,8 @@ async function salvarMetasServidor() {
     aplicarDadosDoBanco(dados);
     renderConfig();
 
+    if (window._renderTudo) window._renderTudo();
+
   } catch (e) {
     toast('❌ ' + e.message);
     console.error(e);
@@ -298,7 +285,9 @@ async function salvarMetasServidor() {
 
 export function renderTudo() {
   import('./painel.js').then(m => m.renderPainel()).catch(console.error);
+  import('./agenda.js').then(m => m.renderAgenda()).catch(console.error);
   import('./clientes.js').then(m => m.renderClientes()).catch(console.error);
+  import('./equipe.js').then(m => m.renderEquipe()).catch(console.error);
   import('./produtos.js').then(m => m.renderProdutos()).catch(console.error);
   import('./analise.js').then(m => m.renderAnalise()).catch(console.error);
   renderConfig();
