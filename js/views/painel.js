@@ -11,7 +11,6 @@ import {
 export function renderPainel() {
   const meses = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
   
-  // FIX: Garantir que o seletor de mês seja preenchido corretamente
   const selMes = document.getElementById('painel-mes-select');
   if (selMes) {
     let mesesComDados = new Set();
@@ -41,7 +40,6 @@ export function renderPainel() {
   if (vendedorFoco) f = calcVendedor(vendedorFoco, a, m);
   else f = calcFilial(a, m, ui.escopoAtual);
 
-  // FIX: Atualiza o título do Cockpit
   const tituloEl = document.getElementById('painel-titulo');
   if (tituloEl) {
     tituloEl.textContent = isModoVendedor 
@@ -234,9 +232,12 @@ export function renderSemana() {
   const tg = td.reduce((a, b) => a + b, 0);
 
   const duMes = calcDiasUteisNoMes(ini.getFullYear(), ini.getMonth());
-  const metaSem = vendedoresNoEscopo(ui.escopoAtual)
-    .filter(v => v.ativo && !v.supervisor && v.papel !== 'administrativo')
-    .reduce((s, v) => s + (getMetaVendedor(v, ini.getFullYear(), ini.getMonth()).meta || 0), 0) * (5 / Math.max(1, duMes));
+  
+  // FIX: O cálculo da meta semanal agora usa o array 'ativos' (que já está filtrado pelo Modo Vendedor)
+  const metaSemTotal = ativos
+    .filter(v => !v.supervisor)
+    .reduce((s, v) => s + (getMetaVendedor(v, ini.getFullYear(), ini.getMonth()).meta || 0), 0);
+  const metaSem = metaSemTotal * (5 / Math.max(1, duMes));
   
   const pct = metaSem > 0 ? (tg / metaSem) * 100 : 0;
 
