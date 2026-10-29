@@ -3,7 +3,6 @@
 // ============================================================
 
 import { state, ui, session, carregar, salvar } from './state.js';
-import { setupConfig, renderConfig } from './views/config.js';
 import { derivarHistorico } from './calc.js';
 import { fmtBRL, toast, isoDate, normalizarNomeCliente, copiarTexto } from './utils.js';
 import {
@@ -17,6 +16,9 @@ import { renderEquipe } from './views/equipe.js';
 import { renderClientes } from './views/clientes.js';
 import { renderProdutos } from './views/produtos.js';
 import { abrirModalLigacao } from './views/ligacoes.js';
+
+// FIX: Importar setupConfig e renderTudo para a aba de Configurações funcionar
+import { setupConfig, renderConfig, renderTudo } from './views/config.js';
 
 export function parseEscopo(str) {
   if (!str || str === 'ALL') return { tipo: 'all' };
@@ -76,6 +78,9 @@ window._popularEscopoSelect = popularEscopoSelect;
 window._popularModoVendedor = popularModoVendedor;
 window._abrirModalLigacao = abrirModalLigacao;
 
+// FIX: Expõe a função renderTudo para o config.js conseguir atualizar o Cockpit
+window._renderTudo = renderTudo;
+
 function mostrarLogin() {
   const tela = document.getElementById('tela-login');
   if (tela) tela.style.display = 'flex';
@@ -129,7 +134,6 @@ function setupTabs() {
       const t = document.getElementById('tab-' + b.dataset.tab);
       if (t) t.classList.add('active');
       
-      // Renderizações sob demanda
       if (b.dataset.tab === 'agenda') setTimeout(() => { try { renderAgenda(); } catch (e) { console.error(e); } }, 50); 
       if (b.dataset.tab === 'equipe') setTimeout(() => { try { renderEquipe(); } catch (e) { console.error(e); } }, 50);
       if (b.dataset.tab === 'clientes') setTimeout(() => { try { renderClientes(); } catch (e) { console.error(e); } }, 50);
@@ -140,17 +144,14 @@ function setupTabs() {
 }
 
 function setupFiltros() {
-  // Agenda
   const agendaBusca = document.getElementById('agenda-busca'); if (agendaBusca) agendaBusca.oninput = () => renderAgenda();
   const agendaTipo = document.getElementById('agenda-filtro-tipo'); if (agendaTipo) agendaTipo.onchange = () => renderAgenda();
   const agendaVend = document.getElementById('agenda-filtro-vendedor'); if (agendaVend) agendaVend.onchange = () => renderAgenda();
   
-  // Clientes
   const cliBusca = document.getElementById('filtro-cliente-busca'); if (cliBusca) cliBusca.oninput = () => renderClientes();
   const cliVend = document.getElementById('filtro-cliente-vend'); if (cliVend) cliVend.onchange = () => renderClientes();
   const cliStatus = document.getElementById('filtro-cliente-status'); if (cliStatus) cliStatus.onchange = () => renderClientes();
 
-  // Produtos
   const prodBusca = document.getElementById('filtro-produto-busca'); if (prodBusca) prodBusca.oninput = () => renderProdutos();
   const prodCurva = document.getElementById('filtro-produto-curva'); if (prodCurva) prodCurva.onchange = () => renderProdutos();
   const prodFab = document.getElementById('filtro-produto-fabricante'); if (prodFab) prodFab.onchange = () => renderProdutos();
@@ -159,10 +160,19 @@ function setupFiltros() {
 function setupBotoes() {
   const helpBtn = document.getElementById('help-btn'); if (helpBtn) helpBtn.onclick = () => document.getElementById('help-modal').classList.add('show');
   const helpClose = document.getElementById('help-close'); if (helpClose) helpClose.onclick = () => document.getElementById('help-modal').classList.remove('show');
-  const escopo = document.getElementById('escopo-select'); if (escopo) escopo.onchange = e => { ui.escopoAtual = e.target.value; renderPainel(); };
-  const mv = document.getElementById('modo-vendedor'); if (mv) mv.onchange = e => { ui.modoVendedor = e.target.value; renderPainel(); };
-  const painelMesSel = document.getElementById('painel-mes-select'); if (painelMesSel) painelMesSel.onchange = e => { ui.mesPainelSelecionado = e.target.value; renderPainel(); };
-  const btnNovaLigAgenda = document.getElementById('btn-nova-ligacao-agenda'); if (btnNovaLigAgenda) btnNovaLigAgenda.onclick = () => { if (window._abrirModalLigacao) window._abrirModalLigacao(); };
+  
+  // FIX: Ao mudar o escopo ou o vendedor, renderiza o painel com os dados novos
+  const escopo = document.getElementById('escopo-select'); 
+  if (escopo) escopo.onchange = e => { ui.escopoAtual = e.target.value; renderPainel(); };
+  
+  const mv = document.getElementById('modo-vendedor'); 
+  if (mv) mv.onchange = e => { ui.modoVendedor = e.target.value; renderPainel(); };
+  
+  const painelMesSel = document.getElementById('painel-mes-select'); 
+  if (painelMesSel) painelMesSel.onchange = e => { ui.mesPainelSelecionado = e.target.value; renderPainel(); };
+  
+  const btnNovaLigAgenda = document.getElementById('btn-nova-ligacao-agenda'); 
+  if (btnNovaLigAgenda) btnNovaLigAgenda.onclick = () => { if (window._abrirModalLigacao) window._abrirModalLigacao(); };
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -183,7 +193,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupTabs();
     setupFiltros();
     setupBotoes();
+    
+    // FIX: Inicializa os eventos de configuração
     setupConfig();
+    
     renderPainel();
     toast('✓ Pronto');
   } catch (e) {

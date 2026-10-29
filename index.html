@@ -107,7 +107,15 @@
         <div class="card-title-row" style="padding:16px 20px; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center;"><h3>Todas as tarefas</h3><span class="text-xs text-muted" id="agenda-count">0 itens</span></div>
         <div class="filtros-bar" style="padding: 16px 20px; border-bottom: 1px solid #eee; background: #FAFAFA;">
           <input type="text" id="agenda-busca" placeholder="Buscar empresa..." style="flex:1; min-width:200px;">
-          <select id="agenda-filtro-tipo"><option value="todos">Todos os tipos</option><option value="atrasados">🔴 Retornos Atrasados</option><option value="hoje">🟡 Retornos Hoje</option><option value="recompra">🟢 Recompra</option><option value="reativar">⚪ Reativar</option></select>
+                  <select id="agenda-filtro-tipo">
+            <option value="todos">Todos os tipos</option>
+            <option value="atrasados">🔴 Retornos Atrasados</option>
+            <option value="hoje">🟡 Retornos Hoje</option>
+            <option value="recompra">🟢 Recompra Esperada</option>
+            <option value="reativar">⚪ Reativar</option>
+            <option value="sumido">💤 Sumidos</option>
+            <option value="lento">⏳ Recuperação Lenta</option>
+          </select>
           <select id="agenda-filtro-vendedor"><option value="">Todos vendedores</option></select>
         </div>
         <div style="overflow-x:auto;"><table class="tabela-cockpit"><thead><tr><th>TIPO</th><th>CLIENTE</th><th>CONTEXTO</th><th>VENDEDOR</th><th class="num">VALE/MÊS</th><th style="width: 100px; text-align:center;">AÇÃO</th></tr></thead><tbody id="agenda-tbody"></tbody></table></div>

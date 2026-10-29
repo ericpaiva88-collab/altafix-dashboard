@@ -21,7 +21,6 @@ import {
   aplicarDadosDoBanco
 } from '../supabase.js';
 
-// Importações limpas para o novo Cockpit
 import { renderPainel } from './painel.js';
 import { renderClientes } from './clientes.js';
 import { renderProdutos } from './produtos.js';
@@ -31,21 +30,14 @@ const MESES = [
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
 ];
 
-// ============================================================
-// NOVA CONFIGURAÇÃO DE IMPORTAR E METAS (Cockpit)
-// ============================================================
-
 export function setupConfig() {
-  // 1. Configurar Dropzones
   setupDrop('drop-erp', 'erp-input', (files) => importar324(files, ui.escopoAtual), true);
   setupDrop('drop-740', 'input-740', (files) => importar740(files, ui.escopoAtual), true);
   setupDrop('drop-abc', 'abc-input', (files) => importar361(files, ui.escopoAtual), true);
 
-  // 2. Botão Salvar Bases
   const btnSalvar = document.getElementById('btn-salvar-bases');
   if (btnSalvar) btnSalvar.onclick = salvarBases;
 
-  // 3. Eventos da Tabela de Metas
   const btnAddVend = document.getElementById('btn-add-vend');
   if (btnAddVend) {
     btnAddVend.onclick = () => {
@@ -99,7 +91,6 @@ function renderTabelaMetas() {
   const selMes = document.getElementById('meta-mes-select');
   if (!tbody || !selMes) return;
 
-  // Preenche o select de meses (últimos 12 meses)
   if (selMes.options.length === 0) {
     const hoje = new Date();
     let opts = '';
@@ -143,7 +134,6 @@ function renderTabelaMetas() {
     `;
   }).join('');
 
-  // Evento de remover
   tbody.querySelectorAll('[data-remover]').forEach(b => {
     b.onclick = () => {
       const idx = parseInt(b.dataset.remover, 10);
@@ -171,7 +161,9 @@ export async function salvarBases() {
     aplicarDadosDoBanco(dados);
     
     toast('✓ Bases sincronizadas com sucesso!');
-    renderConfig();
+    
+    // A MÁGICA ACONTECE AQUI: Atualiza a tela do Cockpit na hora
+    if (window._renderTudo) window._renderTudo();
     
     if (window._popularEscopoSelect) window._popularEscopoSelect();
     
@@ -197,7 +189,6 @@ async function salvarMetasServidor() {
   const metasDoMes = [];
   const vendedoresAtualizados = [];
 
-  // Lê a tabela e monta os objetos
   rows.forEach(tr => {
     const idx = parseInt(tr.dataset.idx, 10);
     const orig = state.vendedores[idx];
@@ -230,14 +221,12 @@ async function salvarMetasServidor() {
   });
 
   try {
-    // 1. Atualiza os vendedores existentes
     for (const v of vendedoresAtualizados) {
       await session.sb.from('vendedores').update({
         nome: v.nome, email: v.email, filial_id: v.filial_id, papel: v.papel, ativo: v.ativo
       }).eq('id', v.id);
     }
 
-    // 2. Substitui as metas do mês
     await session.sb.from('metas').delete().eq('mes', mesRef);
     if (metasDoMes.length > 0) {
       await session.sb.from('metas').insert(metasDoMes);
@@ -245,7 +234,6 @@ async function salvarMetasServidor() {
 
     toast('✓ Metas e vendedores salvos no servidor!');
     
-    // Recarrega os dados
     const dados = await sbCarregarTudo();
     aplicarDadosDoBanco(dados);
     renderConfig();

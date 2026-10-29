@@ -2,23 +2,16 @@
 // views/painel.js — Cockpit Comercial
 // ============================================================
 
-import { state, ui, session } from '../state.js';
+import { state, ui } from '../state.js';
+import { fmtBRL, fmtPct, escapeHtml, isoDate, normalizarNomeCliente, diffDias } from '../utils.js';
 import {
-  fmtBRL, fmtNum, fmtPct, isoDate, escapeHtml, toast, normalizarNomeCliente, diffDias
-} from '../utils.js';
-import {
-  mesRefAtual, calcFilial, calcVendedor, getMetaVendedor, calcDiasUteisNoMes, calcDiasUteisDecorridos, escopoNome, parseEscopo, filialNoEscopo, vendedoresNoEscopo
+  mesRefAtual, calcFilial, calcVendedor, calcDiasUteisNoMes, calcDiasUteisDecorridos, escopoNome, filialNoEscopo
 } from '../calc.js';
-
-// ============================================================
-// RENDER PRINCIPAL (COCKPIT)
-// ============================================================
 
 export function renderPainel() {
   const meses = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
   const selMes = document.getElementById('painel-mes-select');
 
-  // Auto-selecionar o último mês com dados
   if (selMes) {
     let mesesComDados = new Set();
     state.lancamentos.forEach(l => { if (l.data) mesesComDados.add(l.data.slice(0, 7)); });
@@ -32,82 +25,122 @@ export function renderPainel() {
       const p = m.split('-');
       return `<option value="${m}">${meses[parseInt(p[1]) - 1].slice(0, 3)}/${p[0]}</option>`;
     }).join('');
-    
     selMes.value = ui.mesPainelSelecionado;
   }
 
   const ref = mesRefAtual(ui.escopoAtual);
   const a = ref.ano, m = ref.mes;
 
-  const f = calcFilial(a, m, ui.escopoAtual);
+  const isModoVendedor = !!ui.modoVendedor;
+  let vendedorFoco = null;
+  let f = null;
 
-  // Preenche KPIs do Topo
-  const pctMeta = f.pctMeta || 0;
+  if (isModoVendedor) {
+    vendedorFoco = state.vendedores.find(v => v.id === ui.modoVendedor);
+  }
+
+  if (vendedorFoco) {
+    f = calcVendedor(vendedorFoco, a, m);
+  } else {
+    f = calcFilial(a, m, ui.escopoAtual);
+  }
+
+  // --- KPIs ---
+  const faturado = isModoVendedor ? f.faturado : f.faturadoTotal;
+  const meta = isModoVendedor ? f.meta : f.metaTotal;
+  const falta = isModoVendedor ? Math.max(0, meta - faturado) : f.falta;
+  const projecao = f.projecao;
+  const porDia = isModoVendedor ? f.metaDia : f.porDia;
+  const pctMeta = meta > 0 ? (faturado / meta) * 100 : 0;
+  const diasFaltam = f.diasFaltam;
   
-  document.getElementById('painel-pct').innerHTML = fmtBRL(f.faturadoTotal);
-  document.getElementById('painel-status').innerHTML = f.status === 'ACIMA' 
-    ? '<span class="badge ok">No Ritmo</span>' 
-    : '<span class="badge danger">Abaixo</span>';
+  let status = f.status;
+
+  const numPct = document.getElementById('painel-pct');
+  if (numPct) numPct.innerHTML = fmtBRL(faturado);
+
+  const stEl = document.getElementById('painel-status');
+  if (stEl) {
+    stEl.innerHTML = (status === 'ACIMA' || status === 'SUPERVISOR')
+      ? '<span class="badge ok">No Ritmo</span>' 
+      : '<span class="badge danger">Abaixo</span>';
+  }
   
   const barra = document.getElementById('painel-barra').firstElementChild;
-  barra.style.width = Math.min(100, pctMeta) + '%';
-  barra.className = pctMeta >= 100 ? 'ok' : (pctMeta >= 80 ? '' : 'danger');
+  if (barra) {
+    barra.style.width = Math.min(100, pctMeta) + '%';
+    barra.className = pctMeta >= 100 ? 'ok' : (pctMeta >= 80 ? '' : 'danger');
+  }
 
-  document.getElementById('painel-dias-info').innerHTML = 
-    `Meta: <strong>${fmtBRL(f.metaTotal)}</strong> · Faltam ${f.diasFaltam} dias úteis`;
+  const infoEl = document.getElementById('painel-dias-info');
+  if (infoEl) infoEl.innerHTML = `Meta: <strong>${fmtBRL(meta)}</strong> · Faltam ${diasFaltam} dias úteis`;
 
-  document.getElementById('painel-falta').innerHTML = fmtBRL(f.falta);
-  document.getElementById('painel-falta-hint').innerHTML = f.falta > 0 
-    ? `Faltam ${fmtPct(100 - pctMeta, 1)} para a meta`
-    : 'Meta atingida! 🎉';
-
-  document.getElementById('painel-projecao').innerHTML = fmtBRL(f.projecao);
-  document.getElementById('painel-projecao-hint').innerHTML = f.projecao >= f.metaTotal
-    ? '<span style="color:var(--af-verde)">Projeção acima da meta</span>'
-    : '<span style="color:var(--af-vermelho)">Projeção abaixo da meta</span>';
-
-  document.getElementById('painel-precisadia').innerHTML = fmtBRL(f.porDia);
+  const faltaEl = document.getElementById('painel-falta');
+  if (faltaEl) faltaEl.innerHTML = fmtBRL(falta);
   
-  renderGraficoAcumulado(a, m, f);
-  renderTabelaEquipe(a, m, f);
-  renderAtencaoAgora(a, m);
-}
+  const faltaHint = document.getElementById('painel-falta-hint');
+  if (faltaHint) faltaHint.innerHTML = falta > 0 ? `Faltam ${fmtPct(100 - pctMeta, 1)} para a meta` : 'Meta atingida! 🎉';
 
-// ============================================================
-// GRÁFICO ACUMULADO VS META
-// ============================================================
+  const projEl = document.getElementById('painel-projecao');
+  if (projEl) projEl.innerHTML = fmtBRL(projecao);
+  
+  const projHint = document.getElementById('painel-projecao-hint');
+  if (projHint) {
+    projHint.innerHTML = projecao >= meta
+      ? '<span style="color:var(--af-verde)">Projeção acima da meta</span>'
+      : '<span style="color:var(--af-vermelho)">Projeção abaixo da meta</span>';
+  }
+
+  const diaEl = document.getElementById('painel-precisadia');
+  if (diaEl) diaEl.innerHTML = fmtBRL(porDia);
+  
+  // --- GRÁFICO ---
+  renderGraficoAcumulado(a, m, meta, isModoVendedor ? vendedorFoco.id : null);
+  
+  // --- TABELA EQUIPE ---
+  const cardEquipe = document.getElementById('painel-equipe-container')?.closest('.card-painel');
+  if (cardEquipe) {
+    if (isModoVendedor) {
+      cardEquipe.style.display = 'none';
+    } else {
+      cardEquipe.style.display = 'block';
+      renderTabelaEquipe(a, m, f);
+    }
+  }
+
+  // --- ATENÇÃO AGORA ---
+  renderAtencaoAgora(a, m, vendedorFoco);
+}
 
 let chartMetaInstance = null;
 
-function renderGraficoAcumulado(a, m, f) {
+function renderGraficoAcumulado(a, m, meta, vendedorId) {
   const ctx = document.getElementById('chart-meta-cockpit');
   if (!ctx || typeof Chart === 'undefined') return;
-
   if (chartMetaInstance) chartMetaInstance.destroy();
 
   const diasNoMes = new Date(a, m + 1, 0).getDate();
-  const labels = [];
-  const dataRealizado = [];
-  const dataMetaIdeal = [];
-
-  let acumulado = 0;
-  let metaAcumulada = 0;
-  const metaDiaria = f.metaTotal / Math.max(1, f.diasUteisTotal);
+  const labels = [], dataRealizado = [], dataMetaIdeal = [];
+  let acumulado = 0, metaAcumulada = 0;
+  
+  const du = calcDiasUteisNoMes(a, m);
+  const metaDiaria = meta / Math.max(1, du);
+  
   const hoje = new Date();
   const diaCorte = (hoje.getFullYear() === a && hoje.getMonth() === m) ? hoje.getDate() : diasNoMes;
 
   for (let d = 1; d <= diasNoMes; d++) {
     labels.push(d);
-    const isDiaUtil = new Date(a, m, d).getDay() % 6 !== 0;
-
-    if (isDiaUtil) metaAcumulada += metaDiaria;
+    if (new Date(a, m, d).getDay() % 6 !== 0) metaAcumulada += metaDiaria;
     dataMetaIdeal.push(metaAcumulada);
 
     if (d <= diaCorte) {
       const iso = a + '-' + String(m + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
       state.lancamentos.forEach(l => {
         if (l.data === iso && filialNoEscopo(l.filialId, ui.escopoAtual)) {
-          acumulado += (l.valor || 0);
+          if (!vendedorId || l.vendedor === vendedorId) {
+            acumulado += (l.valor || 0);
+          }
         }
       });
       dataRealizado.push(acumulado);
@@ -122,16 +155,8 @@ function renderGraficoAcumulado(a, m, f) {
       if (diaCorte >= diasNoMes) return;
       const { ctx, chartArea: { top, bottom }, scales: { x } } = chart;
       const xPos = x.getPixelForValue(diaCorte - 1);
-      
-      ctx.save();
-      ctx.beginPath();
-      ctx.moveTo(xPos, top);
-      ctx.lineTo(xPos, bottom);
-      ctx.lineWidth = 1;
-      ctx.strokeStyle = '#888';
-      ctx.setLineDash([4, 4]);
-      ctx.stroke();
-      ctx.restore();
+      ctx.save(); ctx.beginPath(); ctx.moveTo(xPos, top); ctx.lineTo(xPos, bottom);
+      ctx.lineWidth = 1; ctx.strokeStyle = '#888'; ctx.setLineDash([4, 4]); ctx.stroke(); ctx.restore();
     }
   };
 
@@ -140,56 +165,22 @@ function renderGraficoAcumulado(a, m, f) {
     data: {
       labels,
       datasets: [
-        {
-          label: 'Realizado',
-          data: dataRealizado,
-          borderColor: '#0B0B0B',
-          backgroundColor: 'rgba(11,11,11,0.05)',
-          borderWidth: 2,
-          pointRadius: 0,
-          fill: true,
-          tension: 0.1
-        },
-        {
-          label: 'Meta Ideal',
-          data: dataMetaIdeal,
-          borderColor: '#D60000',
-          borderDash: [5, 5],
-          borderWidth: 1.5,
-          pointRadius: 0,
-          fill: false,
-          tension: 0
-        }
+        { label: 'Realizado', data: dataRealizado, borderColor: '#0B0B0B', backgroundColor: 'rgba(11,11,11,0.05)', borderWidth: 2, pointRadius: 0, fill: true, tension: 0.1 },
+        { label: 'Meta Ideal', data: dataMetaIdeal, borderColor: '#D60000', borderDash: [5, 5], borderWidth: 1.5, pointRadius: 0, fill: false, tension: 0 }
       ]
     },
     options: {
-      responsive: true,
-      maintainAspectRatio: false,
+      responsive: true, maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          callbacks: {
-            label: c => c.dataset.label + ': ' + fmtBRL(c.parsed.y)
-          }
-        }
-      },
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => c.dataset.label + ': ' + fmtBRL(c.parsed.y) } } },
       scales: {
         x: { grid: { display: false }, ticks: { color: '#888', font: { size: 10 } } },
-        y: { 
-          beginAtZero: true, 
-          grid: { color: '#f0f0f0' },
-          ticks: { color: '#888', font: { size: 10 }, callback: v => 'R$ ' + (v/1000).toFixed(0) + 'k' } 
-        }
+        y: { beginAtZero: true, grid: { color: '#f0f0f0' }, ticks: { color: '#888', font: { size: 10 }, callback: v => 'R$ ' + (v/1000).toFixed(0) + 'k' } }
       }
     },
     plugins: [linhaHojePlugin]
   });
 }
-
-// ============================================================
-// TABELA EQUIPE
-// ============================================================
 
 function renderTabelaEquipe(a, m, f) {
   const tbody = document.getElementById('painel-equipe-container');
@@ -199,7 +190,7 @@ function renderTabelaEquipe(a, m, f) {
   vendedores.sort((x, y) => (y.pctMeta || 0) - (x.pctMeta || 0));
 
   if(vendedores.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px; color:#888;">Nenhum vendedor com dados neste mês.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px; color:#888;">Nenhum vendedor com dados.</td></tr>';
     return;
   }
 
@@ -238,47 +229,72 @@ function renderTabelaEquipe(a, m, f) {
   }).join('');
 }
 
-// ============================================================
-// ATENÇÃO AGORA
-// ============================================================
-
-function renderAtencaoAgora(a, m) {
+function renderAtencaoAgora(a, m, vendedorFoco) {
   const el = document.getElementById('painel-acoes-container');
   if (!el) return;
 
   let alertas = [];
-  const f = calcFilial(a, m, ui.escopoAtual);
-  const dadosVendedores = f.dados || [];
-  
-  dadosVendedores.filter(d => d.vendedor.papel === 'vendedor').forEach(d => {
+
+  if (vendedorFoco) {
+    const d = calcVendedor(vendedorFoco, a, m);
     const gap = d.meta * (calcDiasUteisDecorridos(a, m) / calcDiasUteisNoMes(a, m));
+    
     if (d.faturado < gap && d.faturado > 0) {
-      const falta = gap - d.faturado;
       alertas.push({
         tipo: 'vendedor',
-        titulo: d.vendedor.nome + ' está abaixo do ritmo',
-        desc: `${fmtBRL(falta)} atrás do esperado. Precisa de ${fmtBRL(d.metaDia)}/dia.`,
-        peso: falta
+        titulo: 'Atenção ao seu ritmo',
+        desc: `${fmtBRL(gap - d.faturado)} atrás do esperado. Precisa de ${fmtBRL(d.metaDia)}/dia.`,
+        peso: 999999
       });
     }
-  });
 
-  let clientesRisco = state.clientes
-    .filter(c => filialNoEscopo(c.filialId, ui.escopoAtual) && c.diasSemComprar > 30 && c.valorMedioMensal > 5000)
-    .sort((a, b) => b.valorMedioMensal - a.valorMedioMensal)
-    .slice(0, 2);
+    let clientesRisco = state.clientes
+      .filter(c => c.vendedor === vendedorFoco.id && (c.diasSemComprar || 0) > 30 && c.valorMedioMensal > 1000)
+      .sort((a, b) => b.valorMedioMensal - a.valorMedioMensal)
+      .slice(0, 4);
 
-  clientesRisco.forEach(c => {
-    alertas.push({
-      tipo: 'cliente',
-      titulo: c.nome,
-      desc: `${c.diasSemComprar} dias sem comprar. Valor: ${fmtBRL(c.valorMedioMensal)}/mês.`,
-      peso: c.valorMedioMensal * 1.5
+    clientesRisco.forEach(c => {
+      alertas.push({
+        tipo: 'cliente',
+        titulo: c.nome,
+        desc: `${c.diasSemComprar} dias sem comprar. Valor: ${fmtBRL(c.valorMedioMensal)}/mês.`,
+        peso: c.valorMedioMensal
+      });
     });
-  });
 
-  alertas.sort((x, y) => y.peso - x.peso);
-  alertas = alertas.slice(0, 5);
+  } else {
+    const f = calcFilial(a, m, ui.escopoAtual);
+    const dadosVendedores = f.dados || [];
+    
+    dadosVendedores.filter(d => d.vendedor.papel === 'vendedor').forEach(d => {
+      const gap = d.meta * (calcDiasUteisDecorridos(a, m) / calcDiasUteisNoMes(a, m));
+      if (d.faturado < gap && d.faturado > 0) {
+        alertas.push({
+          tipo: 'vendedor',
+          titulo: d.vendedor.nome + ' está abaixo do ritmo',
+          desc: `${fmtBRL(gap - d.faturado)} atrás. Precisa de ${fmtBRL(d.metaDia)}/dia.`,
+          peso: gap - d.faturado
+        });
+      }
+    });
+
+    let clientesRisco = state.clientes
+      .filter(c => filialNoEscopo(c.filialId, ui.escopoAtual) && (c.diasSemComprar || 0) > 30 && c.valorMedioMensal > 5000)
+      .sort((a, b) => b.valorMedioMensal - a.valorMedioMensal)
+      .slice(0, 2);
+
+    clientesRisco.forEach(c => {
+      alertas.push({
+        tipo: 'cliente',
+        titulo: c.nome,
+        desc: `${c.diasSemComprar} dias sem comprar. Valor: ${fmtBRL(c.valorMedioMensal)}/mês.`,
+        peso: c.valorMedioMensal * 1.5
+      });
+    });
+
+    alertas.sort((x, y) => y.peso - x.peso);
+    alertas = alertas.slice(0, 5);
+  }
 
   if (alertas.length === 0) {
     el.innerHTML = '<div style="padding:32px; text-align:center; color:#888;">Tudo tranquilo no radar.</div>';
@@ -296,53 +312,13 @@ function renderAtencaoAgora(a, m) {
   `).join('');
 }
 
-// ============================================================
-// FUNÇÕES DE IMPRESSÃO (Restauradas para não quebrar o app)
-// ============================================================
-
 export function imprimirHTML(titulo, subtitulo, corpoHTML) {
-  const html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' +
-    escapeHtml(titulo) + '</title><style>' +
-    'body{font-family:system-ui,sans-serif;color:#0f172a;font-size:11px;padding:16px;line-height:1.4}' +
-    'h1{font-size:16px;color:#dc2626;margin-bottom:2px}' +
-    '.sub{font-size:10px;color:#64748b;margin-bottom:14px;border-bottom:1px solid #e2e8f0;padding-bottom:8px}' +
-    'table{width:100%;border-collapse:collapse;font-size:10px;margin-top:10px}' +
-    'th{background:#e2e8f0;text-align:left;padding:5px 6px;font-weight:700;border-bottom:1px solid #94a3b8}' +
-    'td{padding:4px 6px;border-bottom:1px solid #e2e8f0}' +
-    'tr:nth-child(even) td{background:#f8fafc}.num{text-align:right}' +
-    '.rodape{margin-top:16px;font-size:9px;color:#94a3b8;text-align:center;border-top:1px solid #e2e8f0;padding-top:6px}' +
-    '@media print{body{padding:8px}tr{page-break-inside:avoid}}' +
-    '</style></head><body>';
-
-  const sub = escapeHtml(subtitulo) + ' · ' + new Date().toLocaleString('pt-BR') +
-    ' · ' + escapeHtml(escopoNome(ui.escopoAtual));
-
-  const blob = new Blob(
-    [html + '<h1>Alta Fix — ' + escapeHtml(titulo) + '</h1><div class="sub">' + sub + '</div>' +
-      corpoHTML + '<div class="rodape">Gerado pelo Alta Fix</div></body></html>'],
-    { type: 'text/html' }
-  );
-
+  const html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' + escapeHtml(titulo) + '</title><style>body{font-family:system-ui,sans-serif;color:#0f172a;font-size:11px;padding:16px;line-height:1.4}h1{font-size:16px;color:#dc2626;margin-bottom:2px}.sub{font-size:10px;color:#64748b;margin-bottom:14px;border-bottom:1px solid #e2e8f0;padding-bottom:8px}table{width:100%;border-collapse:collapse;font-size:10px;margin-top:10px}th{background:#e2e8f0;text-align:left;padding:5px 6px;font-weight:700;border-bottom:1px solid #94a3b8}td{padding:4px 6px;border-bottom:1px solid #e2e8f0}tr:nth-child(even) td{background:#f8fafc}.num{text-align:right}.rodape{margin-top:16px;font-size:9px;color:#94a3b8;text-align:center;border-top:1px solid #e2e8f0;padding-top:6px}@media print{body{padding:8px}tr{page-break-inside:avoid}}</style></head><body>';
+  const sub = escapeHtml(subtitulo) + ' · ' + new Date().toLocaleString('pt-BR') + ' · ' + escapeHtml(escopoNome(ui.escopoAtual));
+  const blob = new Blob([html + '<h1>Alta Fix — ' + escapeHtml(titulo) + '</h1><div class="sub">' + sub + '</div>' + corpoHTML + '<div class="rodape">Gerado pelo Alta Fix</div></body></html>'], { type: 'text/html' });
   const url = URL.createObjectURL(blob);
   const w = window.open(url, '_blank');
-  if (!w) {
-    URL.revokeObjectURL(url);
-    toast('⚠ Bloqueador de pop-up ativo.');
-    return;
-  }
+  if (!w) { URL.revokeObjectURL(url); toast('⚠ Bloqueador de pop-up ativo.'); return; }
   w.focus();
-  setTimeout(() => {
-    try { w.print(); } catch (e) {}
-    setTimeout(() => URL.revokeObjectURL(url), 30000);
-  }, 400);
-}
-
-export function renderFilaHoje() {
-  const el = document.getElementById('fila-hoje-container');
-  if(el) el.innerHTML = '<p>Em breve: Lista de ligações integrada.</p>';
-}
-
-export function renderEquipe() {
-  const el = document.getElementById('equipe-cards-container');
-  if(el) el.innerHTML = '<p>Em breve: Cards de vendedores.</p>';
+  setTimeout(() => { try { w.print(); } catch (e) {} setTimeout(() => URL.revokeObjectURL(url), 30000); }, 400);
 }
