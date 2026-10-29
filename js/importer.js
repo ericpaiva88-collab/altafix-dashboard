@@ -4,7 +4,7 @@
 
 import { state, basesPreview } from './state.js';
 import {
-  normalizarNomeCliente, parseValorBR, isoDate, diffDias
+  normalizarNomeCliente, parseValorBR, isoDate, diffDias, toast
 } from './utils.js';
 import { matchVendedor, mesclarCliente, mesclarProduto, escopoFilialAtiva } from './calc.js';
 
@@ -47,8 +47,10 @@ export function importar324(entrada, escopoAtual) {
 
 function importar324Single(file, filialId) {
   const st = document.getElementById('erp-status');
-  st.textContent = 'Lendo...';
-  st.style.color = '#64748b';
+  if (st) {
+    st.textContent = 'Lendo...';
+    st.style.color = '#64748b';
+  }
 
   const r = new FileReader();
   r.onload = function (evt) {
@@ -57,8 +59,11 @@ function importar324Single(file, filialId) {
       const result = processar324(wb, filialId);
 
       if (!result || result.erro || !result.clientes || result.clientes.length === 0) {
-        st.style.color = '#dc2626';
-        st.textContent = '⚠ ' + (result && result.erro ? result.erro : 'Sem dados');
+        if (st) {
+          st.style.color = '#dc2626';
+          st.textContent = '⚠ ' + (result && result.erro ? result.erro : 'Sem dados');
+        }
+        toast('⚠ ' + (result && result.erro ? result.erro : 'Sem dados'), 3000);
         return;
       }
 
@@ -89,20 +94,29 @@ function importar324Single(file, filialId) {
       basesPreview.dataFim = result.dataFim;
       basesPreview.vendedoresNaoIdentificados = result.vendedoresNaoIdentificados || {};
 
-      st.style.color = '#16a34a';
-      st.textContent = '✓ ' + result.clientes.length + ' clientes, ' +
-        result.produtos.length + ' produtos, ' +
-        (result.vendasItens || []).length + ' itens.';
+      if (st) {
+        st.style.color = '#16a34a';
+        st.textContent = '✓ ' + result.clientes.length + ' clientes, ' +
+          result.produtos.length + ' produtos, ' +
+          (result.vendasItens || []).length + ' itens.';
+      }
+      toast('✓ ' + result.clientes.length + ' clientes lidos do 324!', 3000);
 
       const naoId = Object.keys(basesPreview.vendedoresNaoIdentificados);
       if (naoId.length > 0) {
-        st.innerHTML += '<br>⚠ <span style="color:#dc2626;">Não identificados: ' +
-          naoId.join(', ') + '</span>';
+        if (st) {
+          st.innerHTML += '<br>⚠ <span style="color:#dc2626;">Não identificados: ' +
+            naoId.join(', ') + '</span>';
+        }
+        toast('⚠ Vendedores não identificados: ' + naoId.join(', '), 4000);
       }
       renderBasesStatus();
     } catch (e) {
-      st.style.color = '#dc2626';
-      st.textContent = 'Erro: ' + e.message;
+      if (st) {
+        st.style.color = '#dc2626';
+        st.textContent = 'Erro: ' + e.message;
+      }
+      toast('❌ Erro ao ler 324: ' + e.message, 4000);
     }
   };
   r.readAsArrayBuffer(file);
@@ -110,8 +124,10 @@ function importar324Single(file, filialId) {
 
 function importar324Multi(files, filialId) {
   const st = document.getElementById('erp-status');
-  st.style.color = '#64748b';
-  st.textContent = 'Lendo ' + files.length + ' arquivo(s)...';
+  if (st) {
+    st.style.color = '#64748b';
+    st.textContent = 'Lendo ' + files.length + ' arquivo(s)...';
+  }
 
   const promessas = files.map(f => new Promise(resolve => {
     const r = new FileReader();
@@ -131,22 +147,25 @@ function importar324Multi(files, filialId) {
   Promise.all(promessas).then(resultados => {
     const validos = resultados.filter(x => !x.erro && x.clientes && x.clientes.length > 0);
     if (!validos.length) {
-      st.style.color = '#dc2626';
-      st.textContent = '⚠ Nenhum arquivo válido.';
+      if (st) {
+        st.style.color = '#dc2626';
+        st.textContent = '⚠ Nenhum arquivo válido.';
+      }
+      toast('⚠ Nenhum arquivo válido.', 3000);
       return;
     }
 
     const cliMap = {};
-validos.forEach(res => {
-  const pIni = res.dataInicio || res.dataFim || '';
-  const pFim = res.dataFim || res.dataInicio || '';
-  (res.clientes || []).forEach(c => {
-    const k = normalizarNomeCliente(c.nome) + '|' + pIni + '|' + pFim;
-    if (!cliMap[k]) cliMap[k] = Object.assign({}, c, { periodoIni: pIni, periodoFim: pFim });
-    else cliMap[k] = mesclarCliente(cliMap[k], c);
-  });
-});
-const clientes = Object.values(cliMap);
+    validos.forEach(res => {
+      const pIni = res.dataInicio || res.dataFim || '';
+      const pFim = res.dataFim || res.dataInicio || '';
+      (res.clientes || []).forEach(c => {
+        const k = normalizarNomeCliente(c.nome) + '|' + pIni + '|' + pFim;
+        if (!cliMap[k]) cliMap[k] = Object.assign({}, c, { periodoIni: pIni, periodoFim: pFim });
+        else cliMap[k] = mesclarCliente(cliMap[k], c);
+      });
+    });
+    const clientes = Object.values(cliMap);
 
     const prodMap = {};
     validos.forEach(res => {
@@ -189,11 +208,14 @@ const clientes = Object.values(cliMap);
     basesPreview.filialImport = filialId;
     basesPreview.vendedoresNaoIdentificados = naoId;
 
-    st.style.color = '#16a34a';
-    st.textContent = '✓ ' + validos.length + ' arquivos · ' +
-      clientes.length + ' clientes · ' +
-      produtos.length + ' produtos · ' +
-      allVendasItens.length + ' itens';
+    if (st) {
+      st.style.color = '#16a34a';
+      st.textContent = '✓ ' + validos.length + ' arquivos · ' +
+        clientes.length + ' clientes · ' +
+        produtos.length + ' produtos · ' +
+        allVendasItens.length + ' itens';
+    }
+    toast('✓ ' + validos.length + ' arquivos lidos!', 3000);
     renderBasesStatus();
   });
 }
@@ -252,7 +274,6 @@ export function processar324(wb, filialId) {
   const COL_CLIENTE = 0, COL_VENDA = 2, COL_PRODUTO = 3, COL_DESCRICAO = 4;
   const COL_QTDE = 8, COL_TOTAL_CDESC = 13;
 
-  // CORREÇÃO BUG 7: estes mapas são locais desta execução (não acumulam entre imports)
   const comprasDatasPorCliente = {};
   const vendasPorCliente = {};
 
@@ -314,15 +335,15 @@ export function processar324(wb, filialId) {
     const cliId = 'cli_' + ncStr.toLowerCase().replace(/[^a-z0-9]+/g, '_').slice(0, 40);
 
     if (!clientes[ncStr]) {
-  clientes[ncStr] = {
-    id: cliId, nome: ncStr, codigo: cs,
-    vendedor: vend ? vend.id : null,
-    filialId: filialId,
-    periodoIni, periodoFim,
-    valorTotal: 0, numCompras: 0,
-    ultimaCompra: null, primeiraCompra: null,
-    linhas: 0, _datas: []
-  };
+      clientes[ncStr] = {
+        id: cliId, nome: ncStr, codigo: cs,
+        vendedor: vend ? vend.id : null,
+        filialId: filialId,
+        periodoIni, periodoFim,
+        valorTotal: 0, numCompras: 0,
+        ultimaCompra: null, primeiraCompra: null,
+        linhas: 0, _datas: []
+      };
       vendasPorCliente[cliId] = {};
       comprasDatasPorCliente[cliId] = {};
     }
@@ -370,18 +391,17 @@ export function processar324(wb, filialId) {
       }
     }
 
-    // VendasItens: par cliente × produto
     const cliNorm = normalizarNomeCliente(ncStr);
-const vendId = vend ? vend.id : null;
-const keyVI = periodoIni + '|' + periodoFim + '|' + cliNorm + '|' + cs + '|' + (vendId || 'x');
-if (!vendasItensMap[keyVI]) {
-  vendasItensMap[keyVI] = {
-    periodoIni, periodoFim,
-    clienteNorm: cliNorm, produtoCodigo: cs,
-    vendedor: vendId,
-    produtoDescricao: descStr, valor: 0, qtd: 0
-  };
-}
+    const vendId = vend ? vend.id : null;
+    const keyVI = periodoIni + '|' + periodoFim + '|' + cliNorm + '|' + cs + '|' + (vendId || 'x');
+    if (!vendasItensMap[keyVI]) {
+      vendasItensMap[keyVI] = {
+        periodoIni, periodoFim,
+        clienteNorm: cliNorm, produtoCodigo: cs,
+        vendedor: vendId,
+        produtoDescricao: descStr, valor: 0, qtd: 0
+      };
+    }
     vendasItensMap[keyVI].valor += tcd;
     vendasItensMap[keyVI].qtd += (isNaN(qt) ? 0 : qt);
   }
@@ -447,8 +467,10 @@ export function importar740(entrada, escopoAtual) {
 
 function importar740Single(file, filialId) {
   const st = document.getElementById('status-740');
-  st.style.color = '#64748b';
-  st.textContent = 'Lendo ' + file.name + '...';
+  if (st) {
+    st.style.color = '#64748b';
+    st.textContent = 'Lendo ' + file.name + '...';
+  }
 
   const r = new FileReader();
   r.onload = function (evt) {
@@ -456,8 +478,11 @@ function importar740Single(file, filialId) {
       const wb = XLSX.read(new Uint8Array(evt.target.result), { type: 'array' });
       const result = processar740(wb, filialId);
       if (!result) {
-        st.style.color = '#dc2626';
-        st.textContent = '⚠ Formato não reconhecido.';
+        if (st) {
+          st.style.color = '#dc2626';
+          st.textContent = '⚠ Formato não reconhecido.';
+        }
+        toast('⚠ Formato do 740 não reconhecido.', 3000);
         return;
       }
 
@@ -467,22 +492,28 @@ function importar740Single(file, filialId) {
       basesPreview.periodoFim = result.periodoFim;
       basesPreview.filialImport = filialId;
 
-      st.style.color = '#16a34a';
-      st.textContent = '✓ ' + result.cidades.length + ' cidades, ' +
-        result.totalClientes + ' clientes.';
-      if (result.periodoInicio) {
-        st.textContent += ' Período: ' +
-          result.periodoInicio.split('-').reverse().join('/') + ' a ' +
-          result.periodoFim.split('-').reverse().join('/');
+      if (st) {
+        st.style.color = '#16a34a';
+        st.textContent = '✓ ' + result.cidades.length + ' cidades, ' +
+          result.totalClientes + ' clientes.';
+        if (result.periodoInicio) {
+          st.textContent += ' Período: ' +
+            result.periodoInicio.split('-').reverse().join('/') + ' a ' +
+            result.periodoFim.split('-').reverse().join('/');
+        }
+        if (result.vendedoresNaoEncontrados > 0) {
+          st.innerHTML += '<br>⚠ ' + result.vendedoresNaoEncontrados +
+            ' linha(s) com vendedor não identificado.';
+        }
       }
-      if (result.vendedoresNaoEncontrados > 0) {
-        st.innerHTML += '<br>⚠ ' + result.vendedoresNaoEncontrados +
-          ' linha(s) com vendedor não identificado.';
-      }
+      toast('✓ ' + result.cidades.length + ' cidades lidas do 740!', 3000);
       renderBasesStatus();
     } catch (e) {
-      st.style.color = '#dc2626';
-      st.textContent = 'Erro: ' + e.message;
+      if (st) {
+        st.style.color = '#dc2626';
+        st.textContent = 'Erro: ' + e.message;
+      }
+      toast('❌ Erro ao ler 740: ' + e.message, 4000);
     }
   };
   r.readAsArrayBuffer(file);
@@ -490,8 +521,10 @@ function importar740Single(file, filialId) {
 
 function importar740Multi(files, filialId) {
   const st = document.getElementById('status-740');
-  st.style.color = '#64748b';
-  st.textContent = '📖 Lendo ' + files.length + ' arquivo(s)...';
+  if (st) {
+    st.style.color = '#64748b';
+    st.textContent = '📖 Lendo ' + files.length + ' arquivo(s)...';
+  }
 
   const promessas = files.map(f => new Promise(resolve => {
     const r = new FileReader();
@@ -511,15 +544,21 @@ function importar740Multi(files, filialId) {
   Promise.all(promessas).then(resultados => {
     const validos = resultados.filter(x => !x.erro && x.cidades && x.cidades.length > 0);
     if (!validos.length) {
-      st.style.color = '#dc2626';
-      st.textContent = '⚠ Nenhum arquivo válido.';
+      if (st) {
+        st.style.color = '#dc2626';
+        st.textContent = '⚠ Nenhum arquivo válido.';
+      }
+      toast('⚠ Nenhum arquivo válido.', 3000);
       return;
     }
 
     validos.sort((a, b) => (a.periodoInicio || '').localeCompare(b.periodoInicio || ''));
 
-    st.style.color = '#16a34a';
-    st.textContent = '✓ ' + validos.length + ' meses lidos. Vão ser salvos em ordem.';
+    if (st) {
+      st.style.color = '#16a34a';
+      st.textContent = '✓ ' + validos.length + ' meses lidos. Vão ser salvos em ordem.';
+    }
+    toast('✓ ' + validos.length + ' meses lidos do 740!', 3000);
 
     let todasCidades = [];
     let primeiroIni = null;
@@ -715,7 +754,6 @@ export function processar740(wb, filialId) {
 
   if (cidadeAtual) cidades.push(cidadeAtual);
 
-  // Consolida cidades duplicadas (mesmo nome + uf)
   const porChave = {};
   cidades.forEach(c => {
     const chave = (c.nome + '|' + c.uf).toUpperCase();
@@ -747,7 +785,6 @@ export function processar740(wb, filialId) {
 
 // ============================================================
 // 361 CURVA ABC / FABRICANTES
-// CORREÇÃO BUG 3: agora extrai estoqueAtual e estoqueMinimo
 // ============================================================
 
 export function importar361(entrada, escopoAtual) {
@@ -761,8 +798,10 @@ export function importar361(entrada, escopoAtual) {
 
 function importar361Single(file, filialId) {
   const st = document.getElementById('abc-status-import');
-  st.style.color = '#64748b';
-  st.textContent = 'Lendo ' + file.name + '...';
+  if (st) {
+    st.style.color = '#64748b';
+    st.textContent = 'Lendo ' + file.name + '...';
+  }
 
   const r = new FileReader();
   r.onload = function (evt) {
@@ -771,8 +810,11 @@ function importar361Single(file, filialId) {
       const result = processar361(wb);
 
       if (!result || result.itens.length === 0) {
-        st.style.color = '#dc2626';
-        st.textContent = '⚠ Nenhum item.';
+        if (st) {
+          st.style.color = '#dc2626';
+          st.textContent = '⚠ Nenhum item.';
+        }
+        toast('⚠ Nenhum item encontrado no 361.', 3000);
         return;
       }
 
@@ -781,17 +823,23 @@ function importar361Single(file, filialId) {
       basesPreview.abcPeriodoFim = result.periodoFim;
       basesPreview.filialImport = filialId;
 
-      st.style.color = '#16a34a';
-      st.textContent = '✓ ' + result.itens.length + ' itens.';
-      if (result.periodoInicio) {
-        st.textContent += ' Período: ' +
-          result.periodoInicio.split('-').reverse().join('/') + ' a ' +
-          result.periodoFim.split('-').reverse().join('/');
+      if (st) {
+        st.style.color = '#16a34a';
+        st.textContent = '✓ ' + result.itens.length + ' itens.';
+        if (result.periodoInicio) {
+          st.textContent += ' Período: ' +
+            result.periodoInicio.split('-').reverse().join('/') + ' a ' +
+            result.periodoFim.split('-').reverse().join('/');
+        }
       }
+      toast('✓ ' + result.itens.length + ' itens lidos do 361!', 3000);
       renderBasesStatus();
     } catch (e) {
-      st.style.color = '#dc2626';
-      st.textContent = 'Erro: ' + e.message;
+      if (st) {
+        st.style.color = '#dc2626';
+        st.textContent = 'Erro: ' + e.message;
+      }
+      toast('❌ Erro ao ler 361: ' + e.message, 4000);
     }
   };
   r.readAsArrayBuffer(file);
@@ -799,8 +847,10 @@ function importar361Single(file, filialId) {
 
 function importar361Multi(files, filialId) {
   const st = document.getElementById('abc-status-import');
-  st.style.color = '#64748b';
-  st.textContent = '📖 Lendo ' + files.length + ' arquivo(s)...';
+  if (st) {
+    st.style.color = '#64748b';
+    st.textContent = '📖 Lendo ' + files.length + ' arquivo(s)...';
+  }
 
   const promessas = files.map(f => new Promise(resolve => {
     const r = new FileReader();
@@ -820,8 +870,11 @@ function importar361Multi(files, filialId) {
   Promise.all(promessas).then(resultados => {
     const validos = resultados.filter(x => !x.erro && x.itens && x.itens.length > 0);
     if (!validos.length) {
-      st.style.color = '#dc2626';
-      st.textContent = '⚠ Nenhum arquivo válido.';
+      if (st) {
+        st.style.color = '#dc2626';
+        st.textContent = '⚠ Nenhum arquivo válido.';
+      }
+      toast('⚠ Nenhum arquivo válido.', 3000);
       return;
     }
 
@@ -837,9 +890,12 @@ function importar361Multi(files, filialId) {
       itens: r.itens
     }));
 
-    st.style.color = '#16a34a';
-    st.textContent = '✓ ' + validos.length + ' meses lidos · usando ' +
-      (ultimo.periodoInicio || '?') + ' como curva atual';
+    if (st) {
+      st.style.color = '#16a34a';
+      st.textContent = '✓ ' + validos.length + ' meses lidos · usando ' +
+        (ultimo.periodoInicio || '?') + ' como curva atual';
+    }
+    toast('✓ ' + validos.length + ' meses lidos do 361!', 3000);
     renderBasesStatus();
   });
 }
@@ -896,7 +952,6 @@ export function processar361(wb) {
     }
   }
 
-
   if (hi < 0) return { itens: [], periodoInicio: '', periodoFim: '' };
 
   const mapa = {};
@@ -913,7 +968,6 @@ export function processar361(wb) {
     const qtd = cm.qtde != null ? (parseValorBR(r[cm.qtde]) || 0) : 0;
     const valor = cm.total != null ? (parseValorBR(r[cm.total]) || 0) : 0;
 
-    // CORREÇÃO BUG 3: estoque agora é extraído
     const estoqueAtual = (cm.estoque != null)
       ? parseValorBR(r[cm.estoque])
       : null;
@@ -955,8 +1009,10 @@ export function importarComparativo(file, escopoAtual) {
   if (!fid) return;
 
   const st = document.getElementById('comp-status');
-  st.style.color = '#64748b';
-  st.textContent = 'Lendo...';
+  if (st) {
+    st.style.color = '#64748b';
+    st.textContent = 'Lendo...';
+  }
 
   const r = new FileReader();
   r.onload = function (evt) {
@@ -964,8 +1020,11 @@ export function importarComparativo(file, escopoAtual) {
       const wb = XLSX.read(new Uint8Array(evt.target.result), { type: 'array' });
       const sn = wb.SheetNames.find(n => n.toLowerCase().indexOf('compar') >= 0);
       if (!sn) {
-        st.style.color = '#dc2626';
-        st.textContent = '⚠ Aba Comparativo não encontrada.';
+        if (st) {
+          st.style.color = '#dc2626';
+          st.textContent = '⚠ Aba Comparativo não encontrada.';
+        }
+        toast('⚠ Aba Comparativo não encontrada.', 3000);
         return;
       }
 
@@ -1014,20 +1073,29 @@ export function importarComparativo(file, escopoAtual) {
       }
 
       if (comp.length === 0) {
-        st.style.color = '#dc2626';
-        st.textContent = '⚠ Nenhum mês.';
+        if (st) {
+          st.style.color = '#dc2626';
+          st.textContent = '⚠ Nenhum mês.';
+        }
+        toast('⚠ Nenhum mês encontrado.', 3000);
         return;
       }
 
       basesPreview.comparativo = comp;
       basesPreview.filialImport = fid;
 
-      st.style.color = '#16a34a';
-      st.textContent = '✓ ' + comp.length + ' meses.';
+      if (st) {
+        st.style.color = '#16a34a';
+        st.textContent = '✓ ' + comp.length + ' meses.';
+      }
+      toast('✓ ' + comp.length + ' meses lidos do comparativo!', 3000);
       renderBasesStatus();
     } catch (e) {
-      st.style.color = '#dc2626';
-      st.textContent = 'Erro: ' + e.message;
+      if (st) {
+        st.style.color = '#dc2626';
+        st.textContent = 'Erro: ' + e.message;
+      }
+      toast('❌ Erro ao ler comparativo: ' + e.message, 4000);
     }
   };
   r.readAsArrayBuffer(file);
