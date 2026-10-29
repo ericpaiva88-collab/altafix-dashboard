@@ -99,7 +99,6 @@ export function renderPainel() {
   }
 
   renderSemana();
-  // Passa o objeto 'f' já calculado para não recalcular a filial inteira
   renderAtencaoAgora(a, m, vendedorFoco, f);
 }
 
@@ -119,7 +118,6 @@ function renderGraficoAcumulado(a, m, meta, vendedorId) {
   const hoje = new Date();
   const diaCorte = (hoje.getFullYear() === a && hoje.getMonth() === m) ? hoje.getDate() : diasNoMes;
 
-  // OTIMIZAÇÃO: Agrupa lançamentos por dia em um único loop
   const valoresPorDia = {};
   const prefixo = a + '-' + String(m + 1).padStart(2, '0');
   state.lancamentos.forEach(l => {
@@ -196,7 +194,6 @@ export function renderSemana() {
   let ativos = vendedoresNoEscopo(ui.escopoAtual).filter(v => v.ativo && v.papel !== 'administrativo');
   if (ui.modoVendedor) ativos = ativos.filter(v => v.id === ui.modoVendedor);
 
-  // OTIMIZAÇÃO: Pré-agrupa os lançamentos da semana
   const lancamentosSemana = {};
   for (let i = 0; i < 6; i++) {
     const d = new Date(ini);
@@ -291,8 +288,53 @@ export function renderSemana() {
   if (semMobile) semMobile.innerHTML = hh;
 }
 
-// OTIMIZAÇÃO: Recebe o objeto 'f' já calculado
-// OTIMIZAÇÃO: Recebe o objeto 'f' já calculado
+function renderTabelaEquipe(a, m, f) {
+  const tbody = document.getElementById('painel-equipe-container');
+  if (!tbody) return;
+
+  let vendedores = f.dados ? f.dados.filter(d => d.vendedor.papel === 'vendedor') : [];
+  vendedores.sort((x, y) => (y.pctMeta || 0) - (x.pctMeta || 0));
+
+  if(vendedores.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px; color:#888;">Nenhum vendedor com dados.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = vendedores.map(d => {
+    const v = d.vendedor;
+    const pct = d.pctMeta || 0;
+    const gap = d.meta > 0 ? d.meta * (calcDiasUteisDecorridos(a, m) / calcDiasUteisNoMes(a, m)) : 0;
+    const isAbaixo = d.faturado < gap;
+
+    let statusBadge = '<span class="badge ok">No ritmo</span>';
+    if (pct === 0) statusBadge = '<span class="badge neutral">Sem dados</span>';
+    else if (isAbaixo) statusBadge = '<span class="badge danger">Abaixo</span>';
+
+    const barraCls = isAbaixo ? 'vermelho' : 'verde';
+    const marcadorPct = d.meta > 0 ? Math.min(100, (gap / d.meta) * 100) : 0;
+
+    return `
+      <tr>
+        <td><strong>${escapeHtml(v.nome)}</strong></td>
+        <td class="num">${fmtBRL(d.faturado)}</td>
+        <td style="width: 180px;">
+          <div class="tabela-barra-wrap">
+            <div class="tabela-barra-bg">
+              <div class="tabela-barra-fill ${barraCls}" style="width: ${Math.min(100, pct)}%"></div>
+              <div class="tabela-barra-marker" style="left: ${marcadorPct}%"></div>
+            </div>
+            <span style="font-size:11px; font-weight:600; width:35px;">${pct.toFixed(0)}%</span>
+          </div>
+        </td>
+        <td class="num">${fmtBRL(d.projecao)}</td>
+        <td class="num ${isAbaixo ? 'vermelho' : ''}">${fmtBRL(d.metaDia)}</td>
+        <td class="num">${fmtBRL(d.ticket)}</td>
+        <td>${statusBadge}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
 function renderAtencaoAgora(a, m, vendedorFoco, fCalculada) {
   const el = document.getElementById('painel-acoes-container');
   if (!el) return;
