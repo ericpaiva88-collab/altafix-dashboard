@@ -1,5 +1,5 @@
 // ============================================================
-// views/painel.js — Cockpit Comercial
+// views/painel.js — Cockpit Comercial (Otimizado)
 // ============================================================
 
 import { state, ui } from '../state.js';
@@ -99,7 +99,8 @@ export function renderPainel() {
   }
 
   renderSemana();
-  renderAtencaoAgora(a, m, vendedorFoco);
+  // Passa o objeto 'f' já calculado para não recalcular a filial inteira
+  renderAtencaoAgora(a, m, vendedorFoco, f);
 }
 
 let chartMetaInstance = null;
@@ -111,7 +112,6 @@ function renderGraficoAcumulado(a, m, meta, vendedorId) {
 
   const diasNoMes = new Date(a, m + 1, 0).getDate();
   const labels = [], dataRealizado = [], dataMetaIdeal = [];
-  let acumulado = 0, metaAcumulada = 0;
   
   const du = calcDiasUteisNoMes(a, m);
   const metaDiaria = meta / Math.max(1, du);
@@ -119,18 +119,26 @@ function renderGraficoAcumulado(a, m, meta, vendedorId) {
   const hoje = new Date();
   const diaCorte = (hoje.getFullYear() === a && hoje.getMonth() === m) ? hoje.getDate() : diasNoMes;
 
+  // OTIMIZAÇÃO: Agrupa lançamentos por dia em um único loop
+  const valoresPorDia = {};
+  const prefixo = a + '-' + String(m + 1).padStart(2, '0');
+  state.lancamentos.forEach(l => {
+    if (l.data.indexOf(prefixo) !== 0) return;
+    if (vendedorId && l.vendedor !== vendedorId) return;
+    if (!filialNoEscopo(l.filialId, ui.escopoAtual)) return;
+    const dia = parseInt(l.data.slice(8, 10), 10);
+    valoresPorDia[dia] = (valoresPorDia[dia] || 0) + (l.valor || 0);
+  });
+
+  let acumulado = 0, metaAcumulada = 0;
+
   for (let d = 1; d <= diasNoMes; d++) {
     labels.push(d);
     if (new Date(a, m, d).getDay() % 6 !== 0) metaAcumulada += metaDiaria;
     dataMetaIdeal.push(metaAcumulada);
 
     if (d <= diaCorte) {
-      const iso = a + '-' + String(m + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
-      state.lancamentos.forEach(l => {
-        if (l.data === iso && filialNoEscopo(l.filialId, ui.escopoAtual)) {
-          if (!vendedorId || l.vendedor === vendedorId) acumulado += (l.valor || 0);
-        }
-      });
+      acumulado += (valoresPorDia[d] || 0);
       dataRealizado.push(acumulado);
     } else {
       dataRealizado.push(null);
@@ -188,16 +196,27 @@ export function renderSemana() {
   let ativos = vendedoresNoEscopo(ui.escopoAtual).filter(v => v.ativo && v.papel !== 'administrativo');
   if (ui.modoVendedor) ativos = ativos.filter(v => v.id === ui.modoVendedor);
 
+  // OTIMIZAÇÃO: Pré-agrupa os lançamentos da semana
+  const lancamentosSemana = {};
+  for (let i = 0; i < 6; i++) {
+    const d = new Date(ini);
+    d.setDate(d.getDate() + i);
+    lancamentosSemana[isoDate(d)] = {};
+  }
+  
+  state.lancamentos.forEach(l => {
+    if (lancamentosSemana[l.data]) {
+      lancamentosSemana[l.data][l.vendedor] = (lancamentosSemana[l.data][l.vendedor] || 0) + (l.valor || 0);
+    }
+  });
+
   const dados = ativos.map(v => {
     const pd = {};
     for (let i = 0; i < 6; i++) {
       const d = new Date(ini);
       d.setDate(d.getDate() + i);
       const iso = isoDate(d);
-      const lancs = state.lancamentos.filter(l => l.vendedor === v.id && l.data === iso);
-      let val = 0;
-      lancs.forEach(l => { val += (l.valor || 0); });
-      pd[i] = val;
+      pd[i] = lancamentosSemana[iso][v.id] || 0;
     }
     let t = 0;
     for (let j = 0; j < 6; j++) t += pd[j];
@@ -241,7 +260,6 @@ export function renderSemana() {
     b += '<td class="num"><strong>' + fmtBRL(row.total) + '</strong></td></tr>';
   });
   
-  // Linha TOTAL com fundo preto forçado
   b += '<tr><td class="bg-preto" style="color:#fff; font-weight:700;">TOTAL</td>';
   for (let j = 0; j < 6; j++) {
     b += '<td class="num bg-preto" style="color:#fff; font-weight:700;">' + (td[j] > 0 ? fmtBRL(td[j]) : '—') + '</td>';
@@ -273,54 +291,9 @@ export function renderSemana() {
   if (semMobile) semMobile.innerHTML = hh;
 }
 
-function renderTabelaEquipe(a, m, f) {
-  const tbody = document.getElementById('painel-equipe-container');
-  if (!tbody) return;
-
-  let vendedores = f.dados ? f.dados.filter(d => d.vendedor.papel === 'vendedor') : [];
-  vendedores.sort((x, y) => (y.pctMeta || 0) - (x.pctMeta || 0));
-
-  if(vendedores.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px; color:#888;">Nenhum vendedor com dados.</td></tr>';
-    return;
-  }
-
-  tbody.innerHTML = vendedores.map(d => {
-    const v = d.vendedor;
-    const pct = d.pctMeta || 0;
-    const gap = d.meta > 0 ? d.meta * (calcDiasUteisDecorridos(a, m) / calcDiasUteisNoMes(a, m)) : 0;
-    const isAbaixo = d.faturado < gap;
-
-    let statusBadge = '<span class="badge ok">No ritmo</span>';
-    if (pct === 0) statusBadge = '<span class="badge neutral">Sem dados</span>';
-    else if (isAbaixo) statusBadge = '<span class="badge danger">Abaixo</span>';
-
-    const barraCls = isAbaixo ? 'vermelho' : 'verde';
-    const marcadorPct = d.meta > 0 ? Math.min(100, (gap / d.meta) * 100) : 0;
-
-    return `
-      <tr>
-        <td><strong>${escapeHtml(v.nome)}</strong></td>
-        <td class="num">${fmtBRL(d.faturado)}</td>
-        <td style="width: 180px;">
-          <div class="tabela-barra-wrap">
-            <div class="tabela-barra-bg">
-              <div class="tabela-barra-fill ${barraCls}" style="width: ${Math.min(100, pct)}%"></div>
-              <div class="tabela-barra-marker" style="left: ${marcadorPct}%"></div>
-            </div>
-            <span style="font-size:11px; font-weight:600; width:35px;">${pct.toFixed(0)}%</span>
-          </div>
-        </td>
-        <td class="num">${fmtBRL(d.projecao)}</td>
-        <td class="num ${isAbaixo ? 'vermelho' : ''}">${fmtBRL(d.metaDia)}</td>
-        <td class="num">${fmtBRL(d.ticket)}</td>
-        <td>${statusBadge}</td>
-      </tr>
-    `;
-  }).join('');
-}
-
-function renderAtencaoAgora(a, m, vendedorFoco) {
+// OTIMIZAÇÃO: Recebe o objeto 'f' já calculado
+// OTIMIZAÇÃO: Recebe o objeto 'f' já calculado
+function renderAtencaoAgora(a, m, vendedorFoco, fCalculada) {
   const el = document.getElementById('painel-acoes-container');
   if (!el) return;
 
@@ -335,8 +308,7 @@ function renderAtencaoAgora(a, m, vendedorFoco) {
     let clientesRisco = state.clientes.filter(c => c.vendedor === vendedorFoco.id && (c.diasSemComprar || 0) > 30 && c.valorMedioMensal > 1000).sort((a, b) => b.valorMedioMensal - a.valorMedioMensal).slice(0, 4);
     clientesRisco.forEach(c => { alertas.push({ tipo: 'cliente', titulo: c.nome, desc: `${c.diasSemComprar} dias sem comprar. Valor: ${fmtBRL(c.valorMedioMensal)}/mês.`, peso: c.valorMedioMensal }); });
   } else {
-    const f = calcFilial(a, m, ui.escopoAtual);
-    const dadosVendedores = f.dados || [];
+    const dadosVendedores = fCalculada.dados || [];
     dadosVendedores.filter(d => d.vendedor.papel === 'vendedor').forEach(d => {
       const gap = d.meta * (calcDiasUteisDecorridos(a, m) / calcDiasUteisNoMes(a, m));
       if (d.faturado < gap && d.faturado > 0) {

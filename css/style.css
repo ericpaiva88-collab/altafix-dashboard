@@ -682,3 +682,17 @@ body {
   background: var(--af-preto) !important;
   color: #fff !important;
 }
+/* Controle da Semana (Mobile vs Desktop) */
+.semana-tabs {
+  display: none; /* Esconde no desktop por padrão */
+  gap: 8px; 
+  margin-bottom: 12px;
+}
+.semana-mobile { display: none; }
+.semana-desktop { display: block; }
+
+@media (max-width: 768px) {
+  .semana-tabs { display: flex; }
+  .semana-desktop { display: none; }
+  .semana-mobile { display: block; }
+}
