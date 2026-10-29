@@ -11,7 +11,7 @@ O Alta Fix deixou de ser um dashboard genérico e se tornou um **Copiloto de Ges
 - **Gráficos:** Chart.js.
 - **Importação de Dados:** SheetJS (XLSX).
 - **Hospedagem:** Cloudflare Pages (Deploy automático via GitHub).
-- **Sem build step:** Arquivos servidos diretamente (zero configuração de Webpack/Vite).
+- **Performance:** Carregamento em duas etapas (*Lazy Loading*). O app carrega primeiro as tabelas vitais (clientes, lançamentos) e depois baixa o histórico pesado em background.
 
 ---
 
@@ -25,78 +25,83 @@ O Alta Fix deixou de ser um dashboard genérico e se tornou um **Copiloto de Ges
     ├── main.js              # Bootstrap, autenticação, navegação e listeners
     ├── state.js             # Estado global (state, ui, session) e localStorage
     ├── utils.js             # Helpers (formatadores, datas, normalização)
-    ├── calc.js              # Regras de negócio (RFM, metas, projeções, YoY)
-    ├── supabase.js          # Comunicação com o banco de dados e Auth
+    ├── calc.js              # Regras de negócio otimizadas (RFM, metas, projeções, YoY)
+    ├── supabase.js          # Comunicação com o banco e Auth (com modo Lite e Full)
     ├── importer.js          # Parsing das planilhas (324, 740, 361)
     └── views/
-        ├── painel.js        # Cockpit (KPIs, Gráfico Meta, Ritmo Semanal, Ações)
-        ├── agenda.js        # Fila inteligente de ligações e reativação
-        ├── equipe.js        # Cards de vendedores e modal Ficha 1:1
+        ├── painel.js        # Cockpit (KPIs, Gráfico Meta, Ritmo Semanal, Relatório Matinal)
+        ├── agenda.js        # Fila inteligente de ligações (Modo Lista e Modo Foco)
+        ├── equipe.js        # Cards de vendedores e modal Ficha 1:1 (com Diário de Bordo)
         ├── clientes.js      # Carteira de clientes e risco de churn
         ├── produtos.js      # Curva ABC e análise de estoque
-        ├── analise.js       # Sazonalidade (YoY) e leitura de crescimento
-        ├── config.js        # Importações, metas e vendedores
-        └── ligacoes.js      # Modal de registro de ligações
+        ├── ligacoes.js      # Auditoria de ligações e conversão
+        ├── analise.js       # Sazonalidade (YoY), Leitura de Gestão e Top Movers
+        └── config.js        # Importações, metas e vendedores
         🖥️ Principais Telas (Features)
 1. Cockpit (Painel Inicial)
 A central de comando do diretor.
 
-KPIs Vitais: Faturado, Falta, Projeção e Precisa/Dia (quanto o time precisa vender por dia útil para bater a meta).
+KPIs Vitais: Faturado, Falta, Projeção e Precisa/Dia.
 
-Acumulado vs Meta: Gráfico de linha comparando o realizado com a linha tracejada da meta ideal diária.
+Acumulado vs Meta: Gráfico de linha mostrando a velocidade de venda vs a linha ideal.
 
-Atenção Agora: Lista os top 5 problemas mais urgentes (vendedores abaixo do ritmo e clientes valiosos inativos).
+Atenção Agora: Lista de top 5 problemas (vendedores abaixo do ritmo, clientes inativos de alto valor) com botões de ação rápida.
 
-Ritmo Semanal: Tabela navegável que mostra o faturamento dia a dia (Seg a Sáb) da semana selecionada, comparando com a meta semanal.
+Ritmo Semanal: Tabela navegável dia a dia (Seg a Sáb) comparando o realizado com a meta semanal.
 
-Tabela Equipe: Visão de todos os vendedores com barras de progresso indicando se estão "No Ritmo" ou "Abaixo".
+Relatório Matinal: Botão que gera um texto formatado pronto para copiar e colar no WhatsApp do time.
 
 2. Operação / Agenda
 Onde o vendedor trabalha.
 
-Fila inteligente que cruza dados de ligacoes (retornos agendados) com a inteligência de clientes (recompra e reativação).
+Modo Lista: Visão geral de todas as tarefas com filtros (Atrasados, Sumidos, Recompra).
 
-Filtros por urgência (Atrasados, Hoje), por status (Sumidos, Recompra) e por vendedor.
-
-Botão "Ligar" que já abre o modal de registro com os dados do cliente pré-preenchidos.
+Modo Foco: Tela limpa que entrega um cliente por vez para o vendedor (Nome, Motivo, Valor, Botão de Ligar). Ao finalizar, avança automaticamente para o próximo.
 
 3. Equipe (Ficha 1:1)
 Foco no desenvolvimento humano e feedback.
 
-Cards: Visão rápida da carteira, clientes ativos, clientes em risco e ligações no mês.
+Cards: Visão rápida de carteira, ativos, em risco e ligações.
 
-Ficha do Vendedor (Modal): Gráfico histórico de 6 ou 12 meses (comparando com o ano anterior), lista dos Top 5 clientes ativos e os Top 5 clientes em risco para ação imediata.
+Ficha do Vendedor: Gráfico histórico (2025 vs 2026), lista de clientes em risco e um Diário de Bordo (1:1) para o gestor salvar as anotações da reunião.
 
-4. Clientes
+4. Ligações
+Tela de auditoria e produtividade do time de televendas.
+
+KPIs de Conversão, Valor Gerado e Retornos Pendentes.
+
+Tabela com histórico completo, filtros por vendedor/status e observações.
+
+5. Clientes
 Focado no "Vale/Mês" (valor médio dos últimos 90 dias de atividade).
 
 KPIs de Carteira, Em Risco e Perdidos.
 
 Filtros por status (Ativos, Críticos, Sem Vendedor).
 
-5. Produtos
+6. Produtos
 Baseado no relatório 361 (Curva ABC).
 
 Destaque visual em vermelho para produtos cujo estoque atual está abaixo do mínimo.
 
-6. Análise & Performance
-Sazonalidade (YoY): Gráfico de linha comparando 2025 e 2026 (mês a mês). O sistema puxa 2025 da tabela de comparativo e 2026 dos lancamentos reais (evitando dados defasados).
+7. Análise & Performance
+Sazonalidade (YoY): Gráfico de linha comparando 2025 e 2026. O sistema puxa 2025 da tabela de comparativo e 2026 dos lancamentos reais.
 
-Leitura de Gestão: A tabela de ranking não só mostra o número, mas interpreta (ex: "Crescendo levemente", "Abaixo de 2025 — precisa de apoio").
+Leitura de Gestão: A tabela de ranking interpreta os números (ex: "Crescendo levemente", "Abaixo de 2025 — precisa de apoio").
 
-7. Configurações
-Importação via Drag & Drop das planilhas (324, 740, 361).
+8. Configurações
+Importação via Drag & Drop das planilhas (324, 740, 361) com feedback visual.
 
-Edição de Metas por mês e vendedor (sincronizado diretamente com o Supabase).
+Edição de Metas por mês e vendedor.
 
 🧠 Regras de Negócio (O "Cérebro" do App)
-Vale/Mês: Para evitar distorções de clientes que gastaram muito no passado e sumiram, o "Vale/mês" não é a média histórica. É o faturamento dos últimos 90 dias antes da última compra dividido por 3.
+Vale/Mês: Faturamento dos últimos 90 dias antes da última compra, dividido por 3.
 
-Atenção Agora (Ações): Calcula o "Gap" (Onde o vendedor deveria estar hoje vs onde ele está). Se a projeção indicar que o vendedor não baterá a meta, ele sobe para o topo da lista de alertas.
+Atenção Agora: Calcula o "Gap" (Onde o vendedor deveria estar hoje vs onde ele está). Se estiver abaixo, ele sobe para a lista de alertas.
 
-Modo Vendedor: O seletor no topo filtra todas as abas (Cockpit, Agenda, Clientes) para mostrar exclusivamente os dados do vendedor selecionado.
+Modo Vendedor: O seletor no topo filtra todas as abas (Cockpit, Agenda, Clientes) para mostrar exclusivamente os dados do vendedor selecionado. A meta semanal também se ajusta.
 
-Filtro de Segurança: Administrativos, Diretores e Ex-vendedores são omitidos automaticamente dos rankings de vendas e seletores de ligação, para não distorcer os dados.
+Filtro de Segurança: Administrativos, Diretores e Ex-vendedores são omitidos dos rankings e seletores de ligação.
 
 🚀 Como rodar localmente
 Abra a pasta do projeto no VS Code.
@@ -131,13 +136,11 @@ produtos	Dados do 361 (Curva ABC, fabricante e estoque).
 ligacoes	Registro de contatos feitos e próximos retornos.
 metas	Metas mensais por vendedor (garante o histórico mês a mês).
 ⚠️ Limitações Conhecidas / Próximos Passos
-Integração via API (ERP): Hoje a entrada de dados depende de importação manual de planilhas. O próximo grande salto é integrar direto com o banco do ERP (Maxdata) para ler as vendas em tempo real.
+Integração via API (ERP): Hoje a entrada depende de importação manual. O próximo passo é integrar com o ERP (Maxdata).
 
-Diário de Bordo 1:1: Falta adicionar um campo de texto no modal do vendedor para o diretor salvar as anotações da reunião de feedback.
+Backup e Exportação: Os botões de Excel e Backup em JSON ainda precisam ser conectados à nova interface.
 
-Integração WhatsApp: O botão de ligar/contato ainda não abre o WhatsApp Web com mensagem pré-formatada.
-
-Cache de Importação: O sistema não substitui dados passados automaticamente em todos os cenários; sempre que reimportar um período, valide no Cockpit se os valores refletiram.
+Integração WhatsApp: O botão de ligar ainda não abre o WhatsApp Web com mensagem pré-formatada.
 
 Última atualização: 29/10/2026
-Status: Operacional — Foco em Gestão Comercial e Recuperação de Receita.
+Status: Operacional — Foco em Gestão Comercial, Produtividade e Recuperação de Receita.
