@@ -10,8 +10,9 @@ import {
 
 export function renderPainel() {
   const meses = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+  
+  // FIX: Garantir que o seletor de mês seja preenchido corretamente
   const selMes = document.getElementById('painel-mes-select');
-
   if (selMes) {
     let mesesComDados = new Set();
     state.lancamentos.forEach(l => { if (l.data) mesesComDados.add(l.data.slice(0, 7)); });
@@ -39,6 +40,14 @@ export function renderPainel() {
 
   if (vendedorFoco) f = calcVendedor(vendedorFoco, a, m);
   else f = calcFilial(a, m, ui.escopoAtual);
+
+  // FIX: Atualiza o título do Cockpit
+  const tituloEl = document.getElementById('painel-titulo');
+  if (tituloEl) {
+    tituloEl.textContent = isModoVendedor 
+      ? `Alta Fix — ${vendedorFoco.nome} · ${meses[m]}/${a}`
+      : `Alta Fix — ${escopoNome(ui.escopoAtual)} · ${meses[m]}/${a}`;
+  }
 
   const faturado = isModoVendedor ? f.faturado : f.faturadoTotal;
   const meta = isModoVendedor ? f.meta : f.metaTotal;
