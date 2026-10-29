@@ -70,7 +70,6 @@ export function clientesNoEscopo(escopoAtual) {
   return state.clientes.filter(c => filialNoEscopo(c.filialId, escopoAtual));
 }
 
-// FIX: Funções que faltavam e quebravam a Equipe e a Análise
 export function comparativoNoEscopo(escopoAtual) {
   return (state.comparativo || []).filter(c => filialNoEscopo(c.filialId, escopoAtual));
 }
@@ -88,6 +87,11 @@ export function escopoNome(escopoAtual) {
   }
   const g = state.grupos.find(x => x.id === e.id);
   return g ? g.nome : '—';
+}
+
+export function escopoFilialAtiva(escopoAtual) {
+  const e = parseEscopo(escopoAtual);
+  return e.tipo === 'filial' ? e.id : null;
 }
 
 export function matchVendedor(n, filialId) {
@@ -220,6 +224,61 @@ export function calcFilial(a, m, escopoAtual) {
     ritmoEsperado: re, projecao: pr, falta: fl, porDia: pd,
     status: ftComMeta >= re ? 'ACIMA' : 'ABAIXO'
   };
+}
+
+export function mesclarCliente(ant, novo) {
+  ant.valorTotal = (ant.valorTotal || 0) + (novo.valorTotal || 0);
+  ant.numCompras = (ant.numCompras || 0) + (novo.numCompras || 0);
+
+  if (!ant._datas) ant._datas = [];
+  if (novo._datas && novo._datas.length) {
+    novo._datas.forEach(d => {
+      if (ant._datas.indexOf(d) < 0) ant._datas.push(d);
+    });
+  } else if (novo.ultimaCompra && ant._datas.indexOf(novo.ultimaCompra) < 0) {
+    ant._datas.push(novo.ultimaCompra);
+  }
+  ant._datas.sort();
+
+  if (novo.ultimaCompra && (!ant.ultimaCompra || novo.ultimaCompra > ant.ultimaCompra)) {
+    ant.ultimaCompra = novo.ultimaCompra;
+  }
+  if (novo.primeiraCompra && (!ant.primeiraCompra || novo.primeiraCompra < ant.primeiraCompra)) {
+    ant.primeiraCompra = novo.primeiraCompra;
+  }
+
+  if (ant._datas.length > 1) {
+    const spanTotal = diffDias(ant._datas[0], ant._datas[ant._datas.length - 1]);
+    ant.intervaloMedio = Math.max(1, Math.round(spanTotal / (ant._datas.length - 1)));
+  } else {
+    ant.intervaloMedio = 30;
+  }
+
+  if (ant.primeiraCompra && ant.ultimaCompra) {
+    const diasSpan = diffDias(ant.primeiraCompra, ant.ultimaCompra);
+    const meses = Math.max(1, Math.round(diasSpan / 30) + 1);
+    ant.valorMedioMensal = ant.valorTotal / meses;
+  }
+
+  if (!ant.codigo && novo.codigo) ant.codigo = novo.codigo;
+  if (!ant.cidade && novo.cidade) { ant.cidade = novo.cidade; ant.uf = novo.uf; }
+  if (!ant.vendedor && novo.vendedor) ant.vendedor = novo.vendedor;
+
+  return ant;
+}
+
+export function mesclarProduto(ant, novo) {
+  ant.qtdVendida = (ant.qtdVendida || 0) + (novo.qtdVendida || 0);
+  ant.valorVendido = (ant.valorVendido || 0) + (novo.valorVendido || 0);
+
+  if (!ant.curvaOficial && novo.curvaOficial) ant.curvaOficial = novo.curvaOficial;
+  if (!ant.curva && novo.curva) ant.curva = novo.curva;
+  if (ant.estoqueAtual == null && novo.estoqueAtual != null) ant.estoqueAtual = novo.estoqueAtual;
+  if (ant.estoqueMinimo == null && novo.estoqueMinimo != null) ant.estoqueMinimo = novo.estoqueMinimo;
+  if (!ant.fabricante && novo.fabricante) ant.fabricante = novo.fabricante;
+  if (!ant.descricao || ant.descricao.length < novo.descricao.length) ant.descricao = novo.descricao;
+
+  return ant;
 }
 
 export function calcRFMScores(clientes) {
