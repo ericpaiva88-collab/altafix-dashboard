@@ -1,12 +1,11 @@
 // ============================================================
-// views/agenda.js — Fila de Trabalho (Com Modo Foco)
+// views/agenda.js — Fila de Trabalho (Modo Foco + WhatsApp)
 // ============================================================
 
 import { state, ui } from '../state.js';
-import { fmtBRL, escapeHtml, isoDate, diffDias, normalizarNomeCliente } from '../utils.js';
+import { fmtBRL, escapeHtml, isoDate, diffDias, normalizarNomeCliente, abrirWhatsApp } from '../utils.js';
 import { filialNoEscopo } from '../calc.js';
 
-// Variáveis de controle do Modo Foco
 let focoFila = [];
 let focoIndex = 0;
 let modoFoco = false;
@@ -19,7 +18,6 @@ export function renderAgenda() {
 
   if (!containerLista || !containerFoco) return;
 
-  // Popula o select de vendedor local (se vazio)
   const selVend = document.getElementById('agenda-filtro-vendedor');
   if (selVend && selVend.options.length <= 1) {
     let opts = '<option value="">Todos vendedores</option>';
@@ -29,10 +27,8 @@ export function renderAgenda() {
     selVend.innerHTML = opts;
   }
 
-  // FIX: Sempre gera a fila do zero quando renderAgenda é chamada
   const fBusca = (document.getElementById('agenda-busca')?.value || '').toUpperCase();
   const fTipo = document.getElementById('agenda-filtro-tipo')?.value || 'todos';
-  // Se o modo vendedor global estiver ativo, ele sobrepõe o local
   const fVend = ui.modoVendedor || selVend?.value || '';
 
   focoFila = gerarFila(fBusca, fTipo, fVend);
@@ -96,7 +92,7 @@ function renderModoListaView() {
     return;
   }
 
-    tbody.innerHTML = focoFila.map(f => `
+  tbody.innerHTML = focoFila.map(f => `
       <tr>
         <td data-label="Tipo"><span class="badge ${f.tipoBadge}">${f.tipoLabel}</span></td>
         <td data-label="Cliente"><strong>${escapeHtml(f.cliente)}</strong></td>
@@ -158,6 +154,7 @@ function renderModoFocoView() {
   }
 
   const item = focoFila[focoIndex];
+  const telefone = obterTelefoneCliente(item);
 
   elTipo.innerHTML = `<span class="badge ${item.tipoBadge}">${item.tipoLabel}</span>`;
   elNome.innerHTML = escapeHtml(item.cliente);
@@ -176,21 +173,63 @@ function renderModoFocoView() {
   btnLigar.onclick = () => {
     if (!window._abrirModalLigacao) return;
     
-    if (item.ligacaoId) {
-      window._abrirModalLigacao(item.ligacaoId);
-    } else if (item.clienteObj) {
-      window._abrirModalLigacao(null, {
-        empresa: item.clienteObj.nome, codigo: item.clienteObj.codigo || '',
-        cidade: item.clienteObj.cidade || '', estado: item.clienteObj.uf || 'PA',
-        vendedor: item.clienteObj.vendedor || ui.modoVendedor || ''
-      });
-    }
-    
-    setTimeout(() => {
+    const prefill = {
+      empresa: item.clienteObj ? item.clienteObj.nome : item.cliente,
+      codigo: item.clienteObj ? (item.clienteObj.codigo || '') : '',
+      cidade: item.clienteObj ? (item.clienteObj.cidade || '') : '',
+      estado: item.clienteObj ? (item.clienteObj.uf || 'PA') : 'PA',
+      vendedor: item.clienteObj ? (item.clienteObj.vendedor || ui.modoVendedor) : (item.vendedorId || ui.modoVendedor),
+      telefone: telefone || ''
+    };
+
+    // O Callback: quando salvar, avança a fila
+    const callbackAvancar = () => {
       focoIndex++;
       renderModoFocoView();
-    }, 1000); 
+    };
+
+    if (item.ligacaoId) {
+      window._abrirModalLigacao(item.ligacaoId, prefill, callbackAvancar);
+    } else {
+      window._abrirModalLigacao(null, prefill, callbackAvancar);
+    }
   };
+
+  // Adiciona o botão de WhatsApp se tiver telefone
+  const btnWhats = document.getElementById('btn-foco-whats');
+  if (btnWhats) btnWhats.remove(); // Remove se já existir
+
+  if (telefone) {
+    const btn = document.createElement('button');
+    btn.id = 'btn-foco-whats';
+    btn.className = 'btn btn-sm';
+    btn.style.cssText = 'background:#25D366; color:#fff; border-color:#25D366; flex:1; margin-left:8px;';
+    btn.innerHTML = '💬 WhatsApp';
+    btn.onclick = () => abrirWhatsApp(telefone, item.cliente);
+    
+    // Insere ao lado do botão de ligar
+    const btnWrap = btnLigar.parentNode;
+    btnWrap.appendChild(btn);
+    btnLigar.style.flex = '1';
+  }
+}
+
+function obterTelefoneCliente(item) {
+  // Se for uma ligação existente, já tem o telefone nela
+  if (item.ligacaoId) {
+    const lig = state.ligacoes.find(l => l.id === item.ligacaoId);
+    if (lig && lig.telefone) return lig.telefone;
+  }
+  
+  // Senão, busca a última ligação para esse cliente
+  const norm = normalizarNomeCliente(item.cliente);
+  const ligs = state.ligacoes.filter(l => normalizarNomeCliente(l.empresa) === norm && l.telefone);
+  if (ligs.length > 0) {
+    ligs.sort((a, b) => (b.data || '').localeCompare(a.data || ''));
+    return ligs[0].telefone;
+  }
+  
+  return null;
 }
 
 function gerarFila(fBusca, fTipo, fVend) {
@@ -254,20 +293,11 @@ function gerarFila(fBusca, fTipo, fVend) {
     let prioridade = 4;
 
     if (dias >= 180) {
-      tipo = 'lento';
-      label = 'Recuperação Lenta';
-      badge = 'danger';
-      prioridade = 5;
+      tipo = 'lento'; label = 'Recuperação Lenta'; badge = 'danger'; prioridade = 5;
     } else if (fator >= 4) {
-      tipo = 'sumido';
-      label = 'Sumido';
-      badge = 'danger';
-      prioridade = 3;
+      tipo = 'sumido'; label = 'Sumido'; badge = 'danger'; prioridade = 3;
     } else if (fator >= 2) {
-      tipo = 'reativar';
-      label = 'Reativar';
-      badge = 'danger';
-      prioridade = 3;
+      tipo = 'reativar'; label = 'Reativar'; badge = 'danger'; prioridade = 3;
     }
 
     fila.push({

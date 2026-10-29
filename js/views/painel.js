@@ -1,17 +1,17 @@
 // ============================================================
-// views/painel.js — Cockpit Comercial (Com Relatório Matinal)
+// views/painel.js — Cockpit Comercial
 // ============================================================
 
 import { state, ui } from '../state.js';
-import { fmtBRL, fmtPct, escapeHtml, isoDate, inicioSemana, diffDias, copiarTexto } from '../utils.js';
+import { fmtBRL, fmtPct, escapeHtml, isoDate, inicioSemana, diffDias, copiarTexto, abrirWhatsApp, normalizarNomeCliente } from '../utils.js';
 import {
   mesRefAtual, calcFilial, calcVendedor, calcDiasUteisNoMes, calcDiasUteisDecorridos, escopoNome, filialNoEscopo, vendedoresNoEscopo, getMetaVendedor
 } from '../calc.js';
 
 export function renderPainel() {
   const meses = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-  
   const selMes = document.getElementById('painel-mes-select');
+
   if (selMes) {
     let mesesComDados = new Set();
     state.lancamentos.forEach(l => { if (l.data) mesesComDados.add(l.data.slice(0, 7)); });
@@ -232,11 +232,9 @@ export function renderSemana() {
   const tg = td.reduce((a, b) => a + b, 0);
 
   const duMes = calcDiasUteisNoMes(ini.getFullYear(), ini.getMonth());
-  
-  const metaSemTotal = ativos
+  const metaSem = ativos
     .filter(v => !v.supervisor)
-    .reduce((s, v) => s + (getMetaVendedor(v, ini.getFullYear(), ini.getMonth()).meta || 0), 0);
-  const metaSem = metaSemTotal * (5 / Math.max(1, duMes));
+    .reduce((s, v) => s + (getMetaVendedor(v, ini.getFullYear(), ini.getMonth()).meta || 0), 0) * (5 / Math.max(1, duMes));
   
   const pct = metaSem > 0 ? (tg / metaSem) * 100 : 0;
 
@@ -273,9 +271,7 @@ export function renderSemana() {
   b += '<td class="num bg-preto" data-label="Total" style="color:#fff; font-weight:700;">' + fmtBRL(tg) + '</td></tr>';
 
   const semDesktop = document.getElementById('sem-desktop');
-  if (semDesktop) {
-    semDesktop.innerHTML = `<table class="tabela-cockpit">${h}${b}</table>`;
-  }
+  if (semDesktop) semDesktop.innerHTML = `<table class="tabela-cockpit">${h}${b}</table>`;
 
   const tabs = document.getElementById('sem-tabs');
   if (tabs) {
@@ -380,7 +376,11 @@ function renderAtencaoAgora(a, m, vendedorFoco, fCalculada) {
     if (al.tipo === 'vendedor' && al.vendedorId) {
       botoes = `<button class="btn btn-sm" onclick="event.stopPropagation(); window._abrirFichaVendedor('${al.vendedorId}')">Ver Ficha</button>`;
     } else if (al.tipo === 'cliente' && al.clienteObj) {
-      botoes = `<button class="btn btn-sm" onclick="event.stopPropagation(); window._abrirModalLigacao(null, { empresa: '${escapeHtml(al.clienteObj.nome)}', cidade: '${escapeHtml(al.clienteObj.cidade)}', estado: '${escapeHtml(al.clienteObj.uf)}', vendedor: '${al.clienteObj.vendedor}' })">Ligar</button>`;
+      const tel = obterTelefoneCliente(al.clienteObj.nome);
+      if (tel) {
+        botoes += `<button class="btn btn-sm" style="background:#25D366;color:#fff;border-color:#25D366;" onclick="event.stopPropagation(); window._abrirWhatsApp('${tel}', '${escapeHtml(al.clienteObj.nome)}')">💬 Zap</button>`;
+      }
+      botoes += `<button class="btn btn-sm" onclick="event.stopPropagation(); window._abrirModalLigacao(null, { empresa: '${escapeHtml(al.clienteObj.nome)}', cidade: '${escapeHtml(al.clienteObj.cidade)}', estado: '${escapeHtml(al.clienteObj.uf)}', vendedor: '${al.clienteObj.vendedor}' })">Ligar</button>`;
     }
 
     return `
@@ -393,6 +393,16 @@ function renderAtencaoAgora(a, m, vendedorFoco, fCalculada) {
       <div style="display:flex; gap:8px;">${botoes}</div>
     </div>
   `}).join('');
+}
+
+function obterTelefoneCliente(nomeCliente) {
+  const norm = normalizarNomeCliente(nomeCliente);
+  const ligs = state.ligacoes.filter(l => normalizarNomeCliente(l.empresa) === norm && l.telefone);
+  if (ligs.length > 0) {
+    ligs.sort((a, b) => (b.data || '').localeCompare(a.data || ''));
+    return ligs[0].telefone;
+  }
+  return null;
 }
 
 // ============================================================

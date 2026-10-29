@@ -1,5 +1,5 @@
 // ============================================================
-// utils.js — Funções auxiliares (sem dependência de estado)
+// utils.js — Funções auxiliares
 // ============================================================
 
 export function toast(m, ms) {
@@ -61,12 +61,6 @@ export function diffDias(a, b) {
   return Math.round((new Date(b + 'T00:00:00') - new Date(a + 'T00:00:00')) / 86400000);
 }
 
-export function tsCurto(ts) {
-  if (!ts) return '—';
-  const d = new Date(ts);
-  return d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-}
-
 export function normalizarNomeCliente(n) {
   return String(n || '')
     .normalize('NFD')
@@ -81,10 +75,6 @@ export function escapeHtml(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
   }[c]));
-}
-
-export function ehProdutoValido(p) {
-  return p && p.descricao && p.descricao.trim() !== '' && p.descricao.trim() !== '—' && p.descricao.trim() !== '-';
 }
 
 export function deltaCellHTML(pct) {
@@ -119,4 +109,28 @@ function fallbackCopy(t) {
     toast('✓ Copiado!');
   } catch (e) {}
   document.body.removeChild(ta);
+}
+
+// NOVO: Integração com WhatsApp
+export function abrirWhatsApp(telefone, nomeCliente) {
+  if (!telefone) {
+    toast('⚠ Cliente sem telefone cadastrado. Registre uma ligação primeiro.', 3000);
+    return;
+  }
+
+  // Limpa o telefone (deixa só números)
+  let num = String(telefone).replace(/\D/g, '');
+  if (num.length < 10) {
+    toast('⚠ Telefone inválido.', 3000);
+    return;
+  }
+
+  // Adiciona o 55 (Brasil) se não tiver
+  if (num.length <= 11) num = '55' + num;
+
+  const primeiroNome = nomeCliente.split(' ')[0];
+  const mensagem = `Olá ${primeiroNome}, tudo bem? Aqui é da Alta Fix Distribuidora. Notei que faz um tempinho que você não faz pedidos com a gente. Posso te mandar as novidades e condições especiais dessa semana?`;
+  
+  const url = `https://wa.me/${num}?text=${encodeURIComponent(mensagem)}`;
+  window.open(url, '_blank');
 }

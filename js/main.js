@@ -5,6 +5,7 @@
 import { state, ui, session, carregar, salvar } from './state.js';
 import { derivarHistorico } from './calc.js';
 import { fmtBRL, toast, isoDate, normalizarNomeCliente, copiarTexto } from './utils.js';
+import { abrirWhatsApp } from './utils.js';
 import { sbInit, sbLogin, sbLogout, sbSessaoAtual, sbCarregarPerfil, sbCarregarTudo, aplicarDadosDoBanco } from './supabase.js';
 
 import { renderPainel, renderSemana, gerarRelatorioMatinal } from './views/painel.js';
@@ -72,6 +73,7 @@ function popularModoVendedor() {
 
 window._popularEscopoSelect = popularEscopoSelect;
 window._popularModoVendedor = popularModoVendedor;
+window._abrirWhatsApp = abrirWhatsApp;
 window._abrirModalLigacao = abrirModalLigacao;
 window._renderTudo = renderTudo;
 

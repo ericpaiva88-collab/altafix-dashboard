@@ -15,17 +15,12 @@ const STATUS = {
   sem_interesse:  { label: 'Sem interesse',    emoji: '⚫', cor: 'var(--af-t3)' }
 };
 
-// ============================================================
-// RENDERIZAÇÃO DA TELA (Tabela e KPIs)
-// ============================================================
-
 export function renderLigacoes() {
   const kpiEl = document.getElementById('ligacoes-kpis');
   const tbody = document.getElementById('tbody-ligacoes');
   const countEl = document.getElementById('ligacoes-count');
   if (!tbody) return;
 
-  // Popula select de vendedor
   const selVend = document.getElementById('filtro-lig-vendedor');
   if (selVend && selVend.options.length <= 1) {
     let opts = '<option value="">Todos vendedores</option>';
@@ -35,15 +30,12 @@ export function renderLigacoes() {
     selVend.innerHTML = opts;
   }
 
-  // Filtros
   const fBusca = (document.getElementById('filtro-lig-busca')?.value || '').toUpperCase();
   const fVend = selVend?.value || ui.modoVendedor || '';
   const fStatus = document.getElementById('filtro-lig-status')?.value || '';
 
-  // Base de ligações
   let ligacoes = (state.ligacoes || []).filter(l => filialNoEscopo(l.filialId, ui.escopoAtual));
 
-  // Aplica filtros
   const filtradas = ligacoes.filter(l => {
     if (fVend && l.vendedor !== fVend) return false;
     if (fStatus && l.status !== fStatus) return false;
@@ -51,10 +43,8 @@ export function renderLigacoes() {
     return true;
   });
 
-  // Ordena da mais recente para a mais antiga
   filtradas.sort((a, b) => (b.data || '').localeCompare(a.data || ''));
 
-  // KPIs do período (usando a base filtrada)
   const totalLig = filtradas.length;
   const vendas = filtradas.filter(l => l.status === 'venda');
   const valorGerado = vendas.reduce((s, l) => s + (l.valor || 0), 0);
@@ -87,10 +77,9 @@ export function renderLigacoes() {
     return;
   }
 
-    tbody.innerHTML = filtradas.slice(0, 500).map(l => {
+  tbody.innerHTML = filtradas.slice(0, 500).map(l => {
     const v = state.vendedores.find(x => x.id === l.vendedor);
     const st = STATUS[l.status] || STATUS.prospeccao;
-    
     const proxTxt = l.proximo ? fmtDataBR(l.proximo) : '—';
 
     return `
@@ -113,11 +102,8 @@ export function renderLigacoes() {
   }).join('');
 }
 
-// ============================================================
-// MODAL DE CADASTRO/EDIÇÃO
-// ============================================================
-
-export function abrirModalLigacao(ligacaoId, prefill) {
+// O parâmetro onSave é novo: é uma função que roda após salvar com sucesso
+export function abrirModalLigacao(ligacaoId, prefill, onSave) {
   const existente = ligacaoId ? state.ligacoes.find(l => l.id === ligacaoId) : null;
   prefill = prefill || {};
 
@@ -126,7 +112,6 @@ export function abrirModalLigacao(ligacaoId, prefill) {
 
   html += '<div class="modal-form-grid">';
 
-  // Vendedor e Data
   html += '<div class="modal-input-group"><label>Vendedor</label><select id="ml-vend">';
   state.vendedores.filter(v => v.ativo && v.papel === 'vendedor').forEach(v => {
     const sel = (existente && existente.vendedor === v.id) || (prefill.vendedor && prefill.vendedor === v.id) || (!existente && !prefill.vendedor && ui.modoVendedor === v.id);
@@ -137,25 +122,21 @@ export function abrirModalLigacao(ligacaoId, prefill) {
   const dataDefault = existente ? existente.data : isoDate(new Date());
   html += '<div class="modal-input-group"><label>Data</label><input type="date" id="ml-data" value="' + dataDefault + '"></div>';
 
-  // Código e Empresa
   const codigoVal = existente ? (existente.codigo || '') : (prefill.codigo || '');
   const empresaVal = existente ? (existente.empresa || '') : (prefill.empresa || '');
   html += '<div class="modal-input-group"><label>Código</label><input type="text" id="ml-codigo" value="' + escapeHtml(codigoVal) + '"></div>';
   html += '<div class="modal-input-group"><label>Empresa *</label><input type="text" id="ml-empresa" value="' + escapeHtml(empresaVal) + '"></div>';
 
-  // Contato e Telefone
   const contatoVal = existente ? (existente.contato || '') : (prefill.contato || '');
   const telefoneVal = existente ? (existente.telefone || '') : (prefill.telefone || '');
   html += '<div class="modal-input-group"><label>Contato</label><input type="text" id="ml-contato" value="' + escapeHtml(contatoVal) + '"></div>';
   html += '<div class="modal-input-group"><label>Telefone</label><input type="tel" id="ml-telefone" value="' + escapeHtml(telefoneVal) + '"></div>';
 
-  // Cidade e UF
   const cidadeVal = existente ? (existente.cidade || '') : (prefill.cidade || '');
   const estadoVal = existente ? (existente.estado || 'PA') : (prefill.estado || 'PA');
   html += '<div class="modal-input-group"><label>Cidade</label><input type="text" id="ml-cidade" value="' + escapeHtml(cidadeVal) + '"></div>';
   html += '<div class="modal-input-group"><label>UF</label><input type="text" id="ml-estado" maxlength="2" value="' + escapeHtml(estadoVal) + '"></div>';
 
-  // Status e Valor
   html += '<div class="modal-input-group"><label>Status</label><select id="ml-status">';
   Object.keys(STATUS).forEach(k => {
     html += '<option value="' + k + '"' + (existente && existente.status === k ? ' selected' : '') + '>' + STATUS[k].emoji + ' ' + STATUS[k].label + '</option>';
@@ -164,13 +145,12 @@ export function abrirModalLigacao(ligacaoId, prefill) {
 
   html += '<div class="modal-input-group"><label>Valor (R$)</label><input type="text" inputmode="decimal" id="ml-valor" value="' + (existente && existente.valor > 0 ? existente.valor : '') + '"></div>';
 
-  // Próximo contato e Observações
   html += '<div class="modal-input-group full-width"><label>Próximo contato</label><input type="date" id="ml-proximo" value="' + (existente && existente.proximo ? existente.proximo : '') + '"></div>';
   
   html += '<div class="modal-input-group full-width"><label>Observações</label>' +
     '<textarea id="ml-obs" style="min-height:80px; resize:vertical;">' + (existente ? escapeHtml(existente.obs || '') : '') + '</textarea></div>';
 
-  html += '</div>'; // fim grid
+  html += '</div>';
 
   html += '<div style="display:flex;justify-content:flex-end;gap:12px;margin-top:24px; border-top:1px solid #eee; padding-top:20px;">';
   html += '<button class="btn" id="ml-cancelar">Cancelar</button>';
@@ -190,6 +170,7 @@ export function abrirModalLigacao(ligacaoId, prefill) {
   modal.querySelector('.modal-content').innerHTML = html;
   modal.classList.add('show');
   modal._acaoId = prefill.acaoId || null;
+  modal._onSave = onSave;
 
   modal.onclick = e => { if (e.target.id === 'lig-modal') modal.classList.remove('show'); };
   document.getElementById('ml-cancelar').onclick = () => modal.classList.remove('show');
@@ -245,6 +226,7 @@ async function salvarLigacao(existente) {
 
     const modal = document.getElementById('lig-modal');
     const acaoId = modal ? modal._acaoId : null;
+    const callback = modal ? modal._onSave : null;
     modal.classList.remove('show');
 
     toast('✓ Ligação ' + (existente ? 'atualizada' : 'registrada') + '!', 2500);
@@ -253,13 +235,16 @@ async function salvarLigacao(existente) {
       window._marcarAcaoTratada(acaoId);
     }
 
-    // Recarrega os dados locais para atualizar a tela de ligações
     const dados = await sbCarregarTudo(true);
     aplicarDadosDoBanco(dados);
     
-    // Atualiza as views que dependem das ligações
     renderLigacoes();
-    if (window._renderPainel) window._renderPainel(); // Atualiza o Cockpit em background
+    if (window._renderPainel) window._renderPainel();
+
+    // Executa o callback se existir (usado pelo Modo Foco)
+    if (typeof callback === 'function') {
+      callback();
+    }
 
   } catch (e) {
     btn.disabled = false;

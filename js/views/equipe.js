@@ -3,7 +3,7 @@
 // ============================================================
 
 import { state, ui } from '../state.js';
-import { fmtBRL, escapeHtml, diffDias, isoDate, toast } from '../utils.js';
+import { fmtBRL, escapeHtml, diffDias, isoDate, toast, abrirWhatsApp, normalizarNomeCliente } from '../utils.js';
 import { calcVendedor, mesRefAtual, filialNoEscopo, comparativoNoEscopo } from '../calc.js';
 
 let chartFichaInstance = null;
@@ -92,7 +92,6 @@ window._abrirFichaVendedor = function(vendedorId) {
     .sort((a, b) => (b.valorMedioMensal || 0) - (a.valorMedioMensal || 0))
     .slice(0, 5);
 
-  // Recupera as anotações do 1:1 salvas
   const notaSalva = localStorage.getItem('nota_1a1_' + v.id) || '';
 
   let html = `
@@ -111,7 +110,6 @@ window._abrirFichaVendedor = function(vendedorId) {
     </div>
 
     <div class="ficha-body" style="padding:24px; display:block;">
-      
       <div style="height:240px; margin-bottom:24px;">
         <canvas id="chart-ficha-evolucao"></canvas>
       </div>
@@ -137,10 +135,12 @@ window._abrirFichaVendedor = function(vendedorId) {
             ${clientesRisco.length === 0 ? '<div style="padding:16px; color:#888; font-size:12px;">Tudo em ordem.</div>' : ''}
             ${clientesRisco.map(c => {
               const dias = diffDias(c.ultimaCompra, hj);
+              const tel = obterTelefoneCliente(c.nome);
+              const btnZap = tel ? `<button class="btn btn-sm" style="background:#25D366;color:#fff;border-color:#25D366;padding:2px 8px;font-size:10px;margin-left:8px;" onclick="window._abrirWhatsApp('${tel}', '${escapeHtml(c.nome)}')">Zap</button>` : '';
               return `
               <div class="ficha-lista-item">
                 <div><div class="nome">${escapeHtml(c.nome)}</div><div class="detalhe" style="color:var(--af-vermelho);">${dias} dias parado</div></div>
-                <div class="valor">${fmtBRL(c.valorMedioMensal || 0)}</div>
+                <div style="display:flex; align-items:center;"><div class="valor">${fmtBRL(c.valorMedioMensal || 0)}</div>${btnZap}</div>
               </div>
             `}).join('')}
           </div>
@@ -148,7 +148,6 @@ window._abrirFichaVendedor = function(vendedorId) {
 
       </div>
 
-      <!-- Diário de Bordo 1:1 -->
       <div style="border-top:1px solid #eee; padding-top:24px;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
           <div style="font-size:14px; font-weight:700; color:var(--af-t1);">📝 Diário de Bordo 1:1</div>
@@ -157,7 +156,6 @@ window._abrirFichaVendedor = function(vendedorId) {
         <textarea id="ficha-notas-1a1" style="width:100%; min-height:100px; padding:12px; border:1px solid var(--af-borda-forte); border-radius:6px; font-family:inherit; font-size:13px; margin-bottom:12px;" placeholder="O que foi conversado? Quais os compromissos acordados?">${escapeHtml(notaSalva)}</textarea>
         <button class="btn btn-primary" onclick="window._salvarNota1a1('${v.id}')">Salvar Anotações</button>
       </div>
-
     </div>
   `;
 
@@ -173,7 +171,6 @@ window._abrirFichaVendedor = function(vendedorId) {
   modal.classList.add('show');
   modal.onclick = e => { if (e.target.id === 'ficha-vendedor-modal') modal.classList.remove('show'); };
 
-  // Função para salvar a nota
   window._salvarNota1a1 = (vId) => {
     const txt = document.getElementById('ficha-notas-1a1').value;
     localStorage.setItem('nota_1a1_' + vId, txt);
@@ -236,3 +233,13 @@ window._abrirFichaVendedor = function(vendedorId) {
     document.getElementById('ficha-filtro-periodo').onchange = (e) => renderGrafico(parseInt(e.target.value, 10));
   }, 100);
 };
+
+function obterTelefoneCliente(nomeCliente) {
+  const norm = normalizarNomeCliente(nomeCliente);
+  const ligs = state.ligacoes.filter(l => normalizarNomeCliente(l.empresa) === norm && l.telefone);
+  if (ligs.length > 0) {
+    ligs.sort((a, b) => (b.data || '').localeCompare(a.data || ''));
+    return ligs[0].telefone;
+  }
+  return null;
+}
