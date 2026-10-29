@@ -57,7 +57,7 @@
     <button class="mobile-menu-btn" id="mobile-menu-btn">☰</button>
     <div class="topbar-filters">
       <select id="escopo-select" class="select-clean"></select>
-      <select id="modo-vendedor" class="select-clean" style="max-width:160px;"></select>
+      <select id="modo-vendedor" class="select-clean"></select>
     </div>
     <div class="topbar-actions">
       <button class="btn btn-sm" id="btn-export-excel">📥 Excel</button>
@@ -173,7 +173,7 @@
       </div>
 
       <div id="agenda-modo-lista">
-        <div class="grid-kpis" id="agenda-kpis" style="margin-bottom:24px; grid-template-columns: repeat(4, 1fr);"></div>
+        <div class="grid-kpis" id="agenda-kpis"></div>
         <div class="card-painel">
           <div class="card-title-row" style="padding:16px 20px; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center;"><h3>Todas as tarefas</h3><span class="text-xs text-muted" id="agenda-count">0 itens</span></div>
           <div class="filtros-bar" style="padding: 16px 20px; border-bottom: 1px solid #eee; background: #FAFAFA;">
@@ -224,7 +224,7 @@
     <!-- ABA CLIENTES -->
     <section id="tab-clientes" class="tab-content">
       <div class="page-header"><h2>Clientes</h2><p>Ordenados pelo valor mensal atual.</p></div>
-      <div class="grid-kpis" id="clientes-kpis" style="margin-bottom:24px; grid-template-columns: repeat(4, 1fr);"></div>
+      <div class="grid-kpis" id="clientes-kpis"></div>
       <div class="card-painel">
         <div class="card-title-row" style="padding:16px 20px; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center;"><h3>Carteira de Clientes</h3><span class="text-xs text-muted" id="clientes-count">0 clientes</span></div>
         <div class="filtros-bar" style="padding: 16px 20px; border-bottom: 1px solid #eee; background: #FAFAFA;">
@@ -239,7 +239,7 @@
     <!-- ABA PRODUTOS -->
     <section id="tab-produtos" class="tab-content">
       <div class="page-header"><h2>Produtos</h2><p>Dados do relatório 361 (curva ABC e estoque).</p></div>
-      <div class="grid-kpis" id="produtos-kpis" style="margin-bottom:24px; grid-template-columns: repeat(4, 1fr);"></div>
+      <div class="grid-kpis" id="produtos-kpis"></div>
       <div class="card-painel">
         <div class="card-title-row" style="padding:16px 20px; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center;">
           <h3>Portfólio de Produtos</h3><span class="text-xs text-muted" id="produtos-count">0 itens</span>
@@ -270,7 +270,7 @@
         <button class="btn btn-primary" id="btn-nova-ligacao-topo">+ Nova Ligação</button>
       </div>
 
-      <div class="grid-kpis" id="ligacoes-kpis" style="margin-bottom:24px; grid-template-columns: repeat(4, 1fr);"></div>
+      <div class="grid-kpis" id="ligacoes-kpis"></div>
 
       <div class="card-painel">
         <div class="card-title-row" style="padding:16px 20px; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center;">
@@ -335,7 +335,7 @@
         </div>
       </div>
 
-      <div class="grid-kpis" id="analise-kpis" style="margin-bottom:24px; grid-template-columns: repeat(3, 1fr);"></div>
+      <div class="grid-kpis" id="analise-kpis"></div>
       
       <div class="card-painel" style="padding: 24px; margin-bottom: 24px;">
         <div class="card-title-row"><h3>Sazonalidade — Ano contra Ano</h3><span class="text-xs text-muted">Dados de 2026 atualizados em tempo real</span></div>
@@ -407,37 +407,17 @@
 <div class="modal" id="help-modal">
   <div class="modal-content">
     <h2 style="margin-bottom:16px;">Guia Rápido — Alta Fix</h2>
-    
     <div style="display:flex; flex-direction:column; gap:16px; font-size:13px; color:var(--af-t2);">
-      <div>
-        <strong style="color:var(--af-t1); display:block; margin-bottom:4px;">🎯 Cockpit (O que fazer agora?)</strong>
-        Abra o Cockpit para ver os KPIs vitais (Meta, Falta, Precisa/Dia). O bloco "Atenção Agora" mostra os 5 maiores problemas do dia (vendedores abaixo do ritmo ou clientes valiosos inativos).
-      </div>
-
-      <div>
-        <strong style="color:var(--af-t1); display:block; margin-bottom:4px;">📱 Relatório Matinal</strong>
-        Clique no botão preto no topo do Cockpit para gerar um texto pronto com a situação do mês e as prioridades. O texto é copiado automaticamente para você colar no WhatsApp do time.
-      </div>
-
-      <div>
-        <strong style="color:var(--af-t1); display:block; margin-bottom:4px;">🎯 Agenda (Modo Foco)</strong>
-        Na aba Agenda, use o "Modo Foco" para ver um cliente por vez. O sistema já filtra quem precisa de ligação (retornos atrasados ou clientes no ciclo de recompra). Ao finalizar, ele puxa o próximo da fila.
-      </div>
-
-      <div>
-        <strong style="color:var(--af-t1); display:block; margin-bottom:4px;">👥 Equipe (Ficha 1:1)</strong>
-        Clique no card do vendedor para ver o histórico dele. Use o "Diário de Bordo" para anotar o que foi combinado na reunião. Essas anotações ficam salvas no seu navegador.
-      </div>
-
-      <div>
-        <strong style="color:var(--af-t1); display:block; margin-bottom:4px;">⚙️ Importações</strong>
-        Antes de importar, selecione a Filial no topo. Arraste as planilhas para a aba Configurações. O botão "Salvar e Sincronizar" envia os dados para a nuvem e atualiza as telas sem precisar de F5.
-      </div>
+      <div><strong style="color:var(--af-t1); display:block; margin-bottom:4px;">🎯 Cockpit (O que fazer agora?)</strong>Abra o Cockpit para ver os KPIs vitais (Meta, Falta, Precisa/Dia). O bloco "Atenção Agora" mostra os 5 maiores problemas do dia.</div>
+      <div><strong style="color:var(--af-t1); display:block; margin-bottom:4px;">📱 Relatório Matinal</strong>Clique no botão preto no topo do Cockpit para gerar um texto pronto com a situação do mês e as prioridades. O texto é copiado automaticamente para você colar no WhatsApp do time.</div>
+      <div><strong style="color:var(--af-t1); display:block; margin-bottom:4px;">🎯 Agenda (Modo Foco)</strong>Na aba Agenda, use o "Modo Foco" para ver um cliente por vez. O sistema já filtra quem precisa de ligação (retornos atrasados ou clientes no ciclo de recompra).</div>
+      <div><strong style="color:var(--af-t1); display:block; margin-bottom:4px;">👥 Equipe (Ficha 1:1)</strong>Clique no card do vendedor para ver o histórico dele. Use o "Diário de Bordo" para anotar o que foi combinado na reunião.</div>
+      <div><strong style="color:var(--af-t1); display:block; margin-bottom:4px;">⚙️ Importações</strong>Antes de importar, selecione a Filial no topo. Arraste as planilhas para a aba Configurações. O botão "Salvar e Sincronizar" envia os dados para a nuvem.</div>
     </div>
-
     <button class="btn btn-primary" style="margin-top:24px; width:100%;" id="help-close">Entendi</button>
   </div>
 </div>
+
 <div class="toast" id="toast"></div>
 <script type="module" src="./js/main.js"></script>
 </body>
