@@ -274,12 +274,7 @@ export function renderSemana() {
 
   const semDesktop = document.getElementById('sem-desktop');
   if (semDesktop) {
-    // FIX: O scroll horizontal permite ver todas as colunas no mobile sem quebrar o layout
-    semDesktop.innerHTML = `
-      <div style="overflow-x:auto; -webkit-overflow-scrolling: touch;">
-        <table class="tabela-cockpit" style="min-width: 600px;">${h}${b}</table>
-      </div>
-    `;
+    semDesktop.innerHTML = `<table class="tabela-cockpit">${h}${b}</table>`;
   }
 
   const tabs = document.getElementById('sem-tabs');

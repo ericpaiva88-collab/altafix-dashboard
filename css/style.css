@@ -232,13 +232,8 @@ body {
 
 .periodo-bar { background: #fff; padding: 16px; border-radius: 8px; border: 1px solid var(--af-borda); display: flex; align-items: center; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
 
-/* Botões e Inputs na Tabela de Metas */
 .tabela-cockpit td input[type="text"], .tabela-cockpit td input[type="email"], .tabela-cockpit td select { width: 100%; padding: 6px 8px; border: 1px solid var(--af-borda-forte); border-radius: 4px; font-size: 12.5px; font-family: inherit; background: #fff; }
 .tabela-cockpit td input[type="text"]:focus, .tabela-cockpit td input[type="email"]:focus, .tabela-cockpit td select:focus { border-color: var(--af-preto); outline: none; }
-
-/* ============================================================
-   AJUSTES ESPECÍFICOS
-   ============================================================ */
 
 .tabela-cockpit .btn-ligar { background: var(--af-preto); color: #fff; border: none; padding: 6px 16px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; transition: background 0.15s; }
 .tabela-cockpit .btn-ligar:hover { background: var(--af-vermelho); }
@@ -250,6 +245,7 @@ body {
 .toast { position: fixed; bottom: 20px; right: 20px; background: var(--af-preto); color: #fff; padding: 12px 20px; border-radius: 6px; font-size: 13px; opacity: 0; transform: translateY(20px); transition: all 0.3s; pointer-events: none; z-index: 9999; }
 .toast.show { opacity: 1; transform: translateY(0); }
 
+#sem-tabs { display: none; } /* Esconde no desktop por padrão */
 #sem-tabs button { padding: 6px 12px; background: transparent; border: 1px solid var(--af-borda); border-radius: 4px; font-size: 12px; font-weight: 600; color: var(--af-t2); cursor: pointer; transition: all 0.15s; }
 #sem-tabs button.active { background: var(--af-preto); color: #fff; border-color: var(--af-preto); }
 .tabela-cockpit tr td.bg-preto { background: var(--af-preto) !important; color: #fff !important; }
@@ -327,6 +323,11 @@ body {
   
   .tabela-cockpit td > * { text-align: right; word-break: break-word; }
   
+  /* CORREÇÃO DO RITMO SEMANAL NO MOBILE */
+  .semana-tabs { display: flex !important; }
+  .semana-desktop { display: none !important; } /* Esconde a tabela de 7 colunas */
+  .semana-mobile { display: block; }            /* Mostra o card do dia selecionado */
+
   /* Ajuste Modo Foco */
   #agenda-modo-foco .card-painel { margin: 16px 0 !important; padding: 24px 16px !important; }
   #agenda-modo-foco h2 { font-size: 22px; word-break: break-word; }
