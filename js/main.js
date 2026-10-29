@@ -7,7 +7,6 @@ import { derivarHistorico } from './calc.js';
 import { fmtBRL, toast, isoDate, normalizarNomeCliente, copiarTexto } from './utils.js';
 import { sbInit, sbLogin, sbLogout, sbSessaoAtual, sbCarregarPerfil, sbCarregarTudo, aplicarDadosDoBanco } from './supabase.js';
 
-// IMPORTS LIMPOS (sem duplicação)
 import { renderPainel, renderSemana, gerarRelatorioMatinal } from './views/painel.js';
 import { renderAgenda } from './views/agenda.js'; 
 import { renderEquipe } from './views/equipe.js';
@@ -141,18 +140,22 @@ function setupTabs() {
 }
 
 function setupFiltros() {
+  // Agenda
   const agendaBusca = document.getElementById('agenda-busca'); if (agendaBusca) agendaBusca.oninput = () => renderAgenda();
   const agendaTipo = document.getElementById('agenda-filtro-tipo'); if (agendaTipo) agendaTipo.onchange = () => renderAgenda();
   const agendaVend = document.getElementById('agenda-filtro-vendedor'); if (agendaVend) agendaVend.onchange = () => renderAgenda();
   
+  // Clientes
   const cliBusca = document.getElementById('filtro-cliente-busca'); if (cliBusca) cliBusca.oninput = () => renderClientes();
   const cliVend = document.getElementById('filtro-cliente-vend'); if (cliVend) cliVend.onchange = () => renderClientes();
   const cliStatus = document.getElementById('filtro-cliente-status'); if (cliStatus) cliStatus.onchange = () => renderClientes();
 
+  // Produtos
   const prodBusca = document.getElementById('filtro-produto-busca'); if (prodBusca) prodBusca.oninput = () => renderProdutos();
   const prodCurva = document.getElementById('filtro-produto-curva'); if (prodCurva) prodCurva.onchange = () => renderProdutos();
   const prodFab = document.getElementById('filtro-produto-fabricante'); if (prodFab) prodFab.onchange = () => renderProdutos();
 
+  // Análise
   const analiseVend = document.getElementById('analise-filtro-vendedor'); if (analiseVend) analiseVend.onchange = () => renderAnalise();
   const analisePeriodo = document.getElementById('analise-periodo'); if (analisePeriodo) analisePeriodo.onchange = () => renderAnalise();
 }
@@ -161,12 +164,24 @@ function setupBotoes() {
   const helpBtn = document.getElementById('help-btn'); if (helpBtn) helpBtn.onclick = () => document.getElementById('help-modal').classList.add('show');
   const helpClose = document.getElementById('help-close'); if (helpClose) helpClose.onclick = () => document.getElementById('help-modal').classList.remove('show');
   
-  const escopo = document.getElementById('escopo-select'); if (escopo) escopo.onchange = e => { ui.escopoAtual = e.target.value; renderPainel(); };
-  const mv = document.getElementById('modo-vendedor'); if (mv) mv.onchange = e => { ui.modoVendedor = e.target.value; renderPainel(); };
+  // FIX: Sempre que mudar o escopo ou o modo vendedor, atualiza o Painel E a Agenda
+  const escopo = document.getElementById('escopo-select'); 
+  if (escopo) escopo.onchange = e => { 
+    ui.escopoAtual = e.target.value; 
+    renderPainel(); 
+    renderAgenda(); 
+  };
+  
+  const mv = document.getElementById('modo-vendedor'); 
+  if (mv) mv.onchange = e => { 
+    ui.modoVendedor = e.target.value; 
+    renderPainel(); 
+    renderAgenda(); 
+  };
+  
   const painelMesSel = document.getElementById('painel-mes-select'); if (painelMesSel) painelMesSel.onchange = e => { ui.mesPainelSelecionado = e.target.value; renderPainel(); };
   const btnNovaLigAgenda = document.getElementById('btn-nova-ligacao-agenda'); if (btnNovaLigAgenda) btnNovaLigAgenda.onclick = () => { if (window._abrirModalLigacao) window._abrirModalLigacao(); };
 
-  // FIX: Botão do Relatório Matinal
   const btnRelatorio = document.getElementById('btn-relatorio-matinal');
   if (btnRelatorio) btnRelatorio.onclick = () => gerarRelatorioMatinal();
 

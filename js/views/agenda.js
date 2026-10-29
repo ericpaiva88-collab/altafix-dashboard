@@ -12,7 +12,6 @@ let focoIndex = 0;
 let modoFoco = false;
 
 export function renderAgenda() {
-  // Elementos de alternância
   const btnLista = document.getElementById('btn-agenda-lista');
   const btnFoco = document.getElementById('btn-agenda-foco');
   const containerLista = document.getElementById('agenda-modo-lista');
@@ -20,41 +19,7 @@ export function renderAgenda() {
 
   if (!containerLista || !containerFoco) return;
 
-  btnLista.onclick = () => {
-    modoFoco = false;
-    btnLista.classList.add('active');
-    btnFoco.classList.remove('active');
-    containerLista.style.display = 'block';
-    containerFoco.style.display = 'none';
-    renderAgenda(); // Recarrega a tabela
-  };
-
-  btnFoco.onclick = () => {
-    modoFoco = true;
-    btnFoco.classList.add('active');
-    btnLista.classList.remove('active');
-    containerLista.style.display = 'none';
-    containerFoco.style.display = 'block';
-    renderModoFoco(); // Inicia o modo foco
-  };
-
-  if (modoFoco) {
-    renderModoFoco();
-  } else {
-    renderModoLista();
-  }
-}
-
-// ============================================================
-// MODO LISTA (Tabela Tradicional)
-// ============================================================
-
-function renderModoLista() {
-  const tbody = document.getElementById('agenda-tbody');
-  const kpisEl = document.getElementById('agenda-kpis');
-  const countEl = document.getElementById('agenda-count');
-  if (!tbody) return;
-
+  // Popula o select de vendedor local (se vazio)
   const selVend = document.getElementById('agenda-filtro-vendedor');
   if (selVend && selVend.options.length <= 1) {
     let opts = '<option value="">Todos vendedores</option>';
@@ -64,11 +29,53 @@ function renderModoLista() {
     selVend.innerHTML = opts;
   }
 
+  // FIX: Sempre gera a fila do zero quando renderAgenda é chamada
   const fBusca = (document.getElementById('agenda-busca')?.value || '').toUpperCase();
   const fTipo = document.getElementById('agenda-filtro-tipo')?.value || 'todos';
-  const fVend = selVend?.value || ui.modoVendedor || '';
+  // Se o modo vendedor global estiver ativo, ele sobrepõe o local
+  const fVend = ui.modoVendedor || selVend?.value || '';
 
   focoFila = gerarFila(fBusca, fTipo, fVend);
+  focoIndex = 0;
+
+  btnLista.onclick = () => {
+    modoFoco = false;
+    btnLista.classList.add('active');
+    btnFoco.classList.remove('active');
+    containerLista.style.display = 'block';
+    containerFoco.style.display = 'none';
+    renderModoListaView();
+  };
+
+  btnFoco.onclick = () => {
+    modoFoco = true;
+    btnFoco.classList.add('active');
+    btnLista.classList.remove('active');
+    containerLista.style.display = 'none';
+    containerFoco.style.display = 'block';
+    renderModoFocoView();
+  };
+
+  if (modoFoco) {
+    btnFoco.classList.add('active');
+    btnLista.classList.remove('active');
+    containerLista.style.display = 'none';
+    containerFoco.style.display = 'block';
+    renderModoFocoView();
+  } else {
+    btnLista.classList.add('active');
+    btnFoco.classList.remove('active');
+    containerLista.style.display = 'block';
+    containerFoco.style.display = 'none';
+    renderModoListaView();
+  }
+}
+
+function renderModoListaView() {
+  const tbody = document.getElementById('agenda-tbody');
+  const kpisEl = document.getElementById('agenda-kpis');
+  const countEl = document.getElementById('agenda-count');
+  if (!tbody) return;
 
   const nAtrasados = focoFila.filter(f => f.tipo === 'atrasados').length;
   const nHoje = focoFila.filter(f => f.tipo === 'hoje').length;
@@ -117,22 +124,7 @@ function renderModoLista() {
   });
 }
 
-// ============================================================
-// MODO FOCO (Discagem Rápida)
-// ============================================================
-
-function renderModoFoco() {
-  const fBusca = (document.getElementById('agenda-busca')?.value || '').toUpperCase();
-  const fTipo = document.getElementById('agenda-filtro-tipo')?.value || 'todos';
-  const selVend = document.getElementById('agenda-filtro-vendedor');
-  const fVend = selVend?.value || ui.modoVendedor || '';
-
-  // Gera a fila apenas se estiver vazia
-  if (focoFila.length === 0) {
-    focoFila = gerarFila(fBusca, fTipo, fVend);
-    focoIndex = 0;
-  }
-
+function renderModoFocoView() {
   const elTipo = document.getElementById('foco-tipo');
   const elNome = document.getElementById('foco-nome');
   const elCtx = document.getElementById('foco-contexto');
@@ -140,6 +132,8 @@ function renderModoFoco() {
   const elProg = document.getElementById('foco-progresso');
   const btnPular = document.getElementById('btn-foco-pular');
   const btnLigar = document.getElementById('btn-foco-ligar');
+
+  if (!elTipo) return;
 
   if (focoFila.length === 0) {
     elTipo.innerHTML = '';
@@ -176,7 +170,7 @@ function renderModoFoco() {
 
   btnPular.onclick = () => {
     focoIndex++;
-    renderModoFoco();
+    renderModoFocoView();
   };
 
   btnLigar.onclick = () => {
@@ -192,18 +186,12 @@ function renderModoFoco() {
       });
     }
     
-    // Após o modal fechar, avança o index (isso é uma simplificação, 
-    // o ideal é que o modal avisasse quando salvasse, mas para o fluxo funcionar, avançamos na hora)
     setTimeout(() => {
       focoIndex++;
-      renderModoFoco();
+      renderModoFocoView();
     }, 1000); 
   };
 }
-
-// ============================================================
-// GERADOR DA FILA (Unificado)
-// ============================================================
 
 function gerarFila(fBusca, fTipo, fVend) {
   const hj = isoDate(new Date());
