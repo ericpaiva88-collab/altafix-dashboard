@@ -1,6 +1,5 @@
 // ============================================================
-// calc_diagnostico.js — MoM: Waterfall por cliente
-// Sincronizado com os totais do Cockpit (lancamentos)
+// calc_diagnostico.js — MoM com identificação de transferência
 // ============================================================
 
 import { state, ui } from './state.js';
@@ -11,19 +10,16 @@ const PISO_RUIDO = 500;
 
 export function listarMesesComDados(vendedorId) {
   const set = new Set();
-
   (state.clientesImportacoes || []).forEach(ci => {
     if (vendedorId && ci.vendedor !== vendedorId) return;
     if (ci.periodoIni) set.add(ci.periodoIni.slice(0, 7));
   });
-
   if (set.size === 0) {
     (state.lancamentos || []).forEach(l => {
       if (vendedorId && l.vendedor !== vendedorId) return;
       if (l.data) set.add(l.data.slice(0, 7));
     });
   }
-
   return Array.from(set).sort().reverse();
 }
 
@@ -48,7 +44,7 @@ function agregarPorCliente(vendedorId, mesStr, diaMax) {
   const ci = state.clientesImportacoes || [];
   if (ci.length > 0) {
     ci.forEach(r => {
-      if (r.vendedor !== vendedorId) return;
+      if (vendedorId && r.vendedor !== vendedorId) return;
       if (!r.periodoIni) return;
 
       const pIni = r.periodoIni.slice(0, 10);
@@ -63,23 +59,17 @@ function agregarPorCliente(vendedorId, mesStr, diaMax) {
 
       if (overlapDias <= 0) return;
 
-      const valorProp = totalDias === 1
-        ? (r.valor || 0)
-        : (r.valor || 0) * (overlapDias / totalDias);
-
+      const valorProp = totalDias === 1 ? (r.valor || 0) : (r.valor || 0) * (overlapDias / totalDias);
       const k = r.clienteNorm || '';
       if (!k) return;
       map[k] = (map[k] || 0) + valorProp;
     });
 
-    if (Object.keys(map).length > 0) {
-      return { map, fonte: 'clientesImportacoes' };
-    }
+    if (Object.keys(map).length > 0) return { map, fonte: 'clientesImportacoes' };
   }
 
-  // Fallback: vendasItens
   (state.vendasItens || []).forEach(vi => {
-    if (vi.vendedor !== vendedorId) return;
+    if (vendedorId && vi.vendedor !== vendedorId) return;
     if (!vi.periodoIni) return;
     const p = vi.periodoIni.slice(0, 10);
     if (p < range.ini || p > range.fim) return;
@@ -104,18 +94,18 @@ export function calcularDiagnosticoMoM(vendedorId, mesRefStr) {
   const ultimoDiaAnt = new Date(dAnt.getFullYear(), dAnt.getMonth() + 1, 0).getDate();
   const ultimoDiaAt = new Date(ano, mes, 0).getDate();
 
-  const diaRef = ehMesCorrente
-    ? Math.min(hoje.getDate(), ultimoDiaAnt, ultimoDiaAt)
-    : Math.min(ultimoDiaAnt, ultimoDiaAt);
+  const diaRef = ehMesCorrente ? Math.min(hoje.getDate(), ultimoDiaAnt, ultimoDiaAt) : Math.min(ultimoDiaAnt, ultimoDiaAt);
 
   const at = agregarPorCliente(vendedorId, mesRefStr, diaRef);
   const ant = agregarPorCliente(vendedorId, mesAntStr, diaRef);
 
+  // NOVO: Mapa global do mês atual (todos os vendedores) para checar transferência
+  const globalAt = agregarPorCliente(null, mesRefStr, diaRef).map;
+
   const mapaAt = at.map;
   const mapaAnt = ant.map;
 
-  // 1. SINCRONIZAÇÃO COM O COCKPIT (LANCAMENTOS)
-  // Puxa o total exato do Cockpit para o range de dias
+  // Sincronização com o Cockpit (lancamentos)
   let fatAt = 0, pedidosAt = 0;
   let fatAnt = 0, pedidosAnt = 0;
   const preAt = mesRefStr + '-';
@@ -127,37 +117,25 @@ export function calcularDiagnosticoMoM(vendedorId, mesRefStr) {
     if (l.vendedor !== vendedorId) return;
     if (!filialNoEscopo(l.filialId, ui.escopoAtual)) return;
     
-    if (l.data >= preAt + '01' && l.data <= limAt) {
-      fatAt += (l.valor || 0);
-      pedidosAt += (l.pedidos || 0);
-    }
-    if (l.data >= preAnt + '01' && l.data <= limAnt) {
-      fatAnt += (l.valor || 0);
-      pedidosAnt += (l.pedidos || 0);
-    }
+    if (l.data >= preAt + '01' && l.data <= limAt) { fatAt += (l.valor || 0); pedidosAt += (l.pedidos || 0); }
+    if (l.data >= preAnt + '01' && l.data <= limAnt) { fatAnt += (l.valor || 0); pedidosAnt += (l.pedidos || 0); }
   });
 
-  // Puxa o total cheio do mês anterior
   let fatAntCompleto = 0;
   (state.lancamentos || []).forEach(l => {
     if (l.vendedor !== vendedorId) return;
     if (!filialNoEscopo(l.filialId, ui.escopoAtual)) return;
-    if (l.data >= preAnt + '01' && l.data <= mesAntStr + '-31') {
-      fatAntCompleto += (l.valor || 0);
-    }
+    if (l.data >= preAnt + '01' && l.data <= mesAntStr + '-31') fatAntCompleto += (l.valor || 0);
   });
 
-  // Calcula as sobras (O que não foi mapeado por cliente)
   const somaCliAt = Object.values(mapaAt).reduce((s, v) => s + v, 0);
   const somaCliAnt = Object.values(mapaAnt).reduce((s, v) => s + v, 0);
   const ajusteAt = fatAt - somaCliAt;
   const ajusteAnt = fatAnt - somaCliAnt;
 
-  // Adiciona as sobras como "Ajustes ERP" para a matemática fechar 100%
   if (Math.abs(ajusteAt) > 1) mapaAt['__ajuste_erp__'] = ajusteAt;
   if (Math.abs(ajusteAnt) > 1) mapaAnt['__ajuste_erp__'] = ajusteAnt;
 
-  // Projeção igual ao Cockpit (usa dias com lançamento)
   let fatProjetado = fatAt;
   let duTotal = 0, duDec = 0, duFaltam = 0;
   if (ehMesCorrente) {
@@ -193,10 +171,22 @@ export function calcularDiagnosticoMoM(vendedorId, mesRefStr) {
 
     const reg = { nome: nomeDe(k), valorAtual: vAt, valorAnterior: vAnt, delta };
 
-    if (vAnt > 0 && vAt === 0)       { perdidos.push(reg);  impPerdidos += delta; }
-    else if (vAnt === 0 && vAt > 0)  { novos.push(reg);     impNovos += delta; }
-    else if (delta > 0)              { cresceram.push(reg); impRec += delta; }
-    else                             { cairam.push(reg);    impRec += delta; }
+    // Se o cliente não comprou com este vendedor, checa se comprou com outro
+    if (vAnt > 0 && vAt === 0) {
+      const comprouGlobal = globalAt[k] || 0;
+      if (comprouGlobal > 0) {
+        // Descobre qual vendedor pegou o cliente
+        const ciOutro = (state.clientesImportacoes || []).find(x => x.clienteNorm === k && x.periodoIni.startsWith(mesRefStr) && x.vendedor !== vendedorId);
+        if (ciOutro) {
+          const vOutro = state.vendedores.find(x => x.id === ciOutro.vendedor);
+          reg.nome = `${reg.nome} (Migrou p/ ${vOutro ? vOutro.nome : 'Outro'})`;
+        }
+      }
+      perdidos.push(reg); impPerdidos += delta;
+    }
+    else if (vAnt === 0 && vAt > 0) { novos.push(reg); impNovos += delta; }
+    else if (delta > 0) { cresceram.push(reg); impRec += delta; }
+    else { cairam.push(reg); impRec += delta; }
   });
 
   perdidos.sort((a, b) => a.delta - b.delta);
@@ -218,17 +208,14 @@ export function calcularDiagnosticoMoM(vendedorId, mesRefStr) {
   } else if (variacaoPct < -5) {
     leitura = `Queda de ${Math.abs(variacaoPct).toFixed(1)}% (${fmtBRL(variacaoRS)}) no mesmo período de dias.`;
     const causas = [];
-    const pReal = perdidos.filter(x => x.nome !== 'Outros / Sem Cadastro')[0];
-    const cReal = cairam.filter(x => x.nome !== 'Outros / Sem Cadastro')[0];
+    const pReal = perdidos.filter(x => x.nome.indexOf('Migrou') === -1)[0];
     if (pReal) causas.push(`perda de ${pReal.nome} (${fmtBRL(pReal.valorAnterior)})`);
-    if (cReal) causas.push(`redução em ${cReal.nome} (${fmtBRL(cReal.delta)})`);
     if (pedidosAnt > pedidosAt) causas.push(`${pedidosAnt - pedidosAt} pedido(s) a menos`);
     if (causas.length) leitura += ' Principais causas: ' + causas.join('; ') + '.';
   } else {
     leitura = `Estável (${variacaoPct >= 0 ? '+' : ''}${variacaoPct.toFixed(1)}%) no mesmo período.`;
   }
 
-  // Alertas
   const alertas = [];
   const entradas = Object.entries(mapaAt).sort((a, b) => b[1] - a[1]);
   if (entradas[0] && entradas[0][0] !== '__ajuste_erp__' && fatAt > 0 && (entradas[0][1] / fatAt) > 0.30) {
