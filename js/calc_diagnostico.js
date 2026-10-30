@@ -1,116 +1,266 @@
-// js/calc_diagnostico.js
-import { state } from './state.js';
+// ============================================================
+// calc_diagnostico.js — MoM: Waterfall por cliente
+// Sincronizado com os totais do Cockpit (lancamentos)
+// ============================================================
 
-export function calcularDiagnostico(vendedorId, mesRefStr) {
-  // mesRefStr no formato 'YYYY-MM'
+import { state, ui } from './state.js';
+import { normalizarNomeCliente } from './utils.js';
+import { calcDiasUteisNoMes, calcDiasUteisDecorridos, calcDiasComLancamento, filialNoEscopo } from './calc.js';
+
+const PISO_RUIDO = 500;
+
+export function listarMesesComDados(vendedorId) {
+  const set = new Set();
+
+  (state.clientesImportacoes || []).forEach(ci => {
+    if (vendedorId && ci.vendedor !== vendedorId) return;
+    if (ci.periodoIni) set.add(ci.periodoIni.slice(0, 7));
+  });
+
+  if (set.size === 0) {
+    (state.lancamentos || []).forEach(l => {
+      if (vendedorId && l.vendedor !== vendedorId) return;
+      if (l.data) set.add(l.data.slice(0, 7));
+    });
+  }
+
+  return Array.from(set).sort().reverse();
+}
+
+function rangeDoMes(mesStr, diaMax) {
+  const [ano, mes] = mesStr.split('-').map(Number);
+  const ultimoDia = new Date(ano, mes, 0).getDate();
+  const fim = Math.min(diaMax || ultimoDia, ultimoDia);
+  return {
+    ini: mesStr + '-01',
+    fim: mesStr + '-' + String(fim).padStart(2, '0'),
+    dias: fim,
+    ultimoDia
+  };
+}
+
+function agregarPorCliente(vendedorId, mesStr, diaMax) {
+  const map = {};
+  const range = rangeDoMes(mesStr, diaMax);
+  const rangeIni = new Date(range.ini + 'T12:00:00');
+  const rangeFim = new Date(range.fim + 'T12:00:00');
+
+  const ci = state.clientesImportacoes || [];
+  if (ci.length > 0) {
+    ci.forEach(r => {
+      if (r.vendedor !== vendedorId) return;
+      if (!r.periodoIni) return;
+
+      const pIni = r.periodoIni.slice(0, 10);
+      const pFim = (r.periodoFim || r.periodoIni).slice(0, 10);
+      const pIniDate = new Date(pIni + 'T12:00:00');
+      const pFimDate = new Date(pFim + 'T12:00:00');
+      const totalDias = Math.round((pFimDate - pIniDate) / 86400000) + 1;
+
+      const overlapIni = pIniDate > rangeIni ? pIniDate : rangeIni;
+      const overlapFim = pFimDate < rangeFim ? pFimDate : rangeFim;
+      const overlapDias = Math.max(0, Math.round((overlapFim - overlapIni) / 86400000) + 1);
+
+      if (overlapDias <= 0) return;
+
+      const valorProp = totalDias === 1
+        ? (r.valor || 0)
+        : (r.valor || 0) * (overlapDias / totalDias);
+
+      const k = r.clienteNorm || '';
+      if (!k) return;
+      map[k] = (map[k] || 0) + valorProp;
+    });
+
+    if (Object.keys(map).length > 0) {
+      return { map, fonte: 'clientesImportacoes' };
+    }
+  }
+
+  // Fallback: vendasItens
+  (state.vendasItens || []).forEach(vi => {
+    if (vi.vendedor !== vendedorId) return;
+    if (!vi.periodoIni) return;
+    const p = vi.periodoIni.slice(0, 10);
+    if (p < range.ini || p > range.fim) return;
+    const k = vi.clienteNorm || '';
+    if (!k) return;
+    map[k] = (map[k] || 0) + (vi.valor || 0);
+  });
+
+  return { map, fonte: 'vendasItens' };
+}
+
+export function calcularDiagnosticoMoM(vendedorId, mesRefStr) {
   if (!vendedorId || !mesRefStr) return null;
 
   const [ano, mes] = mesRefStr.split('-').map(Number);
-  const mesPassadoDate = new Date(ano, mes - 2, 1);
-  const mesPassadoStr = mesPassadoDate.getFullYear() + '-' + String(mesPassadoDate.getMonth() + 1).padStart(2, '0');
-  const mesAnoPassadoStr = (ano - 1) + '-' + String(mes).padStart(2, '0');
+  const dAnt = new Date(ano, mes - 2, 1);
+  const mesAntStr = dAnt.getFullYear() + '-' + String(dAnt.getMonth() + 1).padStart(2, '0');
 
-  // Filtra vendas do vendedor
-  const vendasVendedor = (state.vendasItens || []).filter(v => v.vendedor === vendedorId);
-  
-  const getVendasMes = (mStr) => vendasVendedor.filter(v => v.periodoIni.startsWith(mStr));
-  
-  const vendasAtual = getVendasMes(mesRefStr);
-  const vendasPassado = getVendasMes(mesPassadoStr);
-  const vendasAnoPassado = getVendasMes(mesAnoPassadoStr);
+  const hoje = new Date();
+  const ehMesCorrente = hoje.getFullYear() === ano && (hoje.getMonth() + 1) === mes;
 
-  // Agregações (Faturamento, Clientes, Pedidos)
-  const calcAgg = (vendas) => {
-    let fat = 0;
-    const clientes = new Set();
-    let pedidos = 0;
-    vendas.forEach(v => { fat += v.valor; clientes.add(v.clienteNorm); if(v.valor > 0) pedidos++; });
-    return { fat, clientes: clientes.size, pedidos, ticket: pedidos > 0 ? fat/pedidos : 0 };
+  const ultimoDiaAnt = new Date(dAnt.getFullYear(), dAnt.getMonth() + 1, 0).getDate();
+  const ultimoDiaAt = new Date(ano, mes, 0).getDate();
+
+  const diaRef = ehMesCorrente
+    ? Math.min(hoje.getDate(), ultimoDiaAnt, ultimoDiaAt)
+    : Math.min(ultimoDiaAnt, ultimoDiaAt);
+
+  const at = agregarPorCliente(vendedorId, mesRefStr, diaRef);
+  const ant = agregarPorCliente(vendedorId, mesAntStr, diaRef);
+
+  const mapaAt = at.map;
+  const mapaAnt = ant.map;
+
+  // 1. SINCRONIZAÇÃO COM O COCKPIT (LANCAMENTOS)
+  // Puxa o total exato do Cockpit para o range de dias
+  let fatAt = 0, pedidosAt = 0;
+  let fatAnt = 0, pedidosAnt = 0;
+  const preAt = mesRefStr + '-';
+  const preAnt = mesAntStr + '-';
+  const limAt = mesRefStr + '-' + String(diaRef).padStart(2, '0');
+  const limAnt = mesAntStr + '-' + String(diaRef).padStart(2, '0');
+
+  (state.lancamentos || []).forEach(l => {
+    if (l.vendedor !== vendedorId) return;
+    if (!filialNoEscopo(l.filialId, ui.escopoAtual)) return;
+    
+    if (l.data >= preAt + '01' && l.data <= limAt) {
+      fatAt += (l.valor || 0);
+      pedidosAt += (l.pedidos || 0);
+    }
+    if (l.data >= preAnt + '01' && l.data <= limAnt) {
+      fatAnt += (l.valor || 0);
+      pedidosAnt += (l.pedidos || 0);
+    }
+  });
+
+  // Puxa o total cheio do mês anterior
+  let fatAntCompleto = 0;
+  (state.lancamentos || []).forEach(l => {
+    if (l.vendedor !== vendedorId) return;
+    if (!filialNoEscopo(l.filialId, ui.escopoAtual)) return;
+    if (l.data >= preAnt + '01' && l.data <= mesAntStr + '-31') {
+      fatAntCompleto += (l.valor || 0);
+    }
+  });
+
+  // Calcula as sobras (O que não foi mapeado por cliente)
+  const somaCliAt = Object.values(mapaAt).reduce((s, v) => s + v, 0);
+  const somaCliAnt = Object.values(mapaAnt).reduce((s, v) => s + v, 0);
+  const ajusteAt = fatAt - somaCliAt;
+  const ajusteAnt = fatAnt - somaCliAnt;
+
+  // Adiciona as sobras como "Ajustes ERP" para a matemática fechar 100%
+  if (Math.abs(ajusteAt) > 1) mapaAt['__ajuste_erp__'] = ajusteAt;
+  if (Math.abs(ajusteAnt) > 1) mapaAnt['__ajuste_erp__'] = ajusteAnt;
+
+  // Projeção igual ao Cockpit (usa dias com lançamento)
+  let fatProjetado = fatAt;
+  let duTotal = 0, duDec = 0, duFaltam = 0;
+  if (ehMesCorrente) {
+    duTotal = calcDiasUteisNoMes(ano, mes - 1);
+    const dt = calcDiasComLancamento(ano, mes - 1, vendedorId, state.lancamentos);
+    duDec = calcDiasUteisDecorridos(ano, mes - 1);
+    duFaltam = Math.max(0, duTotal - duDec);
+    if (dt > 0) fatProjetado = (fatAt / dt) * duTotal;
+  }
+
+  const metaObj = (state.metas || []).find(m => m.vendedorId === vendedorId && m.mes === mesRefStr);
+  const meta = metaObj ? (metaObj.metaFaturamento || 0) : 0;
+  const pctMeta = meta > 0 ? (fatProjetado / meta) * 100 : 0;
+
+  const nomeDe = (norm) => {
+    if (norm === '__ajuste_erp__') return 'Outros / Sem Cadastro';
+    const c = (state.clientes || []).find(x => normalizarNomeCliente(x.nome) === norm);
+    if (c) return c.nome;
+    const ci = (state.clientesImportacoes || []).find(x => x.clienteNorm === norm);
+    return ci ? ci.nome : norm;
   };
 
-  const aggAtual = calcAgg(vendasAtual);
-  const aggPassado = calcAgg(vendasPassado);
-  const aggAnoPassado = calcAgg(vendasAnoPassado);
+  const chaves = new Set([...Object.keys(mapaAt), ...Object.keys(mapaAnt)]);
+  const perdidos = [], novos = [], cresceram = [], cairam = [];
+  let impPerdidos = 0, impNovos = 0, impRec = 0;
 
-  // === WATERFALL (Causa Raiz MoM) ===
-  const mapAtual = {}, mapPassado = {};
-  vendasAtual.forEach(v => { mapAtual[v.clienteNorm] = (mapAtual[v.clienteNorm] || 0) + v.valor; });
-  vendasPassado.forEach(v => { mapPassado[v.clienteNorm] = (mapPassado[v.clienteNorm] || 0) + v.valor; });
+  chaves.forEach(k => {
+    if (!k) return;
+    const vAt = mapaAt[k] || 0;
+    const vAnt = mapaAnt[k] || 0;
+    const delta = vAt - vAnt;
+    if (Math.abs(delta) < PISO_RUIDO && k !== '__ajuste_erp__') return;
 
-  let impactoNovos = 0;
-  let impactoPerdidos = 0;
-  let impactoRecorrentes = 0;
+    const reg = { nome: nomeDe(k), valorAtual: vAt, valorAnterior: vAnt, delta };
 
-  Object.keys(mapAtual).forEach(c => {
-    if (!mapPassado[c]) impactoNovos += mapAtual[c];
-    else impactoRecorrentes += (mapAtual[c] - mapPassado[c]);
-  });
-  Object.keys(mapPassado).forEach(c => {
-    if (!mapAtual[c]) impactoPerdidos -= mapPassado[c]; // Negativo
+    if (vAnt > 0 && vAt === 0)       { perdidos.push(reg);  impPerdidos += delta; }
+    else if (vAnt === 0 && vAt > 0)  { novos.push(reg);     impNovos += delta; }
+    else if (delta > 0)              { cresceram.push(reg); impRec += delta; }
+    else                             { cairam.push(reg);    impRec += delta; }
   });
 
-  // === HEALTH SCORE ===
-  const metaObj = (state.metas || []).find(m => m.vendedorId === vendedorId && m.mes === mesRefStr);
-  const meta = metaObj ? metaObj.metaFaturamento : 0;
-  let scoreMeta = meta > 0 ? (aggAtual.fat / meta) * 100 : 50;
-  if (scoreMeta > 100) scoreMeta = 100;
+  perdidos.sort((a, b) => a.delta - b.delta);
+  novos.sort((a, b) => b.delta - a.delta);
+  cresceram.sort((a, b) => b.delta - a.delta);
+  cairam.sort((a, b) => a.delta - b.delta);
 
-  const carteiraVendedor = (state.clientes || []).filter(c => c.vendedor === vendedorId);
-  const totalCarteira = carteiraVendedor.length || 1;
-  let scoreRetencao = (aggAtual.clientes / totalCarteira) * 100;
-  if (scoreRetencao > 100) scoreRetencao = 100;
+  const variacaoRS = fatAt - fatAnt;
+  const variacaoPct = fatAnt > 0 ? (variacaoRS / fatAnt) * 100 : 0;
+  const semBase = fatAnt === 0 && fatAt === 0;
 
-  const healthScore = Math.round((scoreMeta * 0.5) + (scoreRetencao * 0.5));
+  let leitura = '';
+  if (semBase) {
+    leitura = 'Sem base comparativa. Importe o mês anterior para ver a decomposição.';
+  } else if (fatAnt === 0) {
+    leitura = `Sem histórico em ${fmtMes(mesAntStr)}. Realizado em ${fmtMes(mesRefStr)}: ${fmtBRL(fatAt)}.`;
+  } else if (variacaoPct > 5) {
+    leitura = `Crescimento de ${variacaoPct.toFixed(1)}% (+${fmtBRL(variacaoRS)}) no mesmo período de dias.`;
+  } else if (variacaoPct < -5) {
+    leitura = `Queda de ${Math.abs(variacaoPct).toFixed(1)}% (${fmtBRL(variacaoRS)}) no mesmo período de dias.`;
+    const causas = [];
+    const pReal = perdidos.filter(x => x.nome !== 'Outros / Sem Cadastro')[0];
+    const cReal = cairam.filter(x => x.nome !== 'Outros / Sem Cadastro')[0];
+    if (pReal) causas.push(`perda de ${pReal.nome} (${fmtBRL(pReal.valorAnterior)})`);
+    if (cReal) causas.push(`redução em ${cReal.nome} (${fmtBRL(cReal.delta)})`);
+    if (pedidosAnt > pedidosAt) causas.push(`${pedidosAnt - pedidosAt} pedido(s) a menos`);
+    if (causas.length) leitura += ' Principais causas: ' + causas.join('; ') + '.';
+  } else {
+    leitura = `Estável (${variacaoPct >= 0 ? '+' : ''}${variacaoPct.toFixed(1)}%) no mesmo período.`;
+  }
 
-  // === FORECAST ===
-  const hoje = new Date();
-  const diasNoMes = new Date(ano, mes, 0).getDate();
-  const isMesAtual = (hoje.getFullYear() === ano && (hoje.getMonth() + 1) === mes);
-  const diasPassados = isMesAtual ? hoje.getDate() : diasNoMes;
-  
-  const ritmoDiario = aggAtual.fat / (diasPassados || 1);
-  const forecast = aggAtual.fat + (ritmoDiario * (diasNoMes - diasPassados));
-
-  // === ALERTAS ===
+  // Alertas
   const alertas = [];
-  
-  if (meta > 0 && forecast < meta * 0.9) {
-    alertas.push({ tipo: 'danger', msg: 'Risco alto de não bater a meta. Projeção indica ' + Math.round((forecast/meta)*100) + '% do alvo.' });
+  const entradas = Object.entries(mapaAt).sort((a, b) => b[1] - a[1]);
+  if (entradas[0] && entradas[0][0] !== '__ajuste_erp__' && fatAt > 0 && (entradas[0][1] / fatAt) > 0.30) {
+    alertas.push({ tipo: 'warning', msg: `Dependência: ${nomeDe(entradas[0][0])} representa ${((entradas[0][1] / fatAt) * 100).toFixed(0)}% do faturamento.` });
   }
-  
-  if (impactoPerdidos < -1000) {
-    alertas.push({ tipo: 'danger', msg: 'Perda significativa de faturamento (-R$ ' + Math.abs(impactoPerdidos).toFixed(0) + ') por clientes que não compraram este mês.' });
+  if (perdidos.length > 0 && Math.abs(impPerdidos) > 1000) {
+    alertas.push({ tipo: 'danger', msg: `${perdidos.length} cliente(s) sem compra no período. Perda: ${fmtBRL(Math.abs(impPerdidos))}.`, link: '#mom-perdas' });
   }
-
-  const topCliente = Object.entries(mapAtual).sort((a,b) => b[1]-a[1])[0];
-  if (topCliente && (topCliente[1] / aggAtual.fat) > 0.3) {
-    alertas.push({ tipo: 'warning', msg: 'Alto risco de dependência. O cliente ' + topCliente[0] + ' representa mais de 30% do faturamento.' });
+  if (meta > 0 && ehMesCorrente) {
+    if (pctMeta < 90) alertas.push({ tipo: 'danger', msg: `Risco de não bater meta: projeção em ${pctMeta.toFixed(0)}%.` });
+    else if (pctMeta < 100) alertas.push({ tipo: 'warning', msg: `Projeção em ${pctMeta.toFixed(0)}%. Faltam ${fmtBRL(Math.max(0, meta - fatProjetado))}.` });
   }
-
-  if (aggAtual.clientes > aggPassado.clientes && aggAtual.ticket < aggPassado.ticket) {
-    alertas.push({ tipo: 'warning', msg: 'Gargalo de Mix: Vendeu para mais clientes, mas o ticket médio caiu. Foco em upsell.' });
-  }
-
-  if (alertas.length === 0) {
-    alertas.push({ tipo: 'success', msg: 'Nenhum gargalo crítico detectado. Vendedor mantendo a consistência.' });
-  }
-
-  // === PRIORIDADES ===
-  const prioridades = carteiraVendedor
-    .filter(c => c.diasSemComprar > 30 && c.diasSemComprar < 180)
-    .sort((a,b) => b.valorMedioMensal - a.valorMedioMensal)
-    .slice(0, 10)
-    .map(c => {
-      let acao = 'Fazer contato de acompanhamento.';
-      if (c.diasSemComprar > 90) acao = 'Ligar urgente com oferta de reativação.';
-      else if (c.numCompras > 10) acao = 'Cliente fiel esfriando. Visitar pessoalmente.';
-      return { ...c, acao };
-    });
+  if (alertas.length === 0) alertas.push({ tipo: 'success', msg: 'Nenhum gargalo crítico detectado.' });
 
   return {
-    aggAtual, aggPassado, aggAnoPassado,
-    waterfall: { impactoNovos, impactoPerdidos, impactoRecorrentes },
-    healthScore, forecast, meta,
-    alertas, prioridades
+    mesRef: mesRefStr, mesAnt: mesAntStr, diaRef, ehMesCorrente, semBase,
+    totalAt: fatAt, totalAnt: fatAnt, fatAntCompleto,
+    pedidosAt, pedidosAnt, variacaoRS, variacaoPct, fatProjetado,
+    duTotal, duDec, duFaltam, meta, pctMeta,
+    impPerdidos, impNovos, impRec,
+    perdidos, novos, cresceram, cairam,
+    leitura, alertas, fonte: at.fonte
   };
+}
+
+function fmtBRL(v) {
+  if (v == null || isNaN(v)) return 'R$ 0,00';
+  return 'R$ ' + Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function fmtMes(ym) {
+  if (!ym) return '';
+  const [a, m] = ym.split('-');
+  const nomes = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  return nomes[parseInt(m, 10) - 1] + '/' + a;
 }
