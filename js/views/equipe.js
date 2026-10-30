@@ -5,6 +5,7 @@
 import { state, ui } from '../state.js';
 import { fmtBRL, escapeHtml, diffDias, isoDate, toast, abrirWhatsApp, normalizarNomeCliente } from '../utils.js';
 import { calcVendedor, mesRefAtual, filialNoEscopo, comparativoNoEscopo } from '../calc.js';
+import { calcularDiagnosticoMoM } from '../calc_diagnostico.js';
 
 let chartFichaInstance = null;
 
@@ -76,86 +77,123 @@ window._abrirFichaVendedor = function(vendedorId) {
   if (!v) return;
 
   const hj = isoDate(new Date());
-  const clientesDoVendedor = state.clientes.filter(c => c.vendedor === v.id);
+  const mesRefStr = hj.slice(0, 7); // Mês atual (YYYY-MM)
+  const diag = calcularDiagnosticoMoM(v.id, mesRefStr);
 
-  const topClientes = clientesDoVendedor
-    .filter(c => c.ultimaCompra && diffDias(c.ultimaCompra, hj) < 30)
-    .sort((a, b) => (b.valorMedioMensal || 0) - (a.valorMedioMensal || 0))
-    .slice(0, 5);
+  let htmlDiag = '<div style="color:#888; padding:20px;">Sem dados para este mês.</div>';
+  let htmlAcoes = '';
+  let htmlAlertas = '';
+  
+  if (diag && !diag.semBase) {
+    const sumCairam = diag.cairam.reduce((s, c) => s + c.delta, 0);
+    const sumCresceram = diag.cresceram.reduce((s, c) => s + c.delta, 0);
+    
+    // 1. Alertas (Dependência, etc)
+    if (diag.alertas && diag.alertas.length > 0) {
+      htmlAlertas = diag.alertas.filter(a => a.tipo !== 'success').map(a => {
+        const bg = a.tipo === 'danger' ? '#FEE2E2' : '#FEF3C7';
+        const cor = a.tipo === 'danger' ? '#991b1b' : '#92400e';
+        return `<div style="background:${bg}; color:${cor}; padding:10px; border-radius:6px; font-size:11px; font-weight:600; margin-bottom:8px; display:flex; gap:6px;">
+          <span>${a.tipo === 'danger' ? '🚨' : '⚠️'}</span> <span>${a.msg}</span>
+        </div>`;
+      }).join('');
+    }
 
-  const clientesRisco = clientesDoVendedor
-    .filter(c => {
-      if (!c.ultimaCompra) return false;
-      const d = diffDias(c.ultimaCompra, hj);
-      return d >= 30 && d <= 180;
-    })
-    .sort((a, b) => (b.valorMedioMensal || 0) - (a.valorMedioMensal || 0))
-    .slice(0, 5);
+    // 2. Resumo MoM (Barras horizontais em mini-cards)
+    htmlDiag = `
+      <div style="display:flex; gap:12px; align-items:center; margin-bottom:16px;">
+        <span class="badge ${diag.variacaoPct >= 0 ? 'ok' : 'danger'}" style="font-size:12px; padding:6px 10px;">
+          ${diag.variacaoPct > 0 ? '▲' : '▼'} ${Math.abs(diag.variacaoPct).toFixed(1)}% vs Mês Anterior
+        </span>
+        <span style="font-size:12px; color:var(--af-t2);">Realizado: <strong>${fmtBRL(diag.totalAt)}</strong></span>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:8px;">
+        <div style="display:flex; justify-content:space-between; background:#FEE2E2; padding:8px 12px; border-radius:4px; border-left:3px solid #dc2626;">
+          <span style="font-size:12px; color:#991b1b; font-weight:600;">Perdidos</span>
+          <strong style="color:#991b1b;">${fmtBRL(diag.impPerdidos)}</strong>
+        </div>
+        <div style="display:flex; justify-content:space-between; background:#FEE2E2; padding:8px 12px; border-radius:4px; border-left:3px solid #ef4444;">
+          <span style="font-size:12px; color:#991b1b; font-weight:600;">Queda</span>
+          <strong style="color:#991b1b;">${fmtBRL(sumCairam)}</strong>
+        </div>
+        <div style="display:flex; justify-content:space-between; background:#DCFCE7; padding:8px 12px; border-radius:4px; border-left:3px solid #16a34a;">
+          <span style="font-size:12px; color:#166534; font-weight:600;">Novos</span>
+          <strong style="color:#166534;">${fmtBRL(diag.impNovos)}</strong>
+        </div>
+        <div style="display:flex; justify-content:space-between; background:#DCFCE7; padding:8px 12px; border-radius:4px; border-left:3px solid #22c55e;">
+          <span style="font-size:12px; color:#166534; font-weight:600;">Aumento</span>
+          <strong style="color:#166534;">${fmtBRL(sumCresceram)}</strong>
+        </div>
+      </div>
+    `;
+
+    // 3. Ações (Top 5 Quedas)
+    const topQuedas = [...diag.perdidos, ...diag.cairam]
+      .filter(c => c.nome !== 'Outros / Sem Cadastro')
+      .sort((a,b) => a.delta - b.delta)
+      .slice(0, 5);
+
+    htmlAcoes = topQuedas.length === 0 
+      ? '<div style="padding:16px; text-align:center; color:#888; font-size:12px;">Nenhuma queda crítica.</div>' 
+      : topQuedas.map(c => {
+          const tel = obterTelefoneCliente(c.nome);
+          const btnZap = tel ? `<button class="btn btn-sm" style="background:#25D366;color:#fff;border-color:#25D366;padding:4px 8px;font-size:10px;" onclick="window._abrirWhatsApp('${tel}', '${escapeHtml(c.nome)}', '${escapeHtml(v.nome)}')">Zap</button>` : '';
+          return `
+          <div class="ficha-lista-item" style="padding: 10px 12px;">
+            <div style="overflow:hidden;">
+              <div class="nome" style="font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(c.nome)}</div>
+              <div class="detalhe">${c.valorAtual === 0 ? 'Saiu' : 'Caiu'} (${fmtBRL(c.valorAnterior)} → ${fmtBRL(c.valorAtual)})</div>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <div class="valor" style="color:var(--af-vermelho); font-size:12px;">${fmtBRL(c.delta)}</div>
+              ${btnZap}
+            </div>
+          </div>
+        `}).join('');
+  }
 
   const notaSalva = localStorage.getItem('nota_1a1_' + v.id) || '';
 
   let html = `
-    <div class="ficha-header" style="padding-bottom:12px;">
+    <div class="ficha-header" style="padding: 16px 24px;">
       <div>
-        <h2>${escapeHtml(v.nome)}</h2>
-        <p>Ficha de desempenho · Análise 1:1</p>
+        <h2 style="font-size:20px;">${escapeHtml(v.nome)}</h2>
+        <p style="font-size:12px;">Ficha de desempenho · Reunião 1:1</p>
       </div>
-      <div style="display:flex; align-items:center; gap:12px;">
-        <select id="ficha-filtro-periodo" class="select-clean" style="font-size:12px;">
-          <option value="6">Últimos 6 meses</option>
-          <option value="12" selected>Últimos 12 meses</option>
-        </select>
-        <button class="btn btn-sm" onclick="document.getElementById('ficha-vendedor-modal').classList.remove('show')">Fechar</button>
-      </div>
+      <button class="btn btn-sm" onclick="document.getElementById('ficha-vendedor-modal').classList.remove('show')">Fechar</button>
     </div>
 
-    <div class="ficha-body" style="padding:24px; display:block;">
-      <div style="height:240px; margin-bottom:24px;">
-        <canvas id="chart-ficha-evolucao"></canvas>
-      </div>
+    <div class="ficha-body" style="padding: 20px 24px; display: flex; flex-direction: column; gap: 20px; height: calc(100% - 70px);">
+      
+      <!-- Linha de Alertas -->
+      ${htmlAlertas ? `<div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">${htmlAlertas}</div>` : ''}
 
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:24px; margin-bottom:24px;">
+      <!-- Grid de 3 Colunas -->
+      <div style="display: grid; grid-template-columns: 1fr 1.2fr 1fr; gap: 24px; flex: 1; min-height: 0;">
         
-        <div>
-          <div style="font-size:13px; font-weight:700; margin-bottom:12px; color:var(--af-verde);">🏆 Melhores Clientes (Ativos)</div>
-          <div class="ficha-lista">
-            ${topClientes.length === 0 ? '<div style="padding:16px; color:#888; font-size:12px;">Nenhum cliente ativo.</div>' : ''}
-            ${topClientes.map(c => `
-              <div class="ficha-lista-item">
-                <div><div class="nome">${escapeHtml(c.nome)}</div><div class="detalhe">Última: ${c.ultimaCompra.split('-').reverse().join('/')}</div></div>
-                <div class="valor">${fmtBRL(c.valorMedioMensal || 0)}</div>
-              </div>
-            `).join('')}
+        <!-- Coluna 1: Diagnóstico -->
+        <div style="display:flex; flex-direction:column;">
+          <div style="font-size:13px; font-weight:700; color:var(--af-t1); margin-bottom:12px;">📊 Resumo do Mês</div>
+          <div style="background:#F8FAFC; border:1px solid #E2E8F0; border-radius:8px; padding:16px; flex:1;">
+            ${htmlDiag}
           </div>
         </div>
 
-        <div>
-          <div style="font-size:13px; font-weight:700; margin-bottom:12px; color:var(--af-vermelho);">⚠️ Clientes em Risco</div>
-          <div class="ficha-lista">
-            ${clientesRisco.length === 0 ? '<div style="padding:16px; color:#888; font-size:12px;">Tudo em ordem.</div>' : ''}
-            ${clientesRisco.map(c => {
-              const dias = diffDias(c.ultimaCompra, hj);
-              const tel = obterTelefoneCliente(c.nome);
-              // Passa o nome do vendedor (v.nome) para a função
-              const btnZap = tel ? `<button class="btn btn-sm" style="background:#25D366;color:#fff;border-color:#25D366;padding:2px 8px;font-size:10px;margin-left:8px;" onclick="window._abrirWhatsApp('${tel}', '${escapeHtml(c.nome)}', '${escapeHtml(v.nome)}')">Zap</button>` : '';
-              return `
-              <div class="ficha-lista-item">
-                <div><div class="nome">${escapeHtml(c.nome)}</div><div class="detalhe" style="color:var(--af-vermelho);">${dias} dias parado</div></div>
-                <div style="display:flex; align-items:center;"><div class="valor">${fmtBRL(c.valorMedioMensal || 0)}</div>${btnZap}</div>
-              </div>
-            `}).join('')}
+        <!-- Coluna 2: Ação (Top Quedas) -->
+        <div style="display:flex; flex-direction:column; min-height: 0;">
+          <div style="font-size:13px; font-weight:700; color:var(--af-vermelho); margin-bottom:12px;">🚨 Prioridade de Ligação</div>
+          <div class="ficha-lista" style="flex:1; overflow-y:auto;">
+            ${htmlAcoes}
           </div>
         </div>
 
-      </div>
-
-      <div style="border-top:1px solid #eee; padding-top:24px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-          <div style="font-size:14px; font-weight:700; color:var(--af-t1);">📝 Diário de Bordo 1:1</div>
-          <span class="text-xs text-muted">Visível apenas para o gestor</span>
+        <!-- Coluna 3: Diário de Bordo -->
+        <div style="display:flex; flex-direction:column;">
+          <div style="font-size:13px; font-weight:700; color:var(--af-t1); margin-bottom:12px;">📝 Diário de Bordo 1:1</div>
+          <textarea id="ficha-notas-1a1" style="flex:1; width:100%; padding:12px; border:1px solid var(--af-borda-forte); border-radius:6px; font-family:inherit; font-size:13px; resize:none;" placeholder="O que foi conversado? Quais os compromissos acordados?">${escapeHtml(notaSalva)}</textarea>
+          <button class="btn btn-primary" style="margin-top:12px; width:100%;" onclick="window._salvarNota1a1('${v.id}')">Salvar Anotações</button>
         </div>
-        <textarea id="ficha-notas-1a1" style="width:100%; min-height:100px; padding:12px; border:1px solid var(--af-borda-forte); border-radius:6px; font-family:inherit; font-size:13px; margin-bottom:12px;" placeholder="O que foi conversado? Quais os compromissos acordados?">${escapeHtml(notaSalva)}</textarea>
-        <button class="btn btn-primary" onclick="window._salvarNota1a1('${v.id}')">Salvar Anotações</button>
+
       </div>
     </div>
   `;
@@ -165,7 +203,7 @@ window._abrirFichaVendedor = function(vendedorId) {
     modal = document.createElement('div');
     modal.id = 'ficha-vendedor-modal';
     modal.className = 'modal modal-ficha';
-    modal.innerHTML = '<div class="modal-content" style="max-width:900px;"></div>';
+    modal.innerHTML = '<div class="modal-content" style="max-width:1200px; height:85vh; display:flex; flex-direction:column; overflow:hidden;"></div>'; // Fixa altura e esconde scroll externo
     document.body.appendChild(modal);
   }
   modal.querySelector('.modal-content').innerHTML = html;
@@ -177,62 +215,6 @@ window._abrirFichaVendedor = function(vendedorId) {
     localStorage.setItem('nota_1a1_' + vId, txt);
     toast('✓ Anotações salvas!');
   };
-
-  const renderGrafico = (mesesQtd) => {
-    const ctx = document.getElementById('chart-ficha-evolucao');
-    if (!ctx) return;
-    if (chartFichaInstance) chartFichaInstance.destroy();
-
-    const comp = comparativoNoEscopo(ui.escopoAtual);
-    const labels = [];
-    const hist25 = [];
-    const hist26 = [];
-    const hjMes = new Date().getMonth();
-    const anoAtual = new Date().getFullYear();
-
-    for (let i = mesesQtd - 1; i >= 0; i--) {
-      const d = new Date(anoAtual, hjMes - i, 1);
-      const mIdx = d.getMonth();
-      const mAno = d.getFullYear();
-      const mNome = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][mIdx];
-      labels.push(mNome);
-
-      const mComp = comp.find(c => c.mes.toLowerCase().startsWith(mNome.toLowerCase()));
-      let f25 = 0;
-      if (mComp && mComp.vendedores && mComp.vendedores[v.nome.toUpperCase()]) {
-        f25 = mComp.vendedores[v.nome.toUpperCase()].fat2025 || 0;
-      }
-      hist25.push(f25);
-
-      let f26 = 0;
-      const prefix = mAno + '-' + String(mIdx + 1).padStart(2, '0');
-      state.lancamentos.forEach(l => {
-        if (l.vendedor === v.id && l.data.indexOf(prefix) === 0) f26 += (l.valor || 0);
-      });
-      hist26.push(f26);
-    }
-
-    chartFichaInstance = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels,
-        datasets: [
-          { label: '2025', data: hist25, borderColor: '#D4D1CA', borderWidth: 2, tension: 0.3 },
-          { label: '2026', data: hist26, borderColor: '#0B0B0B', borderWidth: 3, tension: 0.3 }
-        ]
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { position: 'bottom' } },
-        scales: { y: { beginAtZero: true, ticks: { callback: val => 'R$ ' + (val/1000).toFixed(0) + 'k' } } }
-      }
-    });
-  };
-
-  setTimeout(() => {
-    renderGrafico(12);
-    document.getElementById('ficha-filtro-periodo').onchange = (e) => renderGrafico(parseInt(e.target.value, 10));
-  }, 100);
 };
 
 function obterTelefoneCliente(nomeCliente) {

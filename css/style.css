@@ -189,29 +189,54 @@ body {
 .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; padding: 16px; }
 .modal.show { display: flex; }
 .modal-content { background: #fff; padding: 24px; border-radius: 8px; width: 100%; max-width: 500px; max-height: 90vh; overflow-y: auto; }
+
+/* Ajustes para a Ficha 1:1 sem Scroll na tela toda */
+.modal-ficha .modal-content {
+  max-width: 1200px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  height: 85vh; /* Ocupa 85% da tela do notebook/TV */
+  overflow: hidden; /* Impede rolagem geral */
+}
+
+.ficha-header {
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--af-borda);
+  background: #FAFAFA;
+  flex-shrink: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.ficha-header h2 {
+  font-size: 20px;
+  margin-bottom: 2px;
+}
+
+.ficha-body {
+  padding: 20px 24px;
+  overflow: hidden; /* O scroll fica dentro das colunas específicas */
+  flex: 1;
+}
+
+/* Customização da barra de rolagem interna da coluna de clientes */
+.ficha-lista { background: #fff; border: 1px solid var(--af-borda); border-radius: 6px; overflow-y: auto; }
+.ficha-lista::-webkit-scrollbar { width: 6px; }
+.ficha-lista::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+.ficha-lista-item { padding: 12px 16px; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; }
+.ficha-lista-item:last-child { border-bottom: none; }
+.ficha-lista-item .nome { font-weight: 600; font-size: 13px; color: var(--af-t1); }
+.ficha-lista-item .detalhe { font-size: 11px; color: var(--af-t3); margin-top: 2px; }
+.ficha-lista-item .valor { font-weight: 700; font-size: 13px; font-variant-numeric: tabular-nums; }
+
 .modal-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
 .modal-input-group { display: flex; flex-direction: column; gap: 6px; }
 .modal-input-group.full-width { grid-column: 1 / -1; }
 .modal-input-group label { font-size: 11px; font-weight: 600; color: var(--af-t2); text-transform: uppercase; letter-spacing: 0.05em; }
 .modal-input-group input, .modal-input-group select, .modal-input-group textarea { width: 100%; padding: 10px 12px; border: 1px solid var(--af-borda-forte); border-radius: 6px; font-family: var(--fonte-texto); font-size: 13px; color: var(--af-t1); background: var(--af-superficie); outline: none; transition: border-color 0.15s; }
 .modal-input-group input:focus, .modal-input-group select:focus, .modal-input-group textarea:focus { border-color: var(--af-preto); }
-
-.modal-ficha .modal-content { max-width: 900px; padding: 0; display: flex; flex-direction: column; }
-.ficha-header { padding: 24px 32px; border-bottom: 1px solid var(--af-borda); display: flex; justify-content: space-between; align-items: flex-start; background: #FAFAFA; }
-.ficha-header h2 { font-size: 24px; margin-bottom: 4px; color: var(--af-preto); }
-.ficha-header p { color: var(--af-t3); font-size: 13px; }
-.ficha-body { padding: 24px 32px; overflow-y: auto; }
-.ficha-section-title { font-size: 14px; font-weight: 700; color: var(--af-t1); margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
-.ficha-lista { background: #fff; border: 1px solid var(--af-borda); border-radius: 6px; overflow: hidden; }
-.ficha-lista-item { padding: 12px 16px; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; }
-.ficha-lista-item:last-child { border-bottom: none; }
-.ficha-lista-item .nome { font-weight: 600; font-size: 13px; color: var(--af-t1); }
-.ficha-lista-item .detalhe { font-size: 11px; color: var(--af-t3); margin-top: 2px; }
-.ficha-lista-item .valor { font-weight: 700; font-size: 13px; font-variant-numeric: tabular-nums; }
-.ficha-kpi-row { display: flex; gap: 16px; margin-bottom: 24px; }
-.ficha-kpi-box { flex: 1; background: #fff; border: 1px solid var(--af-borda); padding: 16px; border-radius: 6px; }
-.ficha-kpi-box .lbl { font-size: 10.5px; font-weight: 700; color: var(--af-t3); text-transform: uppercase; }
-.ficha-kpi-box .val { font-size: 20px; font-weight: 800; color: var(--af-preto); margin-top: 4px; }
 
 /* ============================================================
    CONFIGURAÇÕES (DROPZONES E SUBTABS)
@@ -249,6 +274,10 @@ body {
 #sem-tabs button { padding: 6px 12px; background: transparent; border: 1px solid var(--af-borda); border-radius: 4px; font-size: 12px; font-weight: 600; color: var(--af-t2); cursor: pointer; transition: all 0.15s; }
 #sem-tabs button.active { background: var(--af-preto); color: #fff; border-color: var(--af-preto); }
 .tabela-cockpit tr td.bg-preto { background: var(--af-preto) !important; color: #fff !important; }
+
+/* CONTROLE DE VISIBILIDADE DA TABELA SEMANAL */
+.semana-mobile { display: none; }
+.semana-desktop { display: block; }
 
 /* ============================================================
    RESPONSIVIDADE MOBILE (Telas até 768px)
@@ -324,7 +353,7 @@ body {
   .tabela-cockpit td > * { text-align: right; word-break: break-word; }
   
   /* CORREÇÃO DO RITMO SEMANAL NO MOBILE */
-  .semana-tabs { display: flex !important; }
+  #sem-tabs { display: flex !important; }
   .semana-desktop { display: none !important; } /* Esconde a tabela de 7 colunas */
   .semana-mobile { display: block; }            /* Mostra o card do dia selecionado */
 
@@ -335,6 +364,7 @@ body {
   /* Ajuste Charts */
   .chart-wrap { height: 220px !important; }
 }
+
 /* Correção da quebra de linha nos números grandes */
 .kpi-value,
 .numero-grande {
@@ -345,10 +375,6 @@ body {
 
 /* Ajuste específico para celular */
 @media (max-width: 768px) {
-  .numero-grande {
-    font-size: 30px !important;
-  }
-  .kpi-value {
-    font-size: 24px !important;
-  }
+  .numero-grande { font-size: 30px !important; }
+  .kpi-value { font-size: 24px !important; }
 }

@@ -1,5 +1,5 @@
 // ============================================================
-// views/analise.js — Análise com subtabs YoY + MoM
+// views/analise.js — Análise com subtabs YoY + MoM (Redesign)
 // ============================================================
 
 import { state, ui } from '../state.js';
@@ -11,7 +11,7 @@ const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
                'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
 let chartYoyInstance = null;
-let chartWaterfallInstance = null;
+let chartImpactoInstance = null;
 let subtabAtiva = 'yoy';
 
 export function renderAnalise() {
@@ -43,7 +43,7 @@ function setupSubtabs() {
 }
 
 // ============================================================
-// SUBTAB 1 — YoY (Mantido)
+// SUBTAB 1 — YoY (Mantido igual)
 // ============================================================
 function renderAnaliseYoY() {
   const kpiEl = document.getElementById('analise-kpis');
@@ -228,7 +228,7 @@ function renderRankingComLeitura(dadosPorMes) {
 }
 
 // ============================================================
-// SUBTAB 2 — MoM
+// SUBTAB 2 — MoM (Novo Redesign de Reunião)
 // ============================================================
 function renderAnaliseMoM() {
   const selVend = document.getElementById('mom-vendedor');
@@ -272,17 +272,17 @@ function popularMesesMoM(vendedorId) {
 
 function renderPainelMoM(vendedorId, mesRef) {
   const kpiEl = document.getElementById('mom-kpis');
-  const leituraEl = document.getElementById('mom-leitura');
-  const alertasEl = document.getElementById('mom-alertas');
+  const impactoEl = document.getElementById('mom-impacto-resumo');
   const perdasEl = document.getElementById('mom-perdas');
   const novosEl = document.getElementById('mom-novos');
-  if (!kpiEl || !leituraEl) return;
+  
+  if (!kpiEl || !impactoEl) return;
 
-  if (chartWaterfallInstance) { chartWaterfallInstance.destroy(); chartWaterfallInstance = null; }
+  if (chartImpactoInstance) { chartImpactoInstance.destroy(); chartImpactoInstance = null; }
 
   if (!vendedorId || !mesRef) {
     kpiEl.innerHTML = '<div class="kpi-card" style="grid-column:1/-1; text-align:center; color:#888; padding:24px;">Sem dados para este vendedor.</div>';
-    leituraEl.innerHTML = ''; alertasEl.innerHTML = ''; perdasEl.innerHTML = ''; novosEl.innerHTML = '';
+    impactoEl.innerHTML = ''; perdasEl.innerHTML = ''; novosEl.innerHTML = '';
     return;
   }
 
@@ -292,74 +292,80 @@ function renderPainelMoM(vendedorId, mesRef) {
   if (d.semBase) {
     kpiEl.innerHTML = '<div class="kpi-card" style="grid-column:1/-1; text-align:center; padding:32px;">' +
       '<div style="font-size:16px; font-weight:600; margin-bottom:8px;">Sem base comparativa</div>' +
-      '<div style="color:#888; font-size:13px;">Não há dados do mês anterior importados. Importe o 324 para ver a decomposição.</div>' +
+      '<div style="color:#888; font-size:13px;">Não há dados do mês anterior importados.</div>' +
       '</div>';
-    leituraEl.innerHTML = ''; alertasEl.innerHTML = ''; perdasEl.innerHTML = ''; novosEl.innerHTML = '';
+    impactoEl.innerHTML = ''; perdasEl.innerHTML = ''; novosEl.innerHTML = '';
     return;
   }
 
   const varCor = d.variacaoPct >= 0 ? 'var(--af-verde)' : 'var(--af-vermelho)';
   const varSinal = d.variacaoPct >= 0 ? '+' : '';
   const pctTxt = varSinal + d.variacaoPct.toFixed(1) + '%';
-
   const fatAtualExibir = d.ehMesCorrente ? d.fatProjetado : d.totalAt;
-  const cardAtualLabel = d.ehMesCorrente ? 'PROJEÇÃO DE FECHAMENTO' : 'MÊS ATUAL (realizado)';
-  const cardAtualHint = d.ehMesCorrente
-    ? `Realizado até hoje: ${fmtBRL(d.totalAt)} · ${d.duFaltam} dia(s) útil(eis) restante(s)`
-    : `${d.pedidosAt} pedidos no mês`;
-
-  const proxVarProj = (d.ehMesCorrente && d.fatAntCompleto > 0)
-    ? ((d.fatProjetado - d.fatAntCompleto) / d.fatAntCompleto) * 100
-    : null;
-
+  
+  // 1. KPIs
   kpiEl.innerHTML = `
     <div class="kpi-card">
       <div class="kpi-header">MÊS ANTERIOR (fechado)</div>
       <div class="kpi-value">${fmtBRL(d.fatAntCompleto || d.totalAnt)}</div>
-      <div class="kpi-hint">${fmtMesCurto(d.mesAnt)} · ${d.pedidosAnt} pedidos</div>
+      <div class="kpi-hint">${MESES[parseInt(d.mesAnt.split('-')[1], 10) - 1]} · ${d.pedidosAnt} pedidos</div>
     </div>
     <div class="kpi-card" style="border-left:3px solid ${varCor};">
-      <div class="kpi-header">${cardAtualLabel}</div>
+      <div class="kpi-header">${d.ehMesCorrente ? 'PROJEÇÃO DE FECHAMENTO' : 'MÊS ATUAL (realizado)'}</div>
       <div class="kpi-value" style="color:${varCor}">${fmtBRL(fatAtualExibir)}</div>
-      <div class="kpi-hint">${cardAtualHint}</div>
+      <div class="kpi-hint">${d.ehMesCorrente ? `Realizado até hoje: ${fmtBRL(d.totalAt)}` : `${d.pedidosAt} pedidos`}</div>
     </div>
     <div class="kpi-card">
       <div class="kpi-header">VARIAÇÃO REALIZADA</div>
       <div class="kpi-value" style="color:${varCor}">${pctTxt}</div>
-      <div class="kpi-hint">${d.variacaoRS >= 0 ? '+' : ''}${fmtBRL(d.variacaoRS)} · 01–${String(d.diaRef).padStart(2, '0')} de cada mês${proxVarProj != null ? ' · projeção: ' + (proxVarProj >= 0 ? '+' : '') + proxVarProj.toFixed(1) + '%' : ''}</div>
+      <div class="kpi-hint">${d.variacaoRS >= 0 ? '+' : ''}${fmtBRL(d.variacaoRS)} · 01–${String(d.diaRef).padStart(2, '0')} do mês</div>
     </div>
     <div class="kpi-card">
       <div class="kpi-header">META ${d.meta > 0 ? `(${d.pctMeta.toFixed(0)}%)` : ''}</div>
       <div class="kpi-value">${d.meta > 0 ? fmtBRL(d.meta) : '—'}</div>
-      <div class="kpi-hint">${d.meta > 0
-        ? (d.pctMeta >= 100
-          ? '<span style="color:var(--af-verde)">Meta atingida 🎉</span>'
-          : `Faltam ${fmtBRL(Math.max(0, d.meta - fatAtualExibir))}`)
-        : 'Meta não cadastrada'}</div>
+      <div class="kpi-hint">${d.meta > 0 ? (d.pctMeta >= 100 ? 'Meta atingida 🎉' : `Faltam ${fmtBRL(Math.max(0, d.meta - fatAtualExibir))}`) : 'Meta não cadastrada'}</div>
     </div>
   `;
 
-  leituraEl.innerHTML = `<p style="font-size:14px; line-height:1.6; color:var(--af-t1); margin-bottom:12px;">${escapeHtml(d.leitura)}</p>`;
-  
-  alertasEl.innerHTML = d.alertas.map(a => {
-    const bg = a.tipo === 'danger' ? '#fee2e2' : a.tipo === 'warning' ? '#fef3c7' : '#dcfce7';
-    const cor = a.tipo === 'danger' ? '#991b1b' : a.tipo === 'warning' ? '#92400e' : '#166534';
-    const icon = a.tipo === 'danger' ? '🚨' : a.tipo === 'warning' ? '🟡' : '🟢';
-    
-    // Torna o alerta clicável se tiver link
-    const isLink = a.link ? 'cursor:pointer;' : '';
-    const clickAction = a.link ? `onclick="document.querySelector('${a.link}').scrollIntoView({behavior: 'smooth'});"` : '';
-    const linkIndicator = a.link ? '<span style="text-decoration:underline; font-size:10px; margin-left:8px;">(clique para ver)</span>' : '';
+  // 2. Resumo Executivo + Gráfico
+  const sumCairam = d.cairam.reduce((s, c) => s + c.delta, 0);
+  const sumCresceram = d.cresceram.reduce((s, c) => s + c.delta, 0);
 
-    return `<div style="background:${bg}; color:${cor}; padding:10px 12px; border-radius:6px; font-size:12px; font-weight:600; display:flex; gap:8px; align-items:center; margin-bottom:8px; ${isLink}" ${clickAction}>
-      <span style="font-size:14px; line-height:1;">${icon}</span><span>${escapeHtml(a.msg)} ${linkIndicator}</span>
-    </div>`;
-  }).join('');
+  impactoEl.innerHTML = `
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: center;">
+      <div>
+        <h4 style="font-size:14px; margin-bottom:16px; color:var(--af-t2);">O que nos puxou para baixo</h4>
+        <div style="background:#FEE2E2; border-left:4px solid #dc2626; padding:12px 16px; border-radius:6px; margin-bottom:12px;">
+          <div style="font-size:12px; font-weight:600; color:#991b1b; text-transform:uppercase;">Clientes Perdidos</div>
+          <div style="font-size:20px; font-weight:800; color:#991b1b;">${fmtBRL(d.impPerdidos)}</div>
+        </div>
+        <div style="background:#FEE2E2; border-left:4px solid #ef4444; padding:12px 16px; border-radius:6px;">
+          <div style="font-size:12px; font-weight:600; color:#991b1b; text-transform:uppercase;">Clientes em Queda</div>
+          <div style="font-size:20px; font-weight:800; color:#991b1b;">${fmtBRL(sumCairam)}</div>
+        </div>
+      </div>
+      <div>
+        <h4 style="font-size:14px; margin-bottom:16px; color:var(--af-t2);">O que segurou o mês</h4>
+        <div style="background:#DCFCE7; border-left:4px solid #16a34a; padding:12px 16px; border-radius:6px; margin-bottom:12px;">
+          <div style="font-size:12px; font-weight:600; color:#166534; text-transform:uppercase;">Novos Clientes</div>
+          <div style="font-size:20px; font-weight:800; color:#166534;">${fmtBRL(d.impNovos)}</div>
+        </div>
+        <div style="background:#DCFCE7; border-left:4px solid #22c55e; padding:12px 16px; border-radius:6px;">
+          <div style="font-size:12px; font-weight:600; color:#166534; text-transform:uppercase;">Clientes em Aumento</div>
+          <div style="font-size:20px; font-weight:800; color:#166534;">${fmtBRL(sumCresceram)}</div>
+        </div>
+      </div>
+    </div>
+    <div style="margin-top: 24px; height: 200px;">
+      <canvas id="chart-impacto-mom"></canvas>
+    </div>
+  `;
 
+  // 3. Listas (Agora dentro de uma grid)
   perdasEl.innerHTML = renderListaClientes([...d.perdidos, ...d.cairam], 'Nenhum cliente perdido ou em queda.', 'neg');
   novosEl.innerHTML = renderListaClientes([...d.novos, ...d.cresceram], 'Nenhum cliente novo ou em crescimento.', 'pos');
 
-  renderWaterfallMoM(d);
+  renderImpactoChart(d, sumCairam, sumCresceram);
 }
 
 function renderListaClientes(lista, vazio, tipo) {
@@ -367,21 +373,20 @@ function renderListaClientes(lista, vazio, tipo) {
     return `<div style="padding:16px; text-align:center; color:#888; font-size:12px;">${vazio}</div>`;
   }
   
-  return `<div class="ficha-lista">${lista.slice(0, 10).map(c => {
+  return `<div class="ficha-lista" style="max-height: 400px;">${lista.slice(0, 10).map(c => {
     const delta = c.delta;
     const sinal = delta >= 0 ? '+' : '';
     const cor = delta >= 0 ? 'var(--af-verde)' : 'var(--af-vermelho)';
     
-    // Lógica clara para a frase de detalhe
     let detalhe = '';
     if (c.nome === 'Outros / Sem Cadastro') {
       detalhe = 'Ajustes de ERP não mapeados a clientes';
-    } else if (c.valorAtual === 0) {
-      detalhe = `Não comprou em ${c.nome ? 'Out/26' : 'no mês'}. (Era ${fmtBRL(c.valorAnterior)})`;
-    } else if (c.valorAnterior === 0) {
-      detalhe = `Novo cliente.`;
-    } else {
-      detalhe = `Caiu de ${fmtBRL(c.valorAnterior)} para ${fmtBRL(c.valorAtual)}`;
+    } else if (tipo === 'neg') {
+      if (c.valorAtual === 0) detalhe = `Não comprou neste mês. (Era ${fmtBRL(c.valorAnterior)})`;
+      else detalhe = `Caiu de ${fmtBRL(c.valorAnterior)} para ${fmtBRL(c.valorAtual)}`;
+    } else if (tipo === 'pos') {
+      if (c.valorAnterior === 0) detalhe = `Novo cliente.`;
+      else detalhe = `Aumentou de ${fmtBRL(c.valorAnterior)} para ${fmtBRL(c.valorAtual)}`;
     }
 
     return `<div class="ficha-lista-item">
@@ -394,111 +399,50 @@ function renderListaClientes(lista, vazio, tipo) {
   }).join('')}</div>`;
 }
 
-function renderWaterfallMoM(d) {
-  const ctx = document.getElementById('chart-waterfall-mom');
+function renderImpactoChart(d, sumCairam, sumCresceram) {
+  const ctx = document.getElementById('chart-impacto-mom');
   if (!ctx || typeof Chart === 'undefined') return;
-  if (chartWaterfallInstance) chartWaterfallInstance.destroy();
 
-  const base = d.totalAnt;
-  const ac1 = base + d.impPerdidos;
-  const ac2 = ac1 + d.impNovos;
-  const ac3 = ac2 + d.impRec;
+  const labels = ['Perdidos', 'Queda', 'Novos', 'Aumento'];
+  const data = [d.impPerdidos, sumCairam, d.impNovos, sumCresceram];
+  const cores = ['#dc2626', '#ef4444', '#16a34a', '#22c55e'];
 
-  const labels = ['Mês Anterior', 'Perdidos', 'Novos', 'Recorrentes', 'Mês Atual'];
-  const data = [
-    [0, base],
-    [Math.min(base, ac1), Math.max(base, ac1)],
-    [Math.min(ac1, ac2), Math.max(ac1, ac2)],
-    [Math.min(ac2, ac3), Math.max(ac2, ac3)],
-    [0, d.totalAt]
-  ];
-
-  const cores = [
-    '#94a3b8',
-    d.impPerdidos < 0 ? '#dc2626' : '#16a34a',
-    d.impNovos > 0 ? '#16a34a' : '#dc2626',
-    d.impRec >= 0 ? '#16a34a' : '#dc2626',
-    '#0f172a'
-  ];
-
-  // Plugin corrigido: a linha sempre conecta o final da barra atual ao início da próxima
-  const linhasPlugin = {
-    id: 'wfLines',
-    afterDatasetsDraw(chart) {
-      const { ctx, scales: { y } } = chart;
-      const meta = chart.getDatasetMeta(0);
-      ctx.save();
-      ctx.strokeStyle = '#94a3b8';
-      ctx.lineWidth = 1.5;
-      ctx.setLineDash([4, 4]);
-      
-      for (let i = 0; i < meta.data.length - 1; i++) {
-        const bar = meta.data[i];
-        const next = meta.data[i + 1];
-        if (!bar || !next) continue;
-        
-        const currData = chart.data.datasets[0].data[i];
-        const nextData = chart.data.datasets[0].data[i + 1];
-        
-        // O valor de conexão é o valor que a barra atual e a próxima compartilham
-        let connectVal;
-        if (currData[0] === nextData[0] || currData[0] === nextData[1]) {
-            connectVal = currData[0];
-        } else {
-            connectVal = currData[1];
-        }
-        
-        const yPos = y.getPixelForValue(connectVal);
-        ctx.beginPath();
-        ctx.moveTo(bar.x + bar.width / 2, yPos);
-        ctx.lineTo(next.x - next.width / 2, yPos);
-        ctx.stroke();
-      }
-      ctx.restore();
-    }
-  };
-
-  chartWaterfallInstance = new Chart(ctx, {
+  chartImpactoInstance = new Chart(ctx, {
     type: 'bar',
-    data: { labels, datasets: [{ data, backgroundColor: cores, borderWidth: 0, borderRadius: 2 }] },
+    data: {
+      labels,
+      datasets: [{
+        data,
+        backgroundColor: cores,
+        borderRadius: 4,
+        barThickness: 24
+      }]
+    },
     options: {
+      indexAxis: 'y', // Barras horizontais
       responsive: true,
       maintainAspectRatio: false,
-      layout: { padding: { top: 20 } },
       plugins: {
         legend: { display: false },
         tooltip: {
           callbacks: {
             label: (c) => {
-              const v = c.raw;
-              if (c.dataIndex === 0 || c.dataIndex === 4) return 'Total: ' + fmtBRL(v[1]);
-              const diff = v[1] - v[0];
-              return (diff > 0 ? '+' : '') + fmtBRL(diff);
+              const val = c.raw;
+              return 'Impacto: ' + (val > 0 ? '+' : '') + fmtBRL(val);
             }
           }
         }
       },
       scales: {
         x: { 
-          stacked: true, 
-          grid: { display: false }, 
-          ticks: { color: '#64748b', font: { size: 11, weight: '600' } } 
+          grid: { color: '#f0f0f0' }, 
+          ticks: { callback: v => 'R$ ' + (v / 1000).toFixed(0) + 'k' } 
         },
         y: { 
-          stacked: true, 
-          beginAtZero: true,
-          suggestedMax: base * 1.05, // Deixa o topo do gráfico mais justo, sem muito espaço vazio
-          grid: { color: '#f0f0f0' }, 
-          ticks: { color: '#64748b', callback: v => 'R$ ' + (v / 1000).toFixed(0) + 'k' } 
+          grid: { display: false }, 
+          ticks: { font: { weight: '600' }, color: '#475569' } 
         }
       }
-    },
-    plugins: [linhasPlugin]
+    }
   });
-}
-
-function fmtMesCurto(ym) {
-  if (!ym) return '';
-  const [a, m] = ym.split('-');
-  return MESES[parseInt(m, 10) - 1].slice(0, 3) + '/' + a;
 }

@@ -312,101 +312,98 @@
       </div>
     </section>
 
-    <!-- ABA ANÁLISE -->
-<section id="tab-analise" class="tab-content">
-  <div class="page-header" style="display:flex; justify-content:space-between; align-items:flex-end;">
-    <div>
-      <h2>Análise & Performance</h2>
-      <p>Inteligência de crescimento e diagnóstico de variação.</p>
-    </div>
-  </div>
-
-  <div class="subtabs" id="analise-subtabs">
-    <button data-subtab="yoy" class="active">📈 Ano contra Ano</button>
-    <button data-subtab="mom">🔍 Por que caiu? (Mês vs Mês)</button>
-  </div>
-
-  <!-- SUBTAB YoY (conteúdo existente) -->
-  <div id="analise-painel-yoy" class="subtab-content active">
-    <div class="periodo-bar" style="background:#fff; padding:16px; border-radius:8px; border:1px solid var(--af-borda); display:flex; align-items:center; gap:16px; margin-bottom:24px;">
-      <div style="display:flex; align-items:center; gap:8px;">
-        <label style="font-size:12px; font-weight:600; color:var(--af-t2);">PERÍODO:</label>
-        <select id="analise-periodo" class="select-clean" style="min-width:200px;">
-          <option value="ytd">Acumulado (Jan - Mês Atual)</option>
-          <option value="ano">Ano Inteiro</option>
-        </select>
-      </div>
-      <div style="display:flex; align-items:center; gap:8px; border-left:1px solid #eee; padding-left:16px;">
-        <label style="font-size:12px; font-weight:600; color:var(--af-t2);">VENDEDOR:</label>
-        <select id="analise-filtro-vendedor" class="select-clean" style="min-width:200px;">
-          <option value="">Todo o time</option>
-        </select>
-      </div>
-    </div>
-
-    <div class="grid-kpis" id="analise-kpis"></div>
-
-    <div class="card-painel" style="padding: 24px; margin-bottom: 24px;">
-      <div class="card-title-row"><h3>Sazonalidade — Ano contra Ano</h3><span class="text-xs text-muted">Dados de 2026 atualizados em tempo real</span></div>
-      <div style="height: 320px; margin-top:16px;"><canvas id="chart-yoy-line"></canvas></div>
-    </div>
-
-    <div class="card-painel">
-      <div class="card-title-row" style="padding: 16px 20px; border-bottom: 1px solid #eee;"><h3>Ranking do time</h3></div>
-      <div style="overflow-x:auto;">
-        <table class="tabela-cockpit">
-          <thead><tr><th>VENDEDOR</th><th class="num">2025</th><th class="num">2026</th><th class="num">VARIAÇÃO</th><th class="num">PEDIDOS</th><th>LEITURA</th></tr></thead>
-          <tbody id="tbody-ranking-leitura"></tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
-  <!-- SUBTAB MoM (novo) -->
-  <div id="analise-painel-mom" class="subtab-content" style="display:none;">
-    <div class="periodo-bar" style="background:#fff; padding:16px; border-radius:8px; border:1px solid var(--af-borda); display:flex; align-items:center; gap:16px; margin-bottom:24px;">
-      <div style="display:flex; align-items:center; gap:8px;">
-        <label style="font-size:12px; font-weight:600; color:var(--af-t2);">VENDEDOR:</label>
-        <select id="mom-vendedor" class="select-clean" style="min-width:200px;"></select>
-      </div>
-      <div style="display:flex; align-items:center; gap:8px; border-left:1px solid #eee; padding-left:16px;">
-        <label style="font-size:12px; font-weight:600; color:var(--af-t2);">MÊS:</label>
-        <select id="mom-mes" class="select-clean" style="min-width:180px;"></select>
-      </div>
-    </div>
-
-    <div class="grid-kpis" id="mom-kpis"></div>
-
-    <div class="card-painel" style="padding: 24px; margin-bottom: 24px;">
-      <div class="card-title-row" style="margin-bottom: 8px;">
-        <h3>Decomposição da Variação</h3>
-        <span class="text-xs text-muted" id="mom-legenda">Waterfall sobre o realizado até hoje</span>
-      </div>
-      <div id="mom-leitura" style="margin-bottom: 12px;"></div>
-      <div id="mom-alertas" style="margin-bottom: 20px;"></div>
-      <div style="height: 320px; margin-top: 8px;">
-        <canvas id="chart-waterfall-mom"></canvas>
-      </div>
-    </div>
-
-    <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-      <div class="card-painel">
-        <div class="card-title-row" style="padding: 16px 20px; border-bottom: 1px solid #eee;">
-          <h3 style="color:var(--af-vermelho);">⚠️ Clientes em Queda</h3>
-          <span class="text-xs text-muted">Perdidos + reduções</span>
+        <!-- ABA ANÁLISE -->
+    <section id="tab-analise" class="tab-content">
+      <div class="page-header" style="display:flex; justify-content:space-between; align-items:flex-end;">
+        <div>
+          <h2>Análise & Performance</h2>
+          <p>Inteligência de crescimento e diagnóstico de variação.</p>
         </div>
-        <div id="mom-perdas"></div>
       </div>
-      <div class="card-painel">
-        <div class="card-title-row" style="padding: 16px 20px; border-bottom: 1px solid #eee;">
-          <h3 style="color:var(--af-verde);">🟢 Clientes em Crescimento</h3>
-          <span class="text-xs text-muted">Novos + aumentos</span>
+
+      <div class="subtabs" id="analise-subtabs">
+        <button data-subtab="yoy" class="active">📈 Ano contra Ano</button>
+        <button data-subtab="mom">🔍 Por que caiu? (Mês vs Mês)</button>
+      </div>
+
+      <!-- SUBTAB YoY -->
+      <div id="analise-painel-yoy" class="subtab-content active">
+        <div class="periodo-bar" style="background:#fff; padding:16px; border-radius:8px; border:1px solid var(--af-borda); display:flex; align-items:center; gap:16px; margin-bottom:24px;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <label style="font-size:12px; font-weight:600; color:var(--af-t2);">PERÍODO:</label>
+            <select id="analise-periodo" class="select-clean" style="min-width:200px;">
+              <option value="ytd">Acumulado (Jan - Mês Atual)</option>
+              <option value="ano">Ano Inteiro</option>
+            </select>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px; border-left:1px solid #eee; padding-left:16px;">
+            <label style="font-size:12px; font-weight:600; color:var(--af-t2);">VENDEDOR:</label>
+            <select id="analise-filtro-vendedor" class="select-clean" style="min-width:200px;">
+              <option value="">Todo o time</option>
+            </select>
+          </div>
         </div>
-        <div id="mom-novos"></div>
+
+        <div class="grid-kpis" id="analise-kpis"></div>
+
+        <div class="card-painel" style="padding: 24px; margin-bottom: 24px;">
+          <div class="card-title-row"><h3>Sazonalidade — Ano contra Ano</h3><span class="text-xs text-muted">Dados de 2026 atualizados em tempo real</span></div>
+          <div style="height: 320px; margin-top:16px;"><canvas id="chart-yoy-line"></canvas></div>
+        </div>
+
+        <div class="card-painel">
+          <div class="card-title-row" style="padding: 16px 20px; border-bottom: 1px solid #eee;"><h3>Ranking do time</h3></div>
+          <div style="overflow-x:auto;">
+            <table class="tabela-cockpit">
+              <thead><tr><th>VENDEDOR</th><th class="num">2025</th><th class="num">2026</th><th class="num">VARIAÇÃO</th><th class="num">PEDIDOS</th><th>LEITURA</th></tr></thead>
+              <tbody id="tbody-ranking-leitura"></tbody>
+            </table>
+          </div>
+        </div>
       </div>
-    </div>
-  </div>
-</section>
+
+      <!-- SUBTAB MoM -->
+      <div id="analise-painel-mom" class="subtab-content" style="display:none;">
+        <div class="periodo-bar" style="background:#fff; padding:16px; border-radius:8px; border:1px solid var(--af-borda); display:flex; align-items:center; gap:16px; margin-bottom:24px;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <label style="font-size:12px; font-weight:600; color:var(--af-t2);">VENDEDOR:</label>
+            <select id="mom-vendedor" class="select-clean" style="min-width:200px;"></select>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px; border-left:1px solid #eee; padding-left:16px;">
+            <label style="font-size:12px; font-weight:600; color:var(--af-t2);">MÊS:</label>
+            <select id="mom-mes" class="select-clean" style="min-width:180px;"></select>
+          </div>
+        </div>
+
+        <div class="grid-kpis" id="mom-kpis"></div>
+
+        <div class="card-painel" style="padding: 24px; margin-bottom: 24px;">
+          <div class="card-title-row" style="margin-bottom: 24px;">
+            <h3>Resumo de Impacto</h3>
+            <span class="text-xs text-muted">O que puxou para baixo e o que segurou o mês</span>
+          </div>
+          <div id="mom-impacto-resumo"></div>
+        </div>
+
+        <!-- AQUI ESTÁ O GRID QUE FALTAVA -->
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+          <div class="card-painel">
+            <div class="card-title-row" style="padding: 16px 20px; border-bottom: 1px solid #eee;">
+              <h3 style="color:var(--af-vermelho);">⚠️ Clientes em Queda</h3>
+              <span class="text-xs text-muted">Perdidos + reduções</span>
+            </div>
+            <div id="mom-perdas"></div>
+          </div>
+          <div class="card-painel">
+            <div class="card-title-row" style="padding: 16px 20px; border-bottom: 1px solid #eee;">
+              <h3 style="color:var(--af-verde);">🟢 Clientes em Crescimento</h3>
+              <span class="text-xs text-muted">Novos + aumentos</span>
+            </div>
+            <div id="mom-novos"></div>
+          </div>
+        </div>
+      </div>
+    </section>
 
     <!-- ABA CONFIG -->
     <section id="tab-config" class="tab-content">
