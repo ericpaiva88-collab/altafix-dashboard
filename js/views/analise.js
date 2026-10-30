@@ -382,6 +382,7 @@ function renderPainelMoM(vendedorId, mesRef) {
   renderImpactoChart(d, sumCairam, sumCresceram);
 }
 
+// Substitua a função renderListaClientes por esta:
 function renderListaClientes(lista, vazio, tipo) {
   if (!lista || lista.length === 0) {
     return `<div style="padding:16px; text-align:center; color:#888; font-size:12px;">${vazio}</div>`;
@@ -393,25 +394,125 @@ function renderListaClientes(lista, vazio, tipo) {
     const cor = delta >= 0 ? 'var(--af-verde)' : 'var(--af-vermelho)';
     
     let detalhe = '';
+    const isMigrou = c.nome.indexOf('(Migrou p/') >= 0;
+
     if (c.nome === 'Outros / Sem Cadastro') {
       detalhe = 'Ajustes de ERP não mapeados a clientes';
     } else if (tipo === 'neg') {
-      if (c.valorAtual === 0) detalhe = `Não comprou neste mês. (Era ${fmtBRL(c.valorAnterior)})`;
-      else detalhe = `Caiu de ${fmtBRL(c.valorAnterior)} para ${fmtBRL(c.valorAtual)}`;
+      if (c.valorAtual === 0) {
+        detalhe = isMigrou ? `⚠️ Carteira transferida.` : `Não comprou de ninguém.`;
+      } else {
+        detalhe = `Caiu de ${fmtBRL(c.valorAnterior)} para ${fmtBRL(c.valorAtual)}`;
+      }
     } else if (tipo === 'pos') {
       if (c.valorAnterior === 0) detalhe = `Novo cliente.`;
       else detalhe = `Aumentou de ${fmtBRL(c.valorAnterior)} para ${fmtBRL(c.valorAtual)}`;
     }
 
+    // Limpa o nome da tag "(Migrou p/ X)" para não quebrar o layout, mas coloca no detalhe
+    const nomeExibicao = c.nome.replace(/\s*\(Migrou p\/.*\)$/, '');
+
     return `<div class="ficha-lista-item">
       <div>
-        <div class="nome">${escapeHtml(c.nome)}</div>
-        <div class="detalhe">${detalhe}</div>
+        <div class="nome">${escapeHtml(nomeExibicao)}</div>
+        <div class="detalhe" style="${isMigrou ? 'color:var(--af-amarelo); font-weight:600;' : ''}">${detalhe}</div>
       </div>
       <div class="valor" style="color:${cor};">${sinal}${fmtBRL(delta)}</div>
     </div>`;
   }).join('')}</div>`;
 }
+
+// Substitua a função _abrirDetalheMoM por esta:
+window._abrirDetalheMoM = function(tipo) {
+  const d = window._dadosMoMAtual;
+  if (!d) return;
+
+  let lista = [];
+  let titulo = '';
+  let corTitulo = '';
+
+  if (tipo === 'perdidos') {
+    lista = d.perdidos;
+    titulo = 'Clientes Perdidos (Zeraram)';
+    corTitulo = 'var(--af-vermelho)';
+  } else if (tipo === 'cairam') {
+    lista = d.cairam;
+    titulo = 'Clientes em Queda';
+    corTitulo = 'var(--af-vermelho)';
+  } else if (tipo === 'novos') {
+    lista = d.novos;
+    titulo = 'Novos Clientes';
+    corTitulo = 'var(--af-verde)';
+  } else if (tipo === 'cresceram') {
+    lista = d.cresceram;
+    titulo = 'Clientes em Aumento';
+    corTitulo = 'var(--af-verde)';
+  }
+
+  if (!lista || lista.length === 0) {
+    toast('Nenhum cliente nesta categoria.');
+    return;
+  }
+
+  // Cria a lista HTML com as tags visuais
+  const listaHtml = lista.map(c => {
+    const delta = c.delta;
+    const sinal = delta >= 0 ? '+' : '';
+    const cor = delta >= 0 ? 'var(--af-verde)' : 'var(--af-vermelho)';
+    
+    const isMigrou = c.nome.indexOf('(Migrou p/') >= 0;
+    let detalhe = '';
+    let corDetalhe = '#888';
+
+    if (c.nome === 'Outros / Sem Cadastro') {
+      detalhe = 'Ajustes de ERP';
+    } else if (c.valorAtual === 0) {
+      detalhe = isMigrou ? `Carteira transferida para outro vendedor` : `Não comprou neste mês (Churn real)`;
+      corDetalhe = isMigrou ? 'var(--af-amarelo)' : 'var(--af-vermelho)';
+    } else if (c.valorAnterior === 0) {
+      detalhe = `Novo cliente.`;
+    } else {
+      detalhe = `Faturamento caiu de ${fmtBRL(c.valorAnterior)} para ${fmtBRL(c.valorAtual)}`;
+    }
+
+    const nomeExibicao = c.nome.replace(/\s*\(Migrou p\/.*\)$/, '');
+    const vendedorMigrou = isMigrou ? `<span style="background:var(--af-amarelo-bg); color:var(--af-amarelo); padding:2px 6px; border-radius:4px; font-size:10px; font-weight:700; margin-left:8px;">TRANSFERIDO</span>` : '';
+
+    return `<div class="ficha-lista-item" style="padding: 16px 24px;">
+      <div>
+        <div class="nome" style="display:flex; align-items:center;">
+          ${escapeHtml(nomeExibicao)} ${vendedorMigrou}
+        </div>
+        <div class="detalhe" style="color:${corDetalhe}; margin-top:4px;">${detalhe}</div>
+      </div>
+      <div class="valor" style="color:${cor}; font-size:14px;">${sinal}${fmtBRL(delta)}</div>
+    </div>`;
+  }).join('');
+
+  let modal = document.getElementById('modal-detalhe-mom');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'modal-detalhe-mom';
+    modal.className = 'modal';
+    modal.innerHTML = '<div class="modal-content" style="max-width:600px; padding:0; display:flex; flex-direction:column; max-height:85vh; border-radius:8px; overflow:hidden;"></div>';
+    document.body.appendChild(modal);
+  }
+
+  modal.querySelector('.modal-content').innerHTML = `
+    <div style="padding:20px 24px; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center; background:#FAFAFA;">
+      <h3 style="font-size:16px; color:${corTitulo}; display:flex; align-items:center; gap:8px;">
+        ${titulo} <span class="badge neutral" style="font-size:12px;">${lista.length}</span>
+      </h3>
+      <button class="btn btn-sm" onclick="document.getElementById('modal-detalhe-mom').classList.remove('show')">Fechar</button>
+    </div>
+    <div class="ficha-lista" style="flex:1; overflow-y:auto; border:none; border-radius:0;">
+      ${listaHtml}
+    </div>
+  `;
+
+  modal.classList.add('show');
+  modal.onclick = e => { if (e.target.id === 'modal-detalhe-mom') modal.classList.remove('show'); };
+};
 
 function renderImpactoChart(d, sumCairam, sumCresceram) {
   const ctx = document.getElementById('chart-impacto-mom');
