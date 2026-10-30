@@ -190,14 +190,14 @@ body {
 .modal.show { display: flex; }
 .modal-content { background: #fff; padding: 24px; border-radius: 8px; width: 100%; max-width: 500px; max-height: 90vh; overflow-y: auto; }
 
-/* Ajustes para a Ficha 1:1 sem Scroll na tela toda */
+/* Ajustes para a Ficha 1:1 no Desktop */
 .modal-ficha .modal-content {
   max-width: 1200px;
   padding: 0;
   display: flex;
   flex-direction: column;
-  height: 85vh; /* Ocupa 85% da tela do notebook/TV */
-  overflow: hidden; /* Impede rolagem geral */
+  height: 85vh;
+  overflow: hidden;
 }
 
 .ficha-header {
@@ -210,18 +210,23 @@ body {
   align-items: center;
 }
 
-.ficha-header h2 {
-  font-size: 20px;
-  margin-bottom: 2px;
-}
+.ficha-header h2 { font-size: 20px; margin-bottom: 2px; }
 
 .ficha-body {
   padding: 20px 24px;
-  overflow: hidden; /* O scroll fica dentro das colunas específicas */
+  overflow: hidden;
   flex: 1;
 }
 
-/* Customização da barra de rolagem interna da coluna de clientes */
+/* Layout base da Ficha 1:1 (Desktop) */
+.ficha-grid-3col {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr 1fr;
+  gap: 24px;
+  flex: 1;
+  min-height: 0;
+}
+
 .ficha-lista { background: #fff; border: 1px solid var(--af-borda); border-radius: 6px; overflow-y: auto; }
 .ficha-lista::-webkit-scrollbar { width: 6px; }
 .ficha-lista::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
@@ -321,11 +326,48 @@ body {
   .filtros-bar { flex-direction: column; align-items: stretch; padding: 12px !important; }
   .filtros-bar input, .filtros-bar select { width: 100% !important; min-width: 0; }
   
-  /* Modais */
+  /* Modais e Ficha 1:1 */
   .modal-form-grid { grid-template-columns: 1fr; }
   .ficha-kpi-row { flex-direction: column; }
-  .ficha-header { padding: 16px; flex-direction: column; gap: 12px; align-items: flex-start; }
-  .ficha-body { padding: 16px; }
+  
+  .modal-ficha .modal-content {
+    height: 95vh !important;
+    overflow-y: auto !important;
+  }
+
+  .ficha-header {
+    padding: 16px;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 12px;
+  }
+
+  .ficha-header > div:last-child {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .ficha-header .btn { flex: 1; }
+
+  .ficha-body {
+    padding: 16px !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  /* Transforma a grade em coluna única */
+  .ficha-grid-3col {
+    display: flex !important;
+    flex-direction: column;
+    gap: 24px;
+    height: auto !important;
+  }
+
+  .ficha-lista {
+    max-height: 250px;
+    overflow-y: auto;
+  }
   
   /* Tabelas em formato Card */
   .tabela-cockpit thead { display: none; }
@@ -354,8 +396,8 @@ body {
   
   /* CORREÇÃO DO RITMO SEMANAL NO MOBILE */
   #sem-tabs { display: flex !important; }
-  .semana-desktop { display: none !important; } /* Esconde a tabela de 7 colunas */
-  .semana-mobile { display: block; }            /* Mostra o card do dia selecionado */
+  .semana-desktop { display: none !important; }
+  .semana-mobile { display: block; }
 
   /* Ajuste Modo Foco */
   #agenda-modo-foco .card-painel { margin: 16px 0 !important; padding: 24px 16px !important; }
@@ -368,8 +410,8 @@ body {
 /* Correção da quebra de linha nos números grandes */
 .kpi-value,
 .numero-grande {
-  white-space: nowrap !important; /* Impede de quebrar em duas linhas */
-  font-size: clamp(22px, 2.5vw, 36px) !important; /* Diminui um pouco o tamanho para caber */
+  white-space: nowrap !important;
+  font-size: clamp(22px, 2.5vw, 36px) !important;
   letter-spacing: -0.04em !important;
 }
 

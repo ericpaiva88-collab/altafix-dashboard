@@ -3,7 +3,7 @@
 // ============================================================
 
 import { state, ui } from '../state.js';
-import { fmtBRL, escapeHtml, diffDias, isoDate, toast, abrirWhatsApp, normalizarNomeCliente } from '../utils.js';
+import { fmtBRL, escapeHtml, diffDias, isoDate, toast, abrirWhatsApp, normalizarNomeCliente, copiarTexto } from '../utils.js';
 import { calcVendedor, mesRefAtual, filialNoEscopo, comparativoNoEscopo } from '../calc.js';
 import { calcularDiagnosticoMoM } from '../calc_diagnostico.js';
 
@@ -88,7 +88,6 @@ window._abrirFichaVendedor = function(vendedorId) {
     const sumCairam = diag.cairam.reduce((s, c) => s + c.delta, 0);
     const sumCresceram = diag.cresceram.reduce((s, c) => s + c.delta, 0);
     
-    // 1. Alertas (Dependência, etc)
     if (diag.alertas && diag.alertas.length > 0) {
       htmlAlertas = diag.alertas.filter(a => a.tipo !== 'success').map(a => {
         const bg = a.tipo === 'danger' ? '#FEE2E2' : '#FEF3C7';
@@ -99,7 +98,6 @@ window._abrirFichaVendedor = function(vendedorId) {
       }).join('');
     }
 
-    // 2. Resumo MoM (Barras horizontais em mini-cards)
     htmlDiag = `
       <div style="display:flex; gap:12px; align-items:center; margin-bottom:16px;">
         <span class="badge ${diag.variacaoPct >= 0 ? 'ok' : 'danger'}" style="font-size:12px; padding:6px 10px;">
@@ -127,7 +125,6 @@ window._abrirFichaVendedor = function(vendedorId) {
       </div>
     `;
 
-    // 3. Ações (Top 5 Quedas)
     const topQuedas = [...diag.perdidos, ...diag.cairam]
       .filter(c => c.nome !== 'Outros / Sem Cadastro')
       .sort((a,b) => a.delta - b.delta)
@@ -138,11 +135,14 @@ window._abrirFichaVendedor = function(vendedorId) {
       : topQuedas.map(c => {
           const tel = obterTelefoneCliente(c.nome);
           const btnZap = tel ? `<button class="btn btn-sm" style="background:#25D366;color:#fff;border-color:#25D366;padding:4px 8px;font-size:10px;" onclick="window._abrirWhatsApp('${tel}', '${escapeHtml(c.nome)}', '${escapeHtml(v.nome)}')">Zap</button>` : '';
+          const nomeExibicao = c.nome.replace(/\s*\(Migrou p\/.*\)$/, '');
+          const isMigrou = c.nome.indexOf('(Migrou p/') >= 0;
+
           return `
           <div class="ficha-lista-item" style="padding: 10px 12px;">
             <div style="overflow:hidden;">
-              <div class="nome" style="font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(c.nome)}</div>
-              <div class="detalhe">${c.valorAtual === 0 ? 'Saiu' : 'Caiu'} (${fmtBRL(c.valorAnterior)} → ${fmtBRL(c.valorAtual)})</div>
+              <div class="nome" style="font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(nomeExibicao)} ${isMigrou ? '<span style="color:#d97706;font-size:10px;font-weight:bold;">(MIGROU)</span>' : ''}</div>
+              <div class="detalhe">${c.valorAtual === 0 ? 'Saiu' : 'Caiu'}</div>
             </div>
             <div style="display:flex; align-items:center; gap:8px;">
               <div class="valor" style="color:var(--af-vermelho); font-size:12px;">${fmtBRL(c.delta)}</div>
@@ -160,16 +160,18 @@ window._abrirFichaVendedor = function(vendedorId) {
         <h2 style="font-size:20px;">${escapeHtml(v.nome)}</h2>
         <p style="font-size:12px;">Ficha de desempenho · Reunião 1:1</p>
       </div>
-      <button class="btn btn-sm" onclick="document.getElementById('ficha-vendedor-modal').classList.remove('show')">Fechar</button>
+      <div style="display:flex; gap:12px; align-items:center;">
+        <button class="btn btn-sm" style="background:#25D366; color:#fff; border-color:#25D366;" onclick="window._gerarResumo1a1('${v.id}')">📲 Gerar Resumo</button>
+        <button class="btn btn-sm" onclick="document.getElementById('ficha-vendedor-modal').classList.remove('show')">Fechar</button>
+      </div>
     </div>
 
     <div class="ficha-body" style="padding: 20px 24px; display: flex; flex-direction: column; gap: 20px; height: calc(100% - 70px);">
       
-      <!-- Linha de Alertas -->
       ${htmlAlertas ? `<div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">${htmlAlertas}</div>` : ''}
 
       <!-- Grid de 3 Colunas -->
-      <div style="display: grid; grid-template-columns: 1fr 1.2fr 1fr; gap: 24px; flex: 1; min-height: 0;">
+      <div class="ficha-grid-3col">
         
         <!-- Coluna 1: Diagnóstico -->
         <div style="display:flex; flex-direction:column;">
@@ -190,7 +192,7 @@ window._abrirFichaVendedor = function(vendedorId) {
         <!-- Coluna 3: Diário de Bordo -->
         <div style="display:flex; flex-direction:column;">
           <div style="font-size:13px; font-weight:700; color:var(--af-t1); margin-bottom:12px;">📝 Diário de Bordo 1:1</div>
-          <textarea id="ficha-notas-1a1" style="flex:1; width:100%; padding:12px; border:1px solid var(--af-borda-forte); border-radius:6px; font-family:inherit; font-size:13px; resize:none;" placeholder="O que foi conversado? Quais os compromissos acordados?">${escapeHtml(notaSalva)}</textarea>
+          <textarea id="ficha-notas-1a1" style="flex:1; min-height: 150px; width:100%; padding:12px; border:1px solid var(--af-borda-forte); border-radius:6px; font-family:inherit; font-size:13px; resize:none;" placeholder="O que foi conversado? Quais os compromissos acordados?">${escapeHtml(notaSalva)}</textarea>
           <button class="btn btn-primary" style="margin-top:12px; width:100%;" onclick="window._salvarNota1a1('${v.id}')">Salvar Anotações</button>
         </div>
 
@@ -203,7 +205,7 @@ window._abrirFichaVendedor = function(vendedorId) {
     modal = document.createElement('div');
     modal.id = 'ficha-vendedor-modal';
     modal.className = 'modal modal-ficha';
-    modal.innerHTML = '<div class="modal-content" style="max-width:1200px; height:85vh; display:flex; flex-direction:column; overflow:hidden;"></div>'; // Fixa altura e esconde scroll externo
+    modal.innerHTML = '<div class="modal-content" style="max-width:1200px; height:85vh; display:flex; flex-direction:column; overflow:hidden;"></div>';
     document.body.appendChild(modal);
   }
   modal.querySelector('.modal-content').innerHTML = html;
@@ -214,6 +216,54 @@ window._abrirFichaVendedor = function(vendedorId) {
     const txt = document.getElementById('ficha-notas-1a1').value;
     localStorage.setItem('nota_1a1_' + vId, txt);
     toast('✓ Anotações salvas!');
+  };
+
+  window._gerarResumo1a1 = (vId) => {
+    const vendedor = state.vendedores.find(x => x.id === vId);
+    const d = calcularDiagnosticoMoM(vId, mesRefStr);
+    const nota = document.getElementById('ficha-notas-1a1').value;
+    
+    if (!d || d.semBase) {
+      toast('⚠ Sem dados suficientes para gerar o resumo.');
+      return;
+    }
+
+    const mesNome = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][new Date().getMonth()];
+    const metas = (state.metas || []).find(m => m.vendedorId === vId && m.mes === mesRefStr);
+    const metaVal = metas ? metas.metaFaturamento : (vendedor.meta || 0);
+    const pctMeta = metaVal > 0 ? (d.totalAt / metaVal) * 100 : 0;
+    
+    const topQuedas = [...d.perdidos, ...d.cairam]
+      .filter(c => c.nome !== 'Outros / Sem Cadastro')
+      .sort((a,b) => a.delta - b.delta)
+      .slice(0, 3);
+
+    let txt = `*Resumo 1:1 — ${vendedor.nome}*\n`;
+    txt += `_Mês: ${mesNome}/${mesRefStr.split('-')[0]}_\n\n`;
+    
+    txt += `📊 *Fechamento Parcial*\n`;
+    txt += `Realizado: ${fmtBRL(d.totalAt)}\n`;
+    if (metaVal > 0) txt += `Meta: ${fmtBRL(metaVal)} (${pctMeta.toFixed(0)}%)\n`;
+    txt += `Projeção: ${fmtBRL(d.fatProjetado)}\n\n`;
+
+    if (topQuedas.length > 0) {
+      txt += `🚨 *Prioridades de Ligação*\n`;
+      topQuedas.forEach(c => {
+        const nomeExibicao = c.nome.replace(/\s*\(Migrou p\/.*\)$/, '');
+        const isMigrou = c.nome.indexOf('(Migrou p/') >= 0;
+        txt += `• ${nomeExibicao} (${isMigrou ? 'Migrou p/ outro vendedor' : 'Queda/Saiu'}) — ${fmtBRL(c.delta)}\n`;
+      });
+      txt += `\n`;
+    }
+
+    if (nota.trim()) {
+      txt += `📝 *Combinados da Reunião*\n`;
+      txt += `${nota}\n\n`;
+    }
+
+    txt += `_Gerado pelo Alta Fix_`;
+
+    copiarTexto(txt);
   };
 };
 
