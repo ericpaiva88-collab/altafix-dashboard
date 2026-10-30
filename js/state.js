@@ -41,6 +41,7 @@ export const state = {
   ligacoes: [],
   ligacoesVendas: [],
   acoesTratadas: {},
+  notas1a1: [], // <--- NOVO AQUI
   _historico: {},
   _produtosSnap: null,
   _produtosHistorico: {},

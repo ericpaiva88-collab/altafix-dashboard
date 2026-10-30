@@ -6,6 +6,7 @@ import { state, ui } from '../state.js';
 import { fmtBRL, escapeHtml, diffDias, isoDate, toast, abrirWhatsApp, normalizarNomeCliente, copiarTexto } from '../utils.js';
 import { calcVendedor, mesRefAtual, filialNoEscopo, comparativoNoEscopo } from '../calc.js';
 import { calcularDiagnosticoMoM } from '../calc_diagnostico.js';
+import { sbSalvarNota1a1 } from '../supabase.js'; // <--- IMPORTANTE
 
 let chartFichaInstance = null;
 
@@ -152,7 +153,9 @@ window._abrirFichaVendedor = function(vendedorId) {
         `}).join('');
   }
 
-  const notaSalva = localStorage.getItem('nota_1a1_' + v.id) || '';
+  // BUSCA A NOTA NO BANCO DE DADOS (State)
+  const notaObj = (state.notas1a1 || []).find(n => n.vendedorId === v.id && n.mes === mesRefStr);
+  const notaSalva = notaObj ? (notaObj.texto || '') : '';
 
   let html = `
     <div class="ficha-header" style="padding: 16px 24px;">
@@ -170,10 +173,8 @@ window._abrirFichaVendedor = function(vendedorId) {
       
       ${htmlAlertas ? `<div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">${htmlAlertas}</div>` : ''}
 
-      <!-- Grid de 3 Colunas -->
       <div class="ficha-grid-3col">
         
-        <!-- Coluna 1: Diagnóstico -->
         <div style="display:flex; flex-direction:column;">
           <div style="font-size:13px; font-weight:700; color:var(--af-t1); margin-bottom:12px;">📊 Resumo do Mês</div>
           <div style="background:#F8FAFC; border:1px solid #E2E8F0; border-radius:8px; padding:16px; flex:1;">
@@ -181,7 +182,6 @@ window._abrirFichaVendedor = function(vendedorId) {
           </div>
         </div>
 
-        <!-- Coluna 2: Ação (Top Quedas) -->
         <div style="display:flex; flex-direction:column; min-height: 0;">
           <div style="font-size:13px; font-weight:700; color:var(--af-vermelho); margin-bottom:12px;">🚨 Prioridade de Ligação</div>
           <div class="ficha-lista" style="flex:1; overflow-y:auto;">
@@ -189,11 +189,10 @@ window._abrirFichaVendedor = function(vendedorId) {
           </div>
         </div>
 
-        <!-- Coluna 3: Diário de Bordo -->
         <div style="display:flex; flex-direction:column;">
           <div style="font-size:13px; font-weight:700; color:var(--af-t1); margin-bottom:12px;">📝 Diário de Bordo 1:1</div>
           <textarea id="ficha-notas-1a1" style="flex:1; min-height: 150px; width:100%; padding:12px; border:1px solid var(--af-borda-forte); border-radius:6px; font-family:inherit; font-size:13px; resize:none;" placeholder="O que foi conversado? Quais os compromissos acordados?">${escapeHtml(notaSalva)}</textarea>
-          <button class="btn btn-primary" style="margin-top:12px; width:100%;" onclick="window._salvarNota1a1('${v.id}')">Salvar Anotações</button>
+          <button class="btn btn-primary" style="margin-top:12px; width:100%;" onclick="window._salvarNota1a1('${v.id}', '${mesRefStr}')">Salvar Anotações</button>
         </div>
 
       </div>
@@ -212,10 +211,31 @@ window._abrirFichaVendedor = function(vendedorId) {
   modal.classList.add('show');
   modal.onclick = e => { if (e.target.id === 'ficha-vendedor-modal') modal.classList.remove('show'); };
 
-  window._salvarNota1a1 = (vId) => {
+  // SALVA DIRETO NO SUPABASE
+  window._salvarNota1a1 = async (vId, mesRef) => {
     const txt = document.getElementById('ficha-notas-1a1').value;
-    localStorage.setItem('nota_1a1_' + vId, txt);
-    toast('✓ Anotações salvas!');
+    const btn = event.target;
+    const txtOriginal = btn.textContent;
+    
+    btn.textContent = 'Salvando...';
+    btn.disabled = true;
+
+    try {
+      await sbSalvarNota1a1(vId, mesRef, txt);
+      
+      // Atualiza o state local para não precisar dar F5
+      const index = state.notas1a1.findIndex(n => n.vendedorId === vId && n.mes === mesRef);
+      if (index >= 0) state.notas1a1[index].texto = txt;
+      else state.notas1a1.push({ vendedorId: vId, mes: mesRef, texto: txt });
+
+      toast('✓ Anotações salvas na nuvem!');
+      btn.textContent = 'Salvo ✓';
+      setTimeout(() => { btn.textContent = txtOriginal; btn.disabled = false; }, 2000);
+    } catch (e) {
+      toast('❌ Erro ao salvar: ' + e.message);
+      btn.textContent = txtOriginal;
+      btn.disabled = false;
+    }
   };
 
   window._gerarResumo1a1 = (vId) => {
