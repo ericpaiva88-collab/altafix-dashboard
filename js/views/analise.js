@@ -327,32 +327,46 @@ function renderPainelMoM(vendedorId, mesRef) {
     </div>
   `;
 
-  // 2. Resumo Executivo + Gráfico
+  // 2. Resumo Executivo (Agora com Contagem e Clique)
   const sumCairam = d.cairam.reduce((s, c) => s + c.delta, 0);
   const sumCresceram = d.cresceram.reduce((s, c) => s + c.delta, 0);
+
+  // Salva os dados no escopo global para o modal poder ler
+  window._dadosMoMAtual = d;
+  window._somaCairamAtual = sumCairam;
+  window._somaCresceramAtual = sumCresceram;
 
   impactoEl.innerHTML = `
     <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: center;">
       <div>
         <h4 style="font-size:14px; margin-bottom:16px; color:var(--af-t2);">O que nos puxou para baixo</h4>
-        <div style="background:#FEE2E2; border-left:4px solid #dc2626; padding:12px 16px; border-radius:6px; margin-bottom:12px;">
-          <div style="font-size:12px; font-weight:600; color:#991b1b; text-transform:uppercase;">Clientes Perdidos</div>
+        
+        <div style="background:#FEE2E2; border-left:4px solid #dc2626; padding:12px 16px; border-radius:6px; margin-bottom:12px; cursor:pointer; transition: transform 0.1s;" onclick="window._abrirDetalheMoM('perdidos')" onmouseover="this.style.transform='scale(1.02)'" onmouseout="this.style.transform='scale(1)'">
+          <div style="font-size:12px; font-weight:600; color:#991b1b; text-transform:uppercase;">Clientes Perdidos <span style="font-size:10px; font-weight:normal; text-decoration:underline; margin-left:8px;">(clique para ver quem são)</span></div>
           <div style="font-size:20px; font-weight:800; color:#991b1b;">${fmtBRL(d.impPerdidos)}</div>
+          <div style="font-size:11px; color:#991b1b;">${d.perdidos.length} clientes</div>
         </div>
-        <div style="background:#FEE2E2; border-left:4px solid #ef4444; padding:12px 16px; border-radius:6px;">
-          <div style="font-size:12px; font-weight:600; color:#991b1b; text-transform:uppercase;">Clientes em Queda</div>
+
+        <div style="background:#FEE2E2; border-left:4px solid #ef4444; padding:12px 16px; border-radius:6px; cursor:pointer; transition: transform 0.1s;" onclick="window._abrirDetalheMoM('cairam')" onmouseover="this.style.transform='scale(1.02)'" onmouseout="this.style.transform='scale(1)'">
+          <div style="font-size:12px; font-weight:600; color:#991b1b; text-transform:uppercase;">Clientes em Queda <span style="font-size:10px; font-weight:normal; text-decoration:underline; margin-left:8px;">(clique para ver quem são)</span></div>
           <div style="font-size:20px; font-weight:800; color:#991b1b;">${fmtBRL(sumCairam)}</div>
+          <div style="font-size:11px; color:#991b1b;">${d.cairam.length} clientes</div>
         </div>
       </div>
+      
       <div>
         <h4 style="font-size:14px; margin-bottom:16px; color:var(--af-t2);">O que segurou o mês</h4>
-        <div style="background:#DCFCE7; border-left:4px solid #16a34a; padding:12px 16px; border-radius:6px; margin-bottom:12px;">
-          <div style="font-size:12px; font-weight:600; color:#166534; text-transform:uppercase;">Novos Clientes</div>
+        
+        <div style="background:#DCFCE7; border-left:4px solid #16a34a; padding:12px 16px; border-radius:6px; margin-bottom:12px; cursor:pointer; transition: transform 0.1s;" onclick="window._abrirDetalheMoM('novos')" onmouseover="this.style.transform='scale(1.02)'" onmouseout="this.style.transform='scale(1)'">
+          <div style="font-size:12px; font-weight:600; color:#166534; text-transform:uppercase;">Novos Clientes <span style="font-size:10px; font-weight:normal; text-decoration:underline; margin-left:8px;">(clique para ver quem são)</span></div>
           <div style="font-size:20px; font-weight:800; color:#166534;">${fmtBRL(d.impNovos)}</div>
+          <div style="font-size:11px; color:#166534;">${d.novos.length} clientes</div>
         </div>
-        <div style="background:#DCFCE7; border-left:4px solid #22c55e; padding:12px 16px; border-radius:6px;">
-          <div style="font-size:12px; font-weight:600; color:#166534; text-transform:uppercase;">Clientes em Aumento</div>
+
+        <div style="background:#DCFCE7; border-left:4px solid #22c55e; padding:12px 16px; border-radius:6px; cursor:pointer; transition: transform 0.1s;" onclick="window._abrirDetalheMoM('cresceram')" onmouseover="this.style.transform='scale(1.02)'" onmouseout="this.style.transform='scale(1)'">
+          <div style="font-size:12px; font-weight:600; color:#166534; text-transform:uppercase;">Clientes em Aumento <span style="font-size:10px; font-weight:normal; text-decoration:underline; margin-left:8px;">(clique para ver quem são)</span></div>
           <div style="font-size:20px; font-weight:800; color:#166534;">${fmtBRL(sumCresceram)}</div>
+          <div style="font-size:11px; color:#166534;">${d.cresceram.length} clientes</div>
         </div>
       </div>
     </div>
@@ -361,7 +375,7 @@ function renderPainelMoM(vendedorId, mesRef) {
     </div>
   `;
 
-  // 3. Listas (Agora dentro de uma grid)
+  // 3. Listas inferiores (Mantidas para quem preferir rolar a tela)
   perdasEl.innerHTML = renderListaClientes([...d.perdidos, ...d.cairam], 'Nenhum cliente perdido ou em queda.', 'neg');
   novosEl.innerHTML = renderListaClientes([...d.novos, ...d.cresceram], 'Nenhum cliente novo ou em crescimento.', 'pos');
 
@@ -446,3 +460,77 @@ function renderImpactoChart(d, sumCairam, sumCresceram) {
     }
   });
 }
+window._abrirDetalheMoM = function(tipo) {
+  const d = window._dadosMoMAtual;
+  if (!d) return;
+
+  let lista = [];
+  let titulo = '';
+  let corTitulo = '';
+
+  if (tipo === 'perdidos') {
+    lista = d.perdidos;
+    titulo = 'Clientes Perdidos (Zeraram)';
+    corTitulo = 'var(--af-vermelho)';
+  } else if (tipo === 'cairam') {
+    lista = d.cairam;
+    titulo = 'Clientes em Queda';
+    corTitulo = 'var(--af-vermelho)';
+  } else if (tipo === 'novos') {
+    lista = d.novos;
+    titulo = 'Novos Clientes';
+    corTitulo = 'var(--af-verde)';
+  } else if (tipo === 'cresceram') {
+    lista = d.cresceram;
+    titulo = 'Clientes em Aumento';
+    corTitulo = 'var(--af-verde)';
+  }
+
+  if (!lista || lista.length === 0) {
+    toast('Nenhum cliente nesta categoria.');
+    return;
+  }
+
+  // Cria a lista HTML
+  const listaHtml = lista.map(c => {
+    const delta = c.delta;
+    const sinal = delta >= 0 ? '+' : '';
+    const cor = delta >= 0 ? 'var(--af-verde)' : 'var(--af-vermelho)';
+    
+    let detalhe = '';
+    if (c.nome === 'Outros / Sem Cadastro') detalhe = 'Ajustes de ERP';
+    else if (c.valorAtual === 0) detalhe = `Não comprou. (Era ${fmtBRL(c.valorAnterior)})`;
+    else if (c.valorAnterior === 0) detalhe = `Novo cliente.`;
+    else detalhe = `Mudou de ${fmtBRL(c.valorAnterior)} para ${fmtBRL(c.valorAtual)}`;
+
+    return `<div class="ficha-lista-item">
+      <div>
+        <div class="nome">${escapeHtml(c.nome)}</div>
+        <div class="detalhe">${detalhe}</div>
+      </div>
+      <div class="valor" style="color:${cor};">${sinal}${fmtBRL(delta)}</div>
+    </div>`;
+  }).join('');
+
+  let modal = document.getElementById('modal-detalhe-mom');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'modal-detalhe-mom';
+    modal.className = 'modal';
+    modal.innerHTML = '<div class="modal-content" style="max-width:600px; padding:0; display:flex; flex-direction:column; max-height:85vh;"></div>';
+    document.body.appendChild(modal);
+  }
+
+  modal.querySelector('.modal-content').innerHTML = `
+    <div style="padding:20px 24px; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center; background:#FAFAFA;">
+      <h3 style="font-size:16px; color:${corTitulo};">${titulo} (${lista.length})</h3>
+      <button class="btn btn-sm" onclick="document.getElementById('modal-detalhe-mom').classList.remove('show')">Fechar</button>
+    </div>
+    <div class="ficha-lista" style="flex:1; overflow-y:auto; border:none; border-radius:0;">
+      ${listaHtml}
+    </div>
+  `;
+
+  modal.classList.add('show');
+  modal.onclick = e => { if (e.target.id === 'modal-detalhe-mom') modal.classList.remove('show'); };
+};

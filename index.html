@@ -223,18 +223,47 @@
       <div id="equipe-cards-container" class="grid-cards-vendedores"></div>
     </section>
 
-    <!-- ABA CLIENTES -->
+            <!-- ABA CLIENTES -->
     <section id="tab-clientes" class="tab-content">
-      <div class="page-header"><h2>Clientes</h2><p>Ordenados pelo valor mensal atual.</p></div>
+      <div class="page-header"><h2>Clientes</h2><p>Ação direta na carteira. Veja quem caiu, quem cresceu e ligue na hora.</p></div>
+      
       <div class="grid-kpis" id="clientes-kpis"></div>
+      
       <div class="card-painel">
-        <div class="card-title-row" style="padding:16px 20px; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center;"><h3>Carteira de Clientes</h3><span class="text-xs text-muted" id="clientes-count">0 clientes</span></div>
-        <div class="filtros-bar" style="padding: 16px 20px; border-bottom: 1px solid #eee; background: #FAFAFA;">
+        <div class="card-title-row" style="padding:16px 20px; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center;">
+          <h3>Carteira de Clientes</h3>
+          <span class="text-xs text-muted" id="clientes-count">0 clientes</span>
+        </div>
+        
+        <!-- Filtros Rápidos (Chips) -->
+        <div style="padding: 16px 20px; border-bottom: 1px solid #eee; background: #FAFAFA; display: flex; gap: 8px; overflow-x: auto;">
+          <button class="chip active" data-filtro="todos">Todos</button>
+          <button class="chip" data-filtro="queda">📉 Em Queda (Mês)</button>
+          <button class="chip" data-filtro="crescimento">📈 Em Crescimento</button>
+          <button class="chip" data-filtro="risco">⚠️ Em Risco (Inativos)</button>
+        </div>
+
+        <div class="filtros-bar" style="padding: 16px 20px; border-bottom: 1px solid #eee; background: #fff;">
           <input type="text" id="filtro-cliente-busca" placeholder="Buscar nome ou cidade..." style="flex:1; min-width:250px;">
           <select id="filtro-cliente-vend"><option value="">Todos vendedores</option></select>
-          <select id="filtro-cliente-status"><option value="ativos">Ativos (30d)</option><option value="inativos">Inativos (30+)</option><option value="criticos">Críticos (90+)</option><option value="sem-vendedor">Sem vendedor</option><option value="todos">Todos</option></select>
         </div>
-        <div style="overflow-x:auto;"><table class="tabela-cockpit"><thead><tr><th>CLIENTE</th><th>CIDADE</th><th>VENDEDOR</th><th>SITUAÇÃO</th><th class="num">ÚLTIMA COMPRA</th><th class="num">CICLO</th><th class="num">VALE/MÊS</th></tr></thead><tbody id="tbody-clientes"></tbody></table></div>
+
+        <div style="overflow-x:auto;">
+          <table class="tabela-cockpit">
+            <thead>
+              <tr>
+                <!-- Adicionado o cursor:pointer e o data-sort para o JS fazer a mágica -->
+                <th style="cursor:pointer;" data-sort="nome">CLIENTE <span class="sort-icon" id="icon-nome"></span></th>
+                <th style="cursor:pointer;" data-sort="vendedor">VENDEDOR <span class="sort-icon" id="icon-vendedor"></span></th>
+                <th style="cursor:pointer;" data-sort="ultimaCompra">ÚLTIMA COMPRA <span class="sort-icon" id="icon-ultimaCompra"></span></th>
+                <th class="num" style="cursor:pointer;" data-sort="faturamento">FATURAMENTO MÊS <span class="sort-icon" id="icon-faturamento"></span></th>
+                <th class="num" style="cursor:pointer;" data-sort="variacao">VARIAÇÃO (MÊS VS ANTERIOR) <span class="sort-icon" id="icon-variacao"></span></th>
+                <th style="text-align:center;">AÇÃO</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-clientes"></tbody>
+          </table>
+        </div>
       </div>
     </section>
 
