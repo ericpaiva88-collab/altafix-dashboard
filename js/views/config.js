@@ -150,6 +150,7 @@ function renderTabelaMetas() {
     const metaTkt = metaDoMes ? metaDoMes.metaTicket : (v.metaTicket || 0);
 
     const isAdm = v.papel === 'administrativo';
+    const isDiretor = v.papel === 'diretor';
 
     return `
       <tr data-idx="${i}">
@@ -158,7 +159,9 @@ function renderTabelaMetas() {
         <td><select data-field="filialId">${filialOpts}</select></td>
         <td class="num"><input type="text" data-field="meta" value="${metaVal}" style="text-align:right;"></td>
         <td class="num"><input type="text" data-field="metaTicket" value="${metaTkt}" style="text-align:right;"></td>
-        <td style="text-align:center;"><input type="checkbox" data-field="adm" ${isAdm ? 'checked' : ''}></td>
+        <td style="text-align:center;">
+          ${isDiretor ? '<span class="badge neutral" style="background:#E0E7FF;color:#3730A3;">DIRETOR</span>' : `<input type="checkbox" data-field="adm" ${isAdm ? 'checked' : ''}>`}
+        </td>
         <td style="text-align:center;"><input type="checkbox" data-field="ativo" ${v.ativo ? 'checked' : ''}></td>
         <td style="text-align:center;">
           <button class="btn btn-sm" data-remover="${i}" style="color:var(--af-vermelho);">✕</button>
@@ -199,7 +202,6 @@ export async function salvarBases() {
     
     if (window._popularEscopoSelect) window._popularEscopoSelect();
     
-    // CORREÇÃO: Atualiza todas as views na hora (Cockpit, Agenda, Equipe, etc)
     if (window._renderTudo) {
       window._renderTudo();
     }
@@ -236,10 +238,17 @@ async function salvarMetasServidor() {
     const filialId = tr.querySelector('[data-field="filialId"]').value;
     const metaVal = parseValorBR(tr.querySelector('[data-field="meta"]').value) || 0;
     const metaTkt = parseValorBR(tr.querySelector('[data-field="metaTicket"]').value) || 0;
-    const isAdm = tr.querySelector('[data-field="adm"]').checked;
-    const ativo = tr.querySelector('[data-field="ativo"]').checked;
+    
+    // Lógica corrigida para não rebaixar o Diretor
+    let papel = 'vendedor';
+    if (orig.papel === 'diretor') {
+      papel = 'diretor';
+    } else {
+      const isAdm = tr.querySelector('[data-field="adm"]')?.checked || false;
+      papel = isAdm ? 'administrativo' : 'vendedor';
+    }
 
-    const papel = isAdm ? 'administrativo' : 'vendedor';
+    const ativo = tr.querySelector('[data-field="ativo"]').checked;
 
     if (orig.id && !orig.id.startsWith('novo_')) {
       vendedoresAtualizados.push({
