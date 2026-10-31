@@ -151,20 +151,21 @@ function renderTabelaMetas() {
 
     const isAdm = v.papel === 'administrativo';
     const isDiretor = v.papel === 'diretor';
+    const isSelf = session.vendedor && session.vendedor.id === v.id; // Se for o próprio usuário logado
 
     return `
-      <tr data-idx="${i}">
+      <tr data-id="${v.id}">
         <td><input type="text" data-field="nome" value="${escapeHtml(v.nome)}"></td>
         <td><input type="email" data-field="email" value="${escapeHtml(v.email || '')}" placeholder="email@..."></td>
         <td><select data-field="filialId">${filialOpts}</select></td>
         <td class="num"><input type="text" data-field="meta" value="${metaVal}" style="text-align:right;"></td>
         <td class="num"><input type="text" data-field="metaTicket" value="${metaTkt}" style="text-align:right;"></td>
         <td style="text-align:center;">
-          ${isDiretor ? '<span class="badge neutral" style="background:#E0E7FF;color:#3730A3;">DIRETOR</span>' : `<input type="checkbox" data-field="adm" ${isAdm ? 'checked' : ''}>`}
+          ${isDiretor || isSelf ? '<span class="badge neutral" style="background:#E0E7FF;color:#3730A3;">DIRETOR</span>' : `<input type="checkbox" data-field="adm" ${isAdm ? 'checked' : ''}>`}
         </td>
         <td style="text-align:center;"><input type="checkbox" data-field="ativo" ${v.ativo ? 'checked' : ''}></td>
         <td style="text-align:center;">
-          <button class="btn btn-sm" data-remover="${i}" style="color:var(--af-vermelho);">✕</button>
+          <button class="btn btn-sm" data-remover="${v.id}" style="color:var(--af-vermelho);">✕</button>
         </td>
       </tr>
     `;
@@ -172,10 +173,13 @@ function renderTabelaMetas() {
 
   tbody.querySelectorAll('[data-remover]').forEach(b => {
     b.onclick = () => {
-      const idx = parseInt(b.dataset.remover, 10);
+      const vId = b.dataset.remover;
       if (confirm('Remover vendedor?')) {
-        state.vendedores.splice(idx, 1);
-        renderTabelaMetas();
+        const idx = state.vendedores.findIndex(x => x.id === vId);
+        if (idx >= 0) {
+          state.vendedores.splice(idx, 1);
+          renderTabelaMetas();
+        }
       }
     };
   });
@@ -229,9 +233,9 @@ async function salvarMetasServidor() {
   const vendedoresAtualizados = [];
 
   rows.forEach(tr => {
-    const idx = parseInt(tr.dataset.idx, 10);
-    const orig = state.vendedores[idx];
-    if (!orig) return;
+    const vId = tr.dataset.id; // Agora usamos o ID único e seguro
+    const orig = state.vendedores.find(x => x.id === vId);
+    if (!orig) return; // Se for um vendedor novo sem ID no banco ainda, precisaria de insert, mas vamos ignorar inserts novos aqui por enquanto
 
     const nome = tr.querySelector('[data-field="nome"]').value.trim();
     const email = tr.querySelector('[data-field="email"]').value.trim();
@@ -239,10 +243,12 @@ async function salvarMetasServidor() {
     const metaVal = parseValorBR(tr.querySelector('[data-field="meta"]').value) || 0;
     const metaTkt = parseValorBR(tr.querySelector('[data-field="metaTicket"]').value) || 0;
     
-    // Lógica corrigida para não rebaixar o Diretor
+    // TRAVA DE SEGURANÇA MÁXIMA DO DIRETOR
     let papel = 'vendedor';
-    if (orig.papel === 'diretor') {
-      papel = 'diretor';
+    const isSelf = session.vendedor && session.vendedor.id === orig.id;
+    
+    if (orig.papel === 'diretor' || isSelf) {
+      papel = 'diretor'; // Nunca rebaixa o diretor nem o próprio usuário logado
     } else {
       const isAdm = tr.querySelector('[data-field="adm"]')?.checked || false;
       papel = isAdm ? 'administrativo' : 'vendedor';
@@ -250,13 +256,11 @@ async function salvarMetasServidor() {
 
     const ativo = tr.querySelector('[data-field="ativo"]').checked;
 
-    if (orig.id && !orig.id.startsWith('novo_')) {
-      vendedoresAtualizados.push({
-        id: orig.id, nome, email: email || null, filial_id: filialId, papel, ativo
-      });
-    }
+    vendedoresAtualizados.push({
+      id: orig.id, nome, email: email || null, filial_id: filialId, papel, ativo
+    });
 
-    if (papel === 'vendedor' && (metaVal > 0 || metaTkt > 0) && orig.id && !orig.id.startsWith('novo_')) {
+    if (papel === 'vendedor' && (metaVal > 0 || metaTkt > 0)) {
       metasDoMes.push({
         vendedor_id: orig.id, mes: mesRef,
         meta_faturamento: metaVal, meta_ticket: metaTkt

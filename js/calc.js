@@ -170,7 +170,13 @@ export function calcVendedor(v, a, m, lancsBase) {
 
   const re = meta > 0 ? meta * (diasDecorridos / du) : 0;
   const md = (df > 0 && meta > 0) ? (meta - fat) / df : 0;
-  const pr = dt > 0 ? (fat / dt) * du : 0;
+  
+  // CORREÇÃO DA PROJEÇÃO: Se o mês já acabou (df === 0), a projeção é o próprio realizado.
+  let pr = fat;
+  if (df > 0 && dt > 0) {
+    pr = (fat / dt) * du;
+  }
+
   const st = v.supervisor ? 'SUPERVISOR' : (meta > 0 ? (fat >= re ? 'ACIMA' : 'ABAIXO') : '—');
 
   return { vendedor: v, faturado: fat, pedidos: ped, ticket: tk, meta, metaTicket: mt, pctMeta: pm, descontoMedio: dm, diasTrab: dt, diasFaltam: df, diasUteisTotal: du, ritmoEsperado: re, metaDia: md, projecao: pr, status: st };
@@ -211,7 +217,12 @@ export function calcFilial(a, m, escopoAtual) {
   const df = Math.max(0, du - diasDecorridos);
 
   const re = mt > 0 ? mt * (diasDecorridos / du) : 0;
-  const pr = dt > 0 ? (ft / dt) * du : 0;
+  
+  // CORREÇÃO DA PROJEÇÃO DA FILIAL: Mesma regra
+  let pr = ft;
+  if (df > 0 && dt > 0) {
+    pr = (ft / dt) * du;
+  }
 
   const fl = Math.max(0, mt - ftComMeta);
   const pd = df > 0 ? fl / df : 0;
