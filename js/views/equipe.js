@@ -4,9 +4,9 @@
 
 import { state, ui } from '../state.js';
 import { fmtBRL, escapeHtml, diffDias, isoDate, toast, abrirWhatsApp, normalizarNomeCliente, copiarTexto } from '../utils.js';
-import { calcVendedor, mesRefAtual, filialNoEscopo, comparativoNoEscopo } from '../calc.js';
+import { calcVendedor, mesRefAtual, filialNoEscopo, comparativoNoEscopo, getMetaVendedor } from '../calc.js';
 import { calcularDiagnosticoMoM } from '../calc_diagnostico.js';
-import { sbSalvarNota1a1 } from '../supabase.js'; // <--- IMPORTANTE
+import { sbSalvarNota1a1 } from '../supabase.js';
 
 let chartFichaInstance = null;
 
@@ -19,11 +19,21 @@ export function renderEquipe() {
   const prefix = a + '-' + String(m + 1).padStart(2, '0');
   const hj = isoDate(new Date());
 
-  let vendedores = state.vendedores.filter(v => v.ativo && v.papel === 'vendedor' && filialNoEscopo(v.filialId, ui.escopoAtual));
+  // CORREÇÃO: Incluir Diretores que tenham metas no mês
+  let vendedores = state.vendedores.filter(v => {
+    if (!v.ativo || !filialNoEscopo(v.filialId, ui.escopoAtual)) return false;
+    if (v.papel === 'vendedor') return true;
+    if (v.papel === 'diretor') {
+      const meta = getMetaVendedor(v, a, m);
+      return meta.meta > 0;
+    }
+    return false;
+  });
+
   if (ui.modoVendedor) vendedores = vendedores.filter(v => v.id === ui.modoVendedor);
 
   if (vendedores.length === 0) {
-    container.innerHTML = '<div style="padding:24px; color:#888;">Nenhum vendedor ativo.</div>';
+    container.innerHTML = '<div style="padding:24px; color:#888;">Nenhum vendedor ativo com meta.</div>';
     return;
   }
 
@@ -78,7 +88,7 @@ window._abrirFichaVendedor = function(vendedorId) {
   if (!v) return;
 
   const hj = isoDate(new Date());
-  const mesRefStr = hj.slice(0, 7); // Mês atual (YYYY-MM)
+  const mesRefStr = hj.slice(0, 7);
   const diag = calcularDiagnosticoMoM(v.id, mesRefStr);
 
   let htmlDiag = '<div style="color:#888; padding:20px;">Sem dados para este mês.</div>';
@@ -153,7 +163,6 @@ window._abrirFichaVendedor = function(vendedorId) {
         `}).join('');
   }
 
-  // BUSCA A NOTA NO BANCO DE DADOS (State)
   const notaObj = (state.notas1a1 || []).find(n => n.vendedorId === v.id && n.mes === mesRefStr);
   const notaSalva = notaObj ? (notaObj.texto || '') : '';
 
@@ -211,7 +220,6 @@ window._abrirFichaVendedor = function(vendedorId) {
   modal.classList.add('show');
   modal.onclick = e => { if (e.target.id === 'ficha-vendedor-modal') modal.classList.remove('show'); };
 
-  // SALVA DIRETO NO SUPABASE
   window._salvarNota1a1 = async (vId, mesRef) => {
     const txt = document.getElementById('ficha-notas-1a1').value;
     const btn = event.target;
@@ -223,7 +231,6 @@ window._abrirFichaVendedor = function(vendedorId) {
     try {
       await sbSalvarNota1a1(vId, mesRef, txt);
       
-      // Atualiza o state local para não precisar dar F5
       const index = state.notas1a1.findIndex(n => n.vendedorId === vId && n.mes === mesRef);
       if (index >= 0) state.notas1a1[index].texto = txt;
       else state.notas1a1.push({ vendedorId: vId, mes: mesRef, texto: txt });

@@ -151,7 +151,7 @@ function renderTabelaMetas() {
 
     const isAdm = v.papel === 'administrativo';
     const isDiretor = v.papel === 'diretor';
-    const isSelf = session.vendedor && session.vendedor.id === v.id; // Se for o próprio usuário logado
+    const isSelf = session.vendedor && session.vendedor.id === v.id; 
 
     return `
       <tr data-id="${v.id}">
@@ -233,9 +233,9 @@ async function salvarMetasServidor() {
   const vendedoresAtualizados = [];
 
   rows.forEach(tr => {
-    const vId = tr.dataset.id; // Agora usamos o ID único e seguro
+    const vId = tr.dataset.id;
     const orig = state.vendedores.find(x => x.id === vId);
-    if (!orig) return; // Se for um vendedor novo sem ID no banco ainda, precisaria de insert, mas vamos ignorar inserts novos aqui por enquanto
+    if (!orig) return;
 
     const nome = tr.querySelector('[data-field="nome"]').value.trim();
     const email = tr.querySelector('[data-field="email"]').value.trim();
@@ -243,12 +243,11 @@ async function salvarMetasServidor() {
     const metaVal = parseValorBR(tr.querySelector('[data-field="meta"]').value) || 0;
     const metaTkt = parseValorBR(tr.querySelector('[data-field="metaTicket"]').value) || 0;
     
-    // TRAVA DE SEGURANÇA MÁXIMA DO DIRETOR
     let papel = 'vendedor';
     const isSelf = session.vendedor && session.vendedor.id === orig.id;
     
     if (orig.papel === 'diretor' || isSelf) {
-      papel = 'diretor'; // Nunca rebaixa o diretor nem o próprio usuário logado
+      papel = 'diretor'; 
     } else {
       const isAdm = tr.querySelector('[data-field="adm"]')?.checked || false;
       papel = isAdm ? 'administrativo' : 'vendedor';
@@ -260,7 +259,8 @@ async function salvarMetasServidor() {
       id: orig.id, nome, email: email || null, filial_id: filialId, papel, ativo
     });
 
-    if (papel === 'vendedor' && (metaVal > 0 || metaTkt > 0)) {
+    // CORREÇÃO: Salva a meta se tiver valor, independente do cargo (vendedor ou diretor)
+    if (metaVal > 0 || metaTkt > 0) {
       metasDoMes.push({
         vendedor_id: orig.id, mes: mesRef,
         meta_faturamento: metaVal, meta_ticket: metaTkt
