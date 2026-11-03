@@ -240,8 +240,13 @@ async function salvarMetasServidor() {
     const nome = tr.querySelector('[data-field="nome"]').value.trim();
     const email = tr.querySelector('[data-field="email"]').value.trim();
     const filialId = tr.querySelector('[data-field="filialId"]').value;
-    const metaVal = parseValorBR(tr.querySelector('[data-field="meta"]').value) || 0;
-    const metaTkt = parseValorBR(tr.querySelector('[data-field="metaTicket"]').value) || 0;
+    
+    // Tratamento para não salvar "NaN" caso o campo esteja vazio
+    const metaInput = tr.querySelector('[data-field="meta"]').value;
+    const metaVal = metaInput ? (parseValorBR(metaInput) || 0) : 0;
+    
+    const metaTktInput = tr.querySelector('[data-field="metaTicket"]').value;
+    const metaTkt = metaTktInput ? (parseValorBR(metaTktInput) || 0) : 0;
     
     let papel = 'vendedor';
     const isSelf = session.vendedor && session.vendedor.id === orig.id;
@@ -259,7 +264,7 @@ async function salvarMetasServidor() {
       id: orig.id, nome, email: email || null, filial_id: filialId, papel, ativo
     });
 
-    // CORREÇÃO: Salva a meta se tiver valor, independente do cargo (vendedor ou diretor)
+    // Só envia para a tabela de metas se tiver valor (evita apagar metas existentes com 0)
     if (metaVal > 0 || metaTkt > 0) {
       metasDoMes.push({
         vendedor_id: orig.id, mes: mesRef,
@@ -269,19 +274,29 @@ async function salvarMetasServidor() {
   });
 
   try {
+    // 1. Atualiza Vendedores (ignorando erros individuais para não travar a meta)
     for (const v of vendedoresAtualizados) {
-      await session.sb.from('vendedores').update({
+      const r = await session.sb.from('vendedores').update({
         nome: v.nome, email: v.email, filial_id: v.filial_id, papel: v.papel, ativo: v.ativo
       }).eq('id', v.id);
+      if (r.error) console.warn('Erro ao atualizar vendedor:', r.error);
     }
 
-    await session.sb.from('metas').delete().eq('mes', mesRef);
+    // 2. Atualiza Metas no Banco
     if (metasDoMes.length > 0) {
-      await session.sb.from('metas').insert(metasDoMes);
+      // Usa upsert (insere ou atualiza se já existir)
+      const r = await session.sb.from('metas').upsert(metasDoMes, { 
+        onConflict: 'vendedor_id, mes' 
+      });
+      
+      if (r.error) {
+        throw new Error('Erro no banco de metas: ' + r.error.message);
+      }
     }
 
     toast('✓ Metas e vendedores salvos no servidor!');
     
+    // 3. Recarrega os dados para atualizar a tela
     const dados = await sbCarregarTudo();
     aplicarDadosDoBanco(dados);
     renderConfig();
@@ -289,7 +304,7 @@ async function salvarMetasServidor() {
     if (window._renderTudo) window._renderTudo();
 
   } catch (e) {
-    toast('❌ ' + e.message);
+    toast('❌ ' + e.message, 5000);
     console.error(e);
   } finally {
     if(btn) { btn.disabled = false; btn.textContent = '☁️ Salvar no Servidor'; }
