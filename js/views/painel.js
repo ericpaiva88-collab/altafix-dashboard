@@ -15,10 +15,17 @@ export function renderPainel() {
   if (selMes) {
     let mesesComDados = new Set();
     state.lancamentos.forEach(l => { if (l.data) mesesComDados.add(l.data.slice(0, 7)); });
+    
+    // Adiciona o mês atual à lista, mesmo que não tenha dados
+    const hj = new Date();
+    const mesAtualKey = hj.getFullYear() + '-' + String(hj.getMonth() + 1).padStart(2, '0');
+    mesesComDados.add(mesAtualKey);
+
     const listaMeses = Array.from(mesesComDados).sort().reverse();
 
-    if (!ui.mesPainelSelecionado) {
-      ui.mesPainelSelecionado = listaMeses.length > 0 ? listaMeses[0] : (new Date().getFullYear() + '-' + String(new Date().getMonth() + 1).padStart(2, '0'));
+    // Se não tem mês selecionado, ou se ele não existe mais, seleciona o mês atual
+    if (!ui.mesPainelSelecionado || !listaMeses.includes(ui.mesPainelSelecionado)) {
+      ui.mesPainelSelecionado = mesAtualKey;
     }
 
     selMes.innerHTML = listaMeses.map(m => {
@@ -407,10 +414,6 @@ function obterTelefoneCliente(nomeCliente) {
   }
   return null;
 }
-
-// ============================================================
-// RELATÓRIO MATINAL (WHATSAPP)
-// ============================================================
 
 export function gerarRelatorioMatinal() {
   const ref = mesRefAtual(ui.escopoAtual);
