@@ -123,14 +123,18 @@ function renderModoListaView() {
       const itemId = btn.dataset.agendaLigar;
       const item = focoFila.find(x => x.id === itemId);
       if (!item || !window._abrirModalLigacao) return;
-      if (item.ligacaoId) window._abrirModalLigacao(item.ligacaoId);
-      else if (item.clienteObj) {
-        window._abrirModalLigacao(null, {
-          empresa: item.clienteObj.nome, codigo: item.clienteObj.codigo || '',
-          cidade: item.clienteObj.cidade || '', estado: item.clienteObj.uf || 'PA',
-          vendedor: item.clienteObj.vendedor || ui.modoVendedor || ''
-        });
-      }
+      
+      // A MÁGICA ACONTECE AQUI: Monta o prefill e força nova ligação (null)
+      const prefill = {
+        empresa: item.clienteObj ? item.clienteObj.nome : item.cliente,
+        codigo: item.clienteObj ? (item.clienteObj.codigo || '') : '',
+        cidade: item.clienteObj ? (item.clienteObj.cidade || '') : '',
+        estado: item.clienteObj ? (item.clienteObj.uf || 'PA') : 'PA',
+        vendedor: item.vendedorId || ui.modoVendedor || '',
+        telefone: obterTelefoneCliente(item) || ''
+      };
+
+      window._abrirModalLigacao(null, prefill); // O 'null' diz para o sistema: "Abra um formulário em branco"
     };
   });
 }
@@ -197,7 +201,7 @@ function renderModoFocoView() {
       codigo: item.clienteObj ? (item.clienteObj.codigo || '') : '',
       cidade: item.clienteObj ? (item.clienteObj.cidade || '') : '',
       estado: item.clienteObj ? (item.clienteObj.uf || 'PA') : 'PA',
-      vendedor: item.clienteObj ? (item.clienteObj.vendedor || ui.modoVendedor) : (item.vendedorId || ui.modoVendedor),
+      vendedor: item.vendedorId || ui.modoVendedor || '',
       telefone: telefone || ''
     };
 
@@ -206,11 +210,7 @@ function renderModoFocoView() {
       renderModoFocoView();
     };
 
-    if (item.ligacaoId) {
-      window._abrirModalLigacao(item.ligacaoId, prefill, callbackAvancar);
-    } else {
-      window._abrirModalLigacao(null, prefill, callbackAvancar);
-    }
+    window._abrirModalLigacao(null, prefill, callbackAvancar); // Força nova ligação aqui também
   };
 
   if (btnWhats) {
@@ -251,35 +251,35 @@ function gerarFila(fBusca, fTipo, fVend) {
 
   let ligs = (state.ligacoes || []).filter(l => filialNoEscopo(l.filialId, ui.escopoAtual));
   
-  const ativas = ligs.filter(l => {
-    if (!l.proximo) return false;
-    if (l.status === 'venda' || l.status === 'sem_interesse') return false;
-    return l.proximo <= hj;
-  });
+  ligs.sort((a, b) => (b.data || '').localeCompare(a.data || ''));
 
-  ativas.forEach(l => {
+  ligs.forEach(l => {
     const chave = normalizarNomeCliente(l.empresa || '');
     if (vistos[chave]) return;
-    vistos[chave] = true;
+    vistos[chave] = true; 
 
-    const v = state.vendedores.find(x => x.id === l.vendedor);
-    const atrasado = l.proximo < hj;
-    const cli = state.clientes.find(c => normalizarNomeCliente(c.nome) === chave && filialNoEscopo(c.filialId, ui.escopoAtual));
+    if (!l.proximo || l.status === 'venda' || l.status === 'sem_interesse') return;
     
-    fila.push({
-      id: 'lig_' + l.id,
-      tipo: atrasado ? 'atrasados' : 'hoje',
-      tipoLabel: atrasado ? 'Retorno Atrasado' : 'Retorno Hoje',
-      tipoBadge: atrasado ? 'danger' : 'warn',
-      cliente: l.empresa,
-      contexto: atrasado ? `Agendado para ${l.proximo.split('-').reverse().join('/')} (${diffDias(l.proximo, hj)}d atrás)` : 'Agendado para hoje',
-      vendedor: v ? v.nome : '—',
-      vendedorId: l.vendedor,
-      valor: cli ? (cli.valorMedioMensal || 0) : (l.valor || 0),
-      clienteObj: cli,
-      ligacaoId: l.id,
-      prioridade: atrasado ? 1 : 2
-    });
+    if (l.proximo <= hj) {
+      const atrasado = l.proximo < hj;
+      const v = state.vendedores.find(x => x.id === l.vendedor);
+      const cli = state.clientes.find(c => normalizarNomeCliente(c.nome) === chave && filialNoEscopo(c.filialId, ui.escopoAtual));
+      
+      fila.push({
+        id: 'lig_' + l.id,
+        tipo: atrasado ? 'atrasados' : 'hoje',
+        tipoLabel: atrasado ? 'Retorno Atrasado' : 'Retorno Hoje',
+        tipoBadge: atrasado ? 'danger' : 'warn',
+        cliente: l.empresa,
+        contexto: atrasado ? `Agendado para ${l.proximo.split('-').reverse().join('/')} (${diffDias(l.proximo, hj)}d atrás)` : 'Agendado para hoje',
+        vendedor: v ? v.nome : '—',
+        vendedorId: l.vendedor,
+        valor: cli ? (cli.valorMedioMensal || 0) : (l.valor || 0),
+        clienteObj: cli,
+        ligacaoId: l.id, // Mantemos o ID para histórico, mas não para edição
+        prioridade: atrasado ? 1 : 2
+      });
+    }
   });
 
   let clientes = state.clientes.filter(c => filialNoEscopo(c.filialId, ui.escopoAtual));
@@ -295,7 +295,6 @@ function gerarFila(fBusca, fTipo, fVend) {
     if (vistos[chave]) return;
     vistos[chave] = true;
 
-    // AQUI ESTÁ A MÁGICA:
     const ciclo = Math.max(1, c.intervaloMedio || 30); 
     const fator = dias / ciclo; 
     const v = state.vendedores.find(x => x.id === c.vendedor);
@@ -305,7 +304,6 @@ function gerarFila(fBusca, fTipo, fVend) {
     let badge = 'neutral';
     let prioridade = 4;
 
-    // Se o ciclo é diário/semanal (até 10 dias), toleramos um pouco mais de atraso antes de alarmar
     const toleranciaSumido = ciclo <= 10 ? 5 : 4; 
     const toleranciaReativar = ciclo <= 10 ? 3 : 2;
 
@@ -317,7 +315,6 @@ function gerarFila(fBusca, fTipo, fVend) {
       tipo = 'reativar'; label = 'Reativar'; badge = 'danger'; prioridade = 3;
     }
 
-    // Mostra o ciclo real no contexto
     let contexto = `${dias} dias sem comprar · `;
     if (ciclo <= 7) contexto += `Ciclo semanal (${ciclo}d)`;
     else if (ciclo <= 15) contexto += `Ciclo quinzenal (${ciclo}d)`;

@@ -2,7 +2,7 @@
 // views/ligacoes.js — Histórico e Cadastro de Ligações
 // ============================================================
 
-import { state, ui, session } from '../state.js'; // <-- SESSION ADICIONADO AQUI
+import { state, ui, session } from '../state.js';
 import { fmtBRL, escapeHtml, isoDate, fmtDataBR, normalizarNomeCliente, toast } from '../utils.js';
 import { filialNoEscopo } from '../calc.js';
 import { sbCarregarTudo, aplicarDadosDoBanco } from '../supabase.js';
@@ -239,6 +239,8 @@ async function salvarLigacao(existente) {
     
     renderLigacoes();
     if (window._renderPainel) window._renderPainel();
+    
+    import('./agenda.js').then(m => m.renderAgenda()).catch(console.error);
 
     if (typeof callback === 'function') {
       callback();
