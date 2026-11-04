@@ -19,7 +19,6 @@ export function renderAgenda() {
   if (!containerLista || !containerFoco) return;
 
   const selVend = document.getElementById('agenda-filtro-vendedor');
-  // CORREÇÃO: Incluir Diretor
   if (selVend && selVend.options.length <= 1) {
     let opts = '<option value="">Todos vendedores</option>';
     state.vendedores.filter(v => v.ativo && (v.papel === 'vendedor' || v.papel === 'diretor')).forEach(v => {
@@ -102,10 +101,12 @@ function renderModoListaView() {
       btnZap = `<button class="btn btn-sm" style="background:#e2e8f0; color:#94a3b8; border-color:#cbd5e1;" onclick="event.stopPropagation(); toast('⚠ Cliente sem telefone. Clique em Ligar para cadastrar.')">💬 Zap</button>`;
     }
 
+    const codCidade = `<div style="font-size:11px; color:#888; margin-top:2px;">${f.codigo ? `[${f.codigo}] ` : ''}${f.cidade ? f.cidade : ''}</div>`;
+
     return `
       <tr>
         <td data-label="Tipo"><span class="badge ${f.tipoBadge}">${f.tipoLabel}</span></td>
-        <td data-label="Cliente"><strong>${escapeHtml(f.cliente)}</strong></td>
+        <td data-label="Cliente"><strong>${escapeHtml(f.cliente)}</strong>${codCidade}</td>
         <td data-label="Contexto" style="color:var(--af-t2); font-size:12px;">${escapeHtml(f.contexto)}</td>
         <td data-label="Vendedor">${escapeHtml(f.vendedor)}</td>
         <td class="num" data-label="Vale/Mês">${fmtBRL(f.valor)}</td>
@@ -127,8 +128,8 @@ function renderModoListaView() {
       
       const prefill = {
         empresa: item.clienteObj ? item.clienteObj.nome : item.cliente,
-        codigo: item.clienteObj ? (item.clienteObj.codigo || '') : '',
-        cidade: item.clienteObj ? (item.clienteObj.cidade || '') : '',
+        codigo: item.codigo || '',
+        cidade: item.cidade || '',
         estado: item.clienteObj ? (item.clienteObj.uf || 'PA') : 'PA',
         vendedor: item.vendedorId || ui.modoVendedor || '',
         telefone: obterTelefoneCliente(item) || ''
@@ -178,9 +179,11 @@ function renderModoFocoView() {
   const item = focoFila[focoIndex];
   const telefone = obterTelefoneCliente(item);
   const nomeVendedor = item.vendedor !== '—' ? item.vendedor : '';
+  
+  const codCidade = `<div style="font-size:14px; color:#888; margin-top:4px;">${item.codigo ? `[${item.codigo}] ` : ''}${item.cidade ? item.cidade : ''}</div>`;
 
   elTipo.innerHTML = `<span class="badge ${item.tipoBadge}">${item.tipoLabel}</span>`;
-  elNome.innerHTML = escapeHtml(item.cliente);
+  elNome.innerHTML = escapeHtml(item.cliente) + codCidade;
   elCtx.innerHTML = escapeHtml(item.contexto) + '<br><strong>Resp: ' + escapeHtml(item.vendedor) + '</strong>';
   elVal.innerHTML = fmtBRL(item.valor);
   elProg.innerHTML = (focoIndex + 1) + ' de ' + focoFila.length;
@@ -198,8 +201,8 @@ function renderModoFocoView() {
     
     const prefill = {
       empresa: item.clienteObj ? item.clienteObj.nome : item.cliente,
-      codigo: item.clienteObj ? (item.clienteObj.codigo || '') : '',
-      cidade: item.clienteObj ? (item.clienteObj.cidade || '') : '',
+      codigo: item.codigo || '',
+      cidade: item.cidade || '',
       estado: item.clienteObj ? (item.clienteObj.uf || 'PA') : 'PA',
       vendedor: item.vendedorId || ui.modoVendedor || '',
       telefone: telefone || ''
@@ -271,6 +274,8 @@ function gerarFila(fBusca, fTipo, fVend) {
         tipoLabel: atrasado ? 'Retorno Atrasado' : 'Retorno Hoje',
         tipoBadge: atrasado ? 'danger' : 'warn',
         cliente: l.empresa,
+        codigo: l.codigo || (cli ? cli.codigo : ''),
+        cidade: l.cidade || (cli ? cli.cidade : ''),
         contexto: atrasado ? `Agendado para ${l.proximo.split('-').reverse().join('/')} (${diffDias(l.proximo, hj)}d atrás)` : 'Agendado para hoje',
         vendedor: v ? v.nome : '—',
         vendedorId: l.vendedor,
@@ -327,6 +332,8 @@ function gerarFila(fBusca, fTipo, fVend) {
       tipoLabel: label,
       tipoBadge: badge,
       cliente: c.nome,
+      codigo: c.codigo || '',
+      cidade: c.cidade || '',
       contexto: contexto,
       vendedor: v ? v.nome : '—',
       vendedorId: c.vendedor,
@@ -339,7 +346,10 @@ function gerarFila(fBusca, fTipo, fVend) {
   const filaFiltrada = fila.filter(f => {
     if (fTipo !== 'todos' && f.tipo !== fTipo) return false;
     if (fVend && f.vendedorId !== fVend) return false;
-    if (fBusca && !f.cliente.toUpperCase().includes(fBusca)) return false;
+    if (fBusca) {
+      const alvo = (f.cliente + ' ' + (f.cidade || '') + ' ' + (f.codigo || '')).toUpperCase();
+      if (!alvo.includes(fBusca)) return false;
+    }
     return true;
   });
 

@@ -49,7 +49,6 @@ function renderAnaliseYoY() {
   const selPeriodo = document.getElementById('analise-periodo');
   if (!tbody) return;
 
-  // CORREÇÃO: Incluir Diretor
   if (selVend && selVend.options.length <= 1) {
     let opts = '<option value="">Todo o time</option>';
     state.vendedores.filter(v => v.ativo && (v.papel === 'vendedor' || v.papel === 'diretor')).forEach(v => {
@@ -157,7 +156,6 @@ function renderRankingComLeitura(dadosPorMes) {
   if (!tbody) return;
 
   const vendedoresMap = {};
-  // CORREÇÃO: Incluir Diretor
   state.vendedores.filter(v => v.ativo && (v.papel === 'vendedor' || v.papel === 'diretor')).forEach(v => {
     vendedoresMap[v.nome.toUpperCase()] = { nome: v.nome, f25: 0, f26: 0, p25: 0, p26: 0 };
   });
@@ -231,7 +229,6 @@ function renderAnaliseMoM() {
   const selMes = document.getElementById('mom-mes');
   if (!selVend || !selMes) return;
 
-  // CORREÇÃO: Incluir Diretor
   if (selVend.options.length === 0) {
     let opts = '';
     state.vendedores.filter(v => v.ativo && (v.papel === 'vendedor' || v.papel === 'diretor')).forEach(v => {
@@ -402,10 +399,11 @@ function renderListaClientes(lista, vazio, tipo) {
     }
 
     const nomeExibicao = c.nome.replace(/\s*\(Migrou p\/.*\)$/, '');
+    const codCidade = `<span style="color:#888;font-size:11px;">${c.codigo ? `[${c.codigo}] ` : ''}${c.cidade ? `- ${c.cidade}` : ''}</span>`;
 
     return `<div class="ficha-lista-item">
       <div>
-        <div class="nome">${escapeHtml(nomeExibicao)}</div>
+        <div class="nome">${escapeHtml(nomeExibicao)} ${codCidade}</div>
         <div class="detalhe" style="${isMigrou ? 'color:var(--af-amarelo); font-weight:600;' : ''}">${detalhe}</div>
       </div>
       <div class="valor" style="color:${cor};">${sinal}${fmtBRL(delta)}</div>
@@ -514,11 +512,12 @@ window._abrirDetalheMoM = function(tipo) {
 
     const nomeExibicao = c.nome.replace(/\s*\(Migrou p\/.*\)$/, '');
     const vendedorMigrou = isMigrou ? `<span style="background:var(--af-amarelo-bg); color:var(--af-amarelo); padding:2px 6px; border-radius:4px; font-size:10px; font-weight:700; margin-left:8px;">TRANSFERIDO</span>` : '';
+    const codCidade = `<span style="color:#888;font-size:11px;">${c.codigo ? `[${c.codigo}] ` : ''}${c.cidade ? `- ${c.cidade}` : ''}</span>`;
 
     return `<div class="ficha-lista-item" style="padding: 16px 24px;">
       <div>
         <div class="nome" style="display:flex; align-items:center;">
-          ${escapeHtml(nomeExibicao)} ${vendedorMigrou}
+          ${escapeHtml(nomeExibicao)} ${codCidade} ${vendedorMigrou}
         </div>
         <div class="detalhe" style="color:${corDetalhe}; margin-top:4px;">${detalhe}</div>
       </div>

@@ -145,6 +145,7 @@ function setupFiltros() {
   
   const cliBusca = document.getElementById('filtro-cliente-busca'); if (cliBusca) cliBusca.oninput = () => renderClientes();
   const cliVend = document.getElementById('filtro-cliente-vend'); if (cliVend) cliVend.onchange = () => renderClientes();
+  const cliCidade = document.getElementById('filtro-cliente-cidade'); if (cliCidade) cliCidade.onchange = () => renderClientes();
   const cliStatus = document.getElementById('filtro-cliente-status'); if (cliStatus) cliStatus.onchange = () => renderClientes();
 
   const prodBusca = document.getElementById('filtro-produto-busca'); if (prodBusca) prodBusca.oninput = () => renderProdutos();
@@ -153,6 +154,7 @@ function setupFiltros() {
 
   const ligBusca = document.getElementById('filtro-lig-busca'); if (ligBusca) ligBusca.oninput = () => renderLigacoes();
   const ligVend = document.getElementById('filtro-lig-vendedor'); if (ligVend) ligVend.onchange = () => renderLigacoes();
+  const ligCidade = document.getElementById('filtro-lig-cidade'); if (ligCidade) ligCidade.onchange = () => renderLigacoes(); // NOVO
   const ligStatus = document.getElementById('filtro-lig-status'); if (ligStatus) ligStatus.onchange = () => renderLigacoes();
 
   const analiseVend = document.getElementById('analise-filtro-vendedor'); if (analiseVend) analiseVend.onchange = () => renderAnalise();

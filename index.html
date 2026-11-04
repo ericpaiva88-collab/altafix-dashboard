@@ -193,7 +193,7 @@
         </div>
       </div>
 
-            <div id="agenda-modo-foco" style="display:none;">
+      <div id="agenda-modo-foco" style="display:none;">
         <div class="card-painel" style="max-width: 600px; margin: 40px auto; padding: 40px; text-align: center; border-top: 4px solid var(--af-vermelho);">
           <div id="foco-tipo" style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:16px;"></div>
           <h2 id="foco-nome" style="font-size:28px; margin-bottom:8px; color:var(--af-preto);">—</h2>
@@ -223,10 +223,9 @@
       <div id="equipe-cards-container" class="grid-cards-vendedores"></div>
     </section>
 
-            <!-- ABA CLIENTES -->
+    <!-- ABA CLIENTES -->
     <section id="tab-clientes" class="tab-content">
       <div class="page-header"><h2>Clientes</h2><p>Ação direta na carteira. Veja quem caiu, quem cresceu e ligue na hora.</p></div>
-      
       <div class="grid-kpis" id="clientes-kpis"></div>
       
       <div class="card-painel">
@@ -244,15 +243,15 @@
         </div>
 
         <div class="filtros-bar" style="padding: 16px 20px; border-bottom: 1px solid #eee; background: #fff;">
-          <input type="text" id="filtro-cliente-busca" placeholder="Buscar nome ou cidade..." style="flex:1; min-width:250px;">
+          <input type="text" id="filtro-cliente-busca" placeholder="Buscar por nome, código, CNPJ ou cidade..." style="flex:1; min-width:250px;">
           <select id="filtro-cliente-vend"><option value="">Todos vendedores</option></select>
+          <select id="filtro-cliente-cidade"><option value="">Todas cidades</option></select>
         </div>
 
         <div style="overflow-x:auto;">
           <table class="tabela-cockpit">
             <thead>
               <tr>
-                <!-- Adicionado o cursor:pointer e o data-sort para o JS fazer a mágica -->
                 <th style="cursor:pointer;" data-sort="nome">CLIENTE <span class="sort-icon" id="icon-nome"></span></th>
                 <th style="cursor:pointer;" data-sort="vendedor">VENDEDOR <span class="sort-icon" id="icon-vendedor"></span></th>
                 <th style="cursor:pointer;" data-sort="ultimaCompra">ÚLTIMA COMPRA <span class="sort-icon" id="icon-ultimaCompra"></span></th>
@@ -312,6 +311,7 @@
         <div class="filtros-bar" style="padding: 16px 20px; border-bottom: 1px solid #eee; background: #FAFAFA;">
           <input type="text" id="filtro-lig-busca" placeholder="Buscar empresa..." style="flex:1; min-width:250px;">
           <select id="filtro-lig-vendedor"><option value="">Todos vendedores</option></select>
+          <select id="filtro-lig-cidade"><option value="">Todas cidades</option></select>
           <select id="filtro-lig-status">
             <option value="">Todos os status</option>
             <option value="venda">🟢 Venda</option>
@@ -341,7 +341,7 @@
       </div>
     </section>
 
-        <!-- ABA ANÁLISE -->
+    <!-- ABA ANÁLISE -->
     <section id="tab-analise" class="tab-content">
       <div class="page-header" style="display:flex; justify-content:space-between; align-items:flex-end;">
         <div>
@@ -414,7 +414,6 @@
           <div id="mom-impacto-resumo"></div>
         </div>
 
-        <!-- AQUI ESTÁ O GRID QUE FALTAVA -->
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 20px;">
           <div class="card-painel">
             <div class="card-title-row" style="padding: 16px 20px; border-bottom: 1px solid #eee;">
@@ -434,7 +433,7 @@
       </div>
     </section>
 
-        <!-- ABA CONFIG -->
+    <!-- ABA CONFIG -->
     <section id="tab-config" class="tab-content">
       <div class="page-header"><h2>Configurações</h2><p>Gestão de importações, metas da equipe e parâmetros do sistema.</p></div>
       
@@ -497,7 +496,7 @@
         </div>
       </div>
     </section>
-    </main>
+  </main>
 </div>
 
 <div id="tela-login" style="position:fixed;inset:0;background:var(--af-bg);z-index:9999;display:none;align-items:center;justify-content:center;">

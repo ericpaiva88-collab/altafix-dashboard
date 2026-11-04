@@ -16,14 +16,29 @@ export function renderClientes() {
   const countEl = document.getElementById('clientes-count');
   if (!tbody) return;
 
+  // Popula o select de vendedor
   const selVend = document.getElementById('filtro-cliente-vend');
-  // CORREÇÃO: Incluir Diretor
   if (selVend && selVend.options.length <= 1) {
     let opts = '<option value="">Todos vendedores</option>';
     state.vendedores.filter(v => v.ativo && (v.papel === 'vendedor' || v.papel === 'diretor')).forEach(v => {
       opts += `<option value="${v.id}">${escapeHtml(v.nome)}</option>`;
     });
     selVend.innerHTML = opts;
+  }
+
+  // Popula o select de cidade
+  const selCidade = document.getElementById('filtro-cliente-cidade');
+  if (selCidade && selCidade.options.length <= 1) {
+    let cidades = new Set();
+    state.clientes.forEach(c => { if (c.cidade) cidades.add(c.cidade); });
+    // Pega cidades também do importador para garantir
+    (state.clientesImportacoes || []).forEach(ci => { if (ci.cidade) cidades.add(ci.cidade); });
+    
+    let opts = '<option value="">Todas cidades</option>';
+    Array.from(cidades).sort().forEach(cid => {
+      opts += `<option value="${escapeHtml(cid)}">${escapeHtml(cid)}</option>`;
+    });
+    selCidade.innerHTML = opts;
   }
 
   document.querySelectorAll('[data-filtro]').forEach(btn => {
@@ -42,7 +57,7 @@ export function renderClientes() {
         sortDir = sortDir === 'asc' ? 'desc' : 'asc';
       } else {
         sortCol = col;
-        sortDir = ['nome', 'vendedor'].includes(col) ? 'asc' : 'desc'; 
+        sortDir = ['nome', 'vendedor', 'cidade'].includes(col) ? 'asc' : 'desc'; 
       }
       renderClientes();
     };
@@ -50,6 +65,7 @@ export function renderClientes() {
 
   const fBusca = (document.getElementById('filtro-cliente-busca')?.value || '').toUpperCase();
   const fVend = selVend?.value || ui.modoVendedor || '';
+  const fCidade = selCidade?.value || '';
   const hj = isoDate(new Date());
 
   const mesAtual = hj.slice(0, 7);
@@ -66,6 +82,12 @@ export function renderClientes() {
     
     if (mes === mesAtual) mapaAtual[norm] = (mapaAtual[norm] || 0) + (ci.valor || 0);
     if (mes === mesAnt) mapaAnt[norm] = (mapaAnt[norm] || 0) + (ci.valor || 0);
+  });
+
+  // Cria um "dicionário" de cidades e códigos a partir das importações para garantir que nada fique em branco
+  const infoExtra = {};
+  (state.clientesImportacoes || []).forEach(ci => {
+      if (ci.cidade) infoExtra[ci.clienteNorm] = { cidade: ci.cidade, codigo: ci.codigo };
   });
 
   let clientes = clientesNoEscopo(ui.escopoAtual);
@@ -86,7 +108,15 @@ export function renderClientes() {
     else if (delta > 0) statusMom = 'crescimento';
     else if (delta < 0) statusMom = 'queda';
 
-    return { ...c, vAt, vAnt, delta, diasSemComprar, statusMom, nomeVendedor };
+    // Tenta pegar cidade/codigo do cliente, se não tiver, pega do importador
+    const extra = infoExtra[norm] || {};
+
+    return { 
+      ...c, 
+      cidade: c.cidade || extra.cidade,
+      codigo: c.codigo || extra.codigo,
+      vAt, vAnt, delta, diasSemComprar, statusMom, nomeVendedor 
+    };
   });
 
   const ativos = clientesComVar.filter(c => c.diasSemComprar < 30);
@@ -116,8 +146,10 @@ export function renderClientes() {
 
   const filtrados = clientesComVar.filter(c => {
     if (fVend && c.vendedor !== fVend) return false;
+    if (fCidade && c.cidade !== fCidade) return false;
+    
     if (fBusca) {
-      const alvo = (c.nome + ' ' + (c.cidade || '')).toUpperCase();
+      const alvo = (c.nome + ' ' + (c.cidade || '') + ' ' + (c.codigo || '') + ' ' + (c.cnpj || '')).toUpperCase();
       if (!alvo.includes(fBusca)) return false;
     }
 
@@ -135,6 +167,7 @@ export function renderClientes() {
     if (sortCol === 'vendedor') { valA = a.nomeVendedor; valB = b.nomeVendedor; }
     if (sortCol === 'faturamento') { valA = a.vAt; valB = b.vAt; }
     if (sortCol === 'variacao') { valA = a.delta; valB = b.delta; }
+    if (sortCol === 'cidade') { valA = a.cidade || ''; valB = b.cidade || ''; }
 
     if (valA == null) valA = '';
     if (valB == null) valB = '';
@@ -179,11 +212,14 @@ export function renderClientes() {
 
     const ultimaTxt = c.ultimaCompra ? c.ultimaCompra.split('-').reverse().join('/') : '—';
     const diasTxt = c.diasSemComprar < 9999 ? `(${c.diasSemComprar}d)` : '';
-    const cidadeTxt = c.cidade && c.cidade !== '_' ? `<br><span style="font-size:11px; color:#888;">${escapeHtml(c.cidade)}</span>` : '';
+    const codTxt = c.codigo ? `[${c.codigo}] ` : '';
+    
+    // Se a cidade for vazia ou '_', não mostra a linha
+    const cidTxt = (c.cidade && c.cidade !== '_') ? `<br><span style="font-size:11px; color:#888;">${escapeHtml(c.cidade)}</span>` : '';
 
     return `
       <tr>
-        <td><strong>${escapeHtml(c.nome)}</strong>${cidadeTxt}</td>
+        <td><strong>${codTxt}${escapeHtml(c.nome)}</strong>${cidTxt}</td>
         <td>${v ? escapeHtml(v.nome) : '—'}</td>
         <td style="color:var(--af-t2); font-size:12px;">${ultimaTxt} <span style="color:var(--af-t3);">${diasTxt}</span></td>
         <td class="num">${fatTxt}</td>

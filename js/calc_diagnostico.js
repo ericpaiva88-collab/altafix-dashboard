@@ -21,7 +21,6 @@ export function listarMesesComDados(vendedorId) {
     });
   }
   
-  // Adiciona o mês atual para permitir visualização do mês em andamento (mesmo zerado)
   const hj = new Date();
   const mesAtualKey = hj.getFullYear() + '-' + String(hj.getMonth() + 1).padStart(2, '0');
   set.add(mesAtualKey);
@@ -160,12 +159,12 @@ export function calcularDiagnosticoMoM(vendedorId, mesRefStr) {
   const meta = metaObj ? (metaObj.metaFaturamento || 0) : 0;
   const pctMeta = meta > 0 ? (fatProjetado / meta) * 100 : 0;
 
-  const nomeDe = (norm) => {
-    if (norm === '__ajuste_erp__') return 'Outros / Sem Cadastro';
+  const clienteInfo = (norm) => {
+    if (norm === '__ajuste_erp__') return { nome: 'Outros / Sem Cadastro', codigo: null, cidade: null };
     const c = (state.clientes || []).find(x => normalizarNomeCliente(x.nome) === norm);
-    if (c) return c.nome;
+    if (c) return { nome: c.nome, codigo: c.codigo, cidade: c.cidade };
     const ci = (state.clientesImportacoes || []).find(x => x.clienteNorm === norm);
-    return ci ? ci.nome : norm;
+    return ci ? { nome: ci.nome, codigo: ci.codigo, cidade: ci.cidade } : { nome: norm, codigo: null, cidade: null };
   };
 
   const chaves = new Set([...Object.keys(mapaAt), ...Object.keys(mapaAnt)]);
@@ -179,7 +178,8 @@ export function calcularDiagnosticoMoM(vendedorId, mesRefStr) {
     const delta = vAt - vAnt;
     if (Math.abs(delta) < PISO_RUIDO && k !== '__ajuste_erp__') return;
 
-    const reg = { nome: nomeDe(k), valorAtual: vAt, valorAnterior: vAnt, delta };
+    const info = clienteInfo(k);
+    const reg = { nome: info.nome, codigo: info.codigo, cidade: info.cidade, valorAtual: vAt, valorAnterior: vAnt, delta };
 
     if (vAnt > 0 && vAt === 0) {
       const comprouGlobal = globalAt[k] || 0;
@@ -227,7 +227,7 @@ export function calcularDiagnosticoMoM(vendedorId, mesRefStr) {
   const alertas = [];
   const entradas = Object.entries(mapaAt).sort((a, b) => b[1] - a[1]);
   if (entradas[0] && entradas[0][0] !== '__ajuste_erp__' && fatAt > 0 && (entradas[0][1] / fatAt) > 0.30) {
-    alertas.push({ tipo: 'warning', msg: `Dependência: ${nomeDe(entradas[0][0])} representa ${((entradas[0][1] / fatAt) * 100).toFixed(0)}% do faturamento.` });
+    alertas.push({ tipo: 'warning', msg: `Dependência: ${clienteInfo(entradas[0][0]).nome} representa ${((entradas[0][1] / fatAt) * 100).toFixed(0)}% do faturamento.` });
   }
   if (perdidos.length > 0 && Math.abs(impPerdidos) > 1000) {
     alertas.push({ tipo: 'danger', msg: `${perdidos.length} cliente(s) sem compra no período. Perda: ${fmtBRL(Math.abs(impPerdidos))}.`, link: '#mom-perdas' });

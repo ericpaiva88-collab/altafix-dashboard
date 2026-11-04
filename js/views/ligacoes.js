@@ -24,15 +24,28 @@ export function renderLigacoes() {
   const selVend = document.getElementById('filtro-lig-vendedor');
   if (selVend && selVend.options.length <= 1) {
     let opts = '<option value="">Todos vendedores</option>';
-    // CORREÇÃO: Incluir Diretor
     state.vendedores.filter(v => v.ativo && (v.papel === 'vendedor' || v.papel === 'diretor')).forEach(v => {
       opts += `<option value="${v.id}">${escapeHtml(v.nome)}</option>`;
     });
     selVend.innerHTML = opts;
   }
 
+  // Popula o select de cidade
+  const selCidade = document.getElementById('filtro-lig-cidade');
+  if (selCidade && selCidade.options.length <= 1) {
+    let cidades = new Set();
+    state.ligacoes.forEach(l => { if (l.cidade) cidades.add(l.cidade); });
+    
+    let opts = '<option value="">Todas cidades</option>';
+    Array.from(cidades).sort().forEach(cid => {
+      opts += `<option value="${escapeHtml(cid)}">${escapeHtml(cid)}</option>`;
+    });
+    selCidade.innerHTML = opts;
+  }
+
   const fBusca = (document.getElementById('filtro-lig-busca')?.value || '').toUpperCase();
   const fVend = selVend?.value || ui.modoVendedor || '';
+  const fCidade = selCidade?.value || '';
   const fStatus = document.getElementById('filtro-lig-status')?.value || '';
 
   let ligacoes = (state.ligacoes || []).filter(l => filialNoEscopo(l.filialId, ui.escopoAtual));
@@ -40,6 +53,7 @@ export function renderLigacoes() {
   const filtradas = ligacoes.filter(l => {
     if (fVend && l.vendedor !== fVend) return false;
     if (fStatus && l.status !== fStatus) return false;
+    if (fCidade && l.cidade !== fCidade) return false;
     if (fBusca && !l.empresa.toUpperCase().includes(fBusca)) return false;
     return true;
   });
@@ -82,12 +96,14 @@ export function renderLigacoes() {
     const v = state.vendedores.find(x => x.id === l.vendedor);
     const st = STATUS[l.status] || STATUS.prospeccao;
     const proxTxt = l.proximo ? fmtDataBR(l.proximo) : '—';
+    
+    const cidTxt = l.cidade ? `<br><span style="font-size:11px; color:#888;">${escapeHtml(l.cidade)}</span>` : '';
 
     return `
       <tr>
         <td data-label="Data">${fmtDataBR(l.data)}</td>
         <td data-label="Vendedor"><strong>${escapeHtml(v ? v.nome : '—')}</strong></td>
-        <td data-label="Empresa">${escapeHtml(l.empresa)}</td>
+        <td data-label="Empresa">${escapeHtml(l.empresa)}${cidTxt}</td>
         <td data-label="Status">
           <span class="badge" style="background:${st.cor}15; color:${st.cor}; border:1px solid ${st.cor}30;">
             ${st.emoji} ${st.label}
@@ -113,7 +129,6 @@ export function abrirModalLigacao(ligacaoId, prefill, onSave) {
   html += '<div class="modal-form-grid">';
 
   html += '<div class="modal-input-group"><label>Vendedor</label><select id="ml-vend">';
-  // CORREÇÃO: Incluir Diretor no select do modal
   state.vendedores.filter(v => v.ativo && (v.papel === 'vendedor' || v.papel === 'diretor')).forEach(v => {
     const sel = (existente && existente.vendedor === v.id) || (prefill.vendedor && prefill.vendedor === v.id) || (!existente && !prefill.vendedor && ui.modoVendedor === v.id);
     html += '<option value="' + escapeHtml(v.id) + '"' + (sel ? ' selected' : '') + '>' + escapeHtml(v.nome) + '</option>';
