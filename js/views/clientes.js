@@ -10,6 +10,17 @@ let filtroAtivo = 'todos';
 let sortCol = 'variacao'; 
 let sortDir = 'asc';      
 
+// Função exclusiva para a busca (remove acentos e pontuações básicas, mas mantém o texto)
+function limparParaBusca(txt) {
+  return String(txt || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // Remove acentos
+    .toUpperCase()
+    .replace(/[.,;:\-()\/\\'`"]/g, ' ') // Substitui pontuações por espaço
+    .replace(/\s+/g, ' ') // Junta espaços duplos
+    .trim();
+}
+
 export function renderClientes() {
   const kpisEl = document.getElementById('clientes-kpis');
   const tbody = document.getElementById('tbody-clientes');
@@ -26,17 +37,23 @@ export function renderClientes() {
     selVend.innerHTML = opts;
   }
 
-  // Popula o select de cidade
+  // Popula o select de cidade limpando duplicatas e acentos
   const selCidade = document.getElementById('filtro-cliente-cidade');
   if (selCidade && selCidade.options.length <= 1) {
-    let cidades = new Set();
-    state.clientes.forEach(c => { if (c.cidade) cidades.add(c.cidade); });
-    // Pega cidades também do importador para garantir
-    (state.clientesImportacoes || []).forEach(ci => { if (ci.cidade) cidades.add(ci.cidade); });
+    let cidadesMap = new Map();
+    
+    const addCidade = (cid) => {
+      if (!cid || cid === '_') return;
+      const limpa = limparParaBusca(cid);
+      if (!cidadesMap.has(limpa)) cidadesMap.set(limpa, cid);
+    };
+
+    state.clientes.forEach(c => addCidade(c.cidade));
+    (state.clientesImportacoes || []).forEach(ci => addCidade(ci.cidade));
     
     let opts = '<option value="">Todas cidades</option>';
-    Array.from(cidades).sort().forEach(cid => {
-      opts += `<option value="${escapeHtml(cid)}">${escapeHtml(cid)}</option>`;
+    Array.from(cidadesMap.entries()).sort((a, b) => a[0].localeCompare(b[0])).forEach(([limpa, original]) => {
+      opts += `<option value="${escapeHtml(original)}">${escapeHtml(original)}</option>`;
     });
     selCidade.innerHTML = opts;
   }
@@ -63,9 +80,12 @@ export function renderClientes() {
     };
   });
 
-  const fBusca = (document.getElementById('filtro-cliente-busca')?.value || '').toUpperCase();
+  const fBusca = document.getElementById('filtro-cliente-busca')?.value || '';
+  const fBuscaLimpa = limparParaBusca(fBusca); 
   const fVend = selVend?.value || ui.modoVendedor || '';
-  const fCidade = selCidade?.value || '';
+  const fCidadeOriginal = selCidade?.value || ''; 
+  const fCidadeLimpa = limparParaBusca(fCidadeOriginal);
+  
   const hj = isoDate(new Date());
 
   const mesAtual = hj.slice(0, 7);
@@ -74,6 +94,7 @@ export function renderClientes() {
 
   const mapaAtual = {};
   const mapaAnt = {};
+  const infoExtra = {};
 
   (state.clientesImportacoes || []).forEach(ci => {
     if (!ci.periodoIni) return;
@@ -82,12 +103,10 @@ export function renderClientes() {
     
     if (mes === mesAtual) mapaAtual[norm] = (mapaAtual[norm] || 0) + (ci.valor || 0);
     if (mes === mesAnt) mapaAnt[norm] = (mapaAnt[norm] || 0) + (ci.valor || 0);
-  });
-
-  // Cria um "dicionário" de cidades e códigos a partir das importações para garantir que nada fique em branco
-  const infoExtra = {};
-  (state.clientesImportacoes || []).forEach(ci => {
-      if (ci.cidade) infoExtra[ci.clienteNorm] = { cidade: ci.cidade, codigo: ci.codigo };
+    
+    if (ci.cidade || ci.codigo) {
+      infoExtra[norm] = { cidade: ci.cidade, codigo: ci.codigo };
+    }
   });
 
   let clientes = clientesNoEscopo(ui.escopoAtual);
@@ -108,12 +127,12 @@ export function renderClientes() {
     else if (delta > 0) statusMom = 'crescimento';
     else if (delta < 0) statusMom = 'queda';
 
-    // Tenta pegar cidade/codigo do cliente, se não tiver, pega do importador
     const extra = infoExtra[norm] || {};
+    const cidadeFinal = (c.cidade && c.cidade !== '_') ? c.cidade : (extra.cidade || '');
 
     return { 
       ...c, 
-      cidade: c.cidade || extra.cidade,
+      cidade: cidadeFinal,
       codigo: c.codigo || extra.codigo,
       vAt, vAnt, delta, diasSemComprar, statusMom, nomeVendedor 
     };
@@ -146,11 +165,19 @@ export function renderClientes() {
 
   const filtrados = clientesComVar.filter(c => {
     if (fVend && c.vendedor !== fVend) return false;
-    if (fCidade && c.cidade !== fCidade) return false;
     
-    if (fBusca) {
-      const alvo = (c.nome + ' ' + (c.cidade || '') + ' ' + (c.codigo || '') + ' ' + (c.cnpj || '')).toUpperCase();
-      if (!alvo.includes(fBusca)) return false;
+    // Filtro Dropdown de Cidade
+    if (fCidadeLimpa && limparParaBusca(c.cidade) !== fCidadeLimpa) return false;
+    
+    // Filtro de Texto Livre
+    if (fBuscaLimpa) {
+      const alvo = limparParaBusca(
+        (c.nome || '') + ' ' + 
+        (c.cidade || '') + ' ' + 
+        (c.codigo || '') + ' ' + 
+        (c.cnpj || '')
+      );
+      if (!alvo.includes(fBuscaLimpa)) return false;
     }
 
     if (filtroAtivo === 'queda') return c.statusMom === 'queda' || c.statusMom === 'perdido';
@@ -213,9 +240,7 @@ export function renderClientes() {
     const ultimaTxt = c.ultimaCompra ? c.ultimaCompra.split('-').reverse().join('/') : '—';
     const diasTxt = c.diasSemComprar < 9999 ? `(${c.diasSemComprar}d)` : '';
     const codTxt = c.codigo ? `[${c.codigo}] ` : '';
-    
-    // Se a cidade for vazia ou '_', não mostra a linha
-    const cidTxt = (c.cidade && c.cidade !== '_') ? `<br><span style="font-size:11px; color:#888;">${escapeHtml(c.cidade)}</span>` : '';
+    const cidTxt = c.cidade ? `<br><span style="font-size:11px; color:#888;">${escapeHtml(c.cidade)}</span>` : '';
 
     return `
       <tr>

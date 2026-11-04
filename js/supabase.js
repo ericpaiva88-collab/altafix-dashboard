@@ -329,7 +329,7 @@ export async function sbUpsertCadastroClientes(lista, filialId) {
   const existentes = await sbFetchAll('clientes', { eq: { filial_id: filialId } });
   const mapNome = {};
   (existentes.data || []).forEach(c => {
-     mapNome[c.nome] = c; // Cruza os dados pelo nome exato
+     mapNome[c.nome] = c; 
   });
 
   let atualizados = 0;
@@ -506,19 +506,25 @@ export async function sbUpsertClientes(lista, filialId, vendedoresMap) {
     };
   });
 
-  // AQUI ESTÁ A SACADA: Antes de deletar e recriar tudo, nós vamos PRESERVAR os CNPJs e Telefones já existentes!
+  // =================================================================
+  // AQUI ESTÁ A CORREÇÃO DEFINITIVA: SALVAR CNPJ E TELEFONE ANTES DE DELETAR
+  // =================================================================
   const existentesComContato = await sbFetchAll('clientes', { eq: { filial_id: filialId } });
   const mapContatos = {};
   (existentesComContato.data || []).forEach(c => {
-     if (c.cnpj || c.telefone) mapContatos[c.nome] = { cnpj: c.cnpj, telefone: c.telefone };
+     if (c.cnpj || c.telefone || c.cidade) {
+        mapContatos[c.nome] = { cnpj: c.cnpj, telefone: c.telefone, cidade: c.cidade };
+     }
   });
 
   payloadFinal.forEach(p => {
      if (mapContatos[p.nome]) {
         p.cnpj = mapContatos[p.nome].cnpj;
         p.telefone = mapContatos[p.nome].telefone;
+        if (mapContatos[p.nome].cidade) p.cidade = mapContatos[p.nome].cidade; // Restaura a cidade apagada pelo 324
      }
   });
+  // =================================================================
 
   const delCli = await session.sb.from('clientes').delete().eq('filial_id', filialId);
   if (delCli.error) throw new Error('clientes delete: ' + delCli.error.message);
