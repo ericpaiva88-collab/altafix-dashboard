@@ -217,7 +217,7 @@ export function aplicarDadosDoBanco(d) {
   if (d.clientes && d.clientes.length > 0) {
     state.clientes = d.clientes.map(c => ({
       id: c.id, filialId: c.filial_id, vendedor: c.vendedor_id,
-      nome: c.nome, codigo: c.codigo, cidade: c.cidade, uf: c.uf,
+      nome: c.nome, codigo: c.codigo, cidade: c.cidade, uf: c.uf, cnpj: c.cnpj, telefone: c.telefone,
       valorTotal: Number(c.valor_total), numCompras: c.num_compras,
       ultimaCompra: c.ultima_compra, primeiraCompra: c.primeira_compra,
       intervaloMedio: c.intervalo_medio, valorMedioMensal: Number(c.valor_medio_mensal),
@@ -313,31 +313,71 @@ export function aplicarDadosDoBanco(d) {
 }
 
 // ============================================================
-// NOVO: SALVAR NOTA 1:1 NO BANCO
+// SALVAR NOTA 1:1 E CADASTRO DE CLIENTES
 // ============================================================
 export async function sbSalvarNota1a1(vendedorId, mes, texto) {
   if (!session.sb) return false;
-  
-  const payload = {
-    vendedor_id: vendedorId,
-    mes: mes,
-    texto: texto,
-    atualizado_em: new Date().toISOString()
-  };
-
-  const { error } = await session.sb
-    .from('notas_1a1')
-    .upsert(payload, { onConflict: 'vendedor_id,mes' });
-
-  if (error) {
-    console.error('Erro ao salvar nota:', error);
-    throw new Error(error.message);
-  }
+  const payload = { vendedor_id: vendedorId, mes: mes, texto: texto, atualizado_em: new Date().toISOString() };
+  const { error } = await session.sb.from('notas_1a1').upsert(payload, { onConflict: 'vendedor_id,mes' });
+  if (error) throw new Error(error.message);
   return true;
 }
 
+export async function sbUpsertCadastroClientes(lista, filialId) {
+  if (!lista || lista.length === 0) return 0;
+  
+  const existentes = await sbFetchAll('clientes', { eq: { filial_id: filialId } });
+  const mapNome = {};
+  (existentes.data || []).forEach(c => {
+     mapNome[c.nome] = c; // Cruza os dados pelo nome exato
+  });
+
+  let atualizados = 0;
+  const paraInserir = [];
+
+  for (const c of lista) {
+     const target = mapNome[c.nome];
+
+     if (target) {
+        await session.sb.from('clientes').update({
+           codigo: c.codigo,
+           cnpj: c.cnpj,
+           telefone: c.telefone,
+           cidade: c.cidade || target.cidade
+        }).eq('id', target.id);
+        atualizados++;
+     } else {
+        paraInserir.push({
+           filial_id: filialId,
+           codigo: c.codigo,
+           nome: c.nome,
+           cnpj: c.cnpj,
+           telefone: c.telefone,
+           cidade: c.cidade,
+           vendedor_id: null,
+           valor_total: 0,
+           num_compras: 0,
+           ultima_compra: null,
+           primeira_compra: null,
+           intervalo_medio: 30,
+           valor_medio_mensal: 0
+        });
+     }
+  }
+
+  if (paraInserir.length > 0) {
+     for (let i = 0; i < paraInserir.length; i += 500) {
+        const chunk = paraInserir.slice(i, i + 500);
+        const r = await session.sb.from('clientes').insert(chunk);
+        if (r.error) throw new Error('clientes base insert: ' + r.error.message);
+     }
+  }
+
+  return atualizados + paraInserir.length;
+}
+
 // ============================================================
-// UPSERTS E SINCRONIZAÇÕES (Mantidos)
+// UPSERTS E SINCRONIZAÇÕES
 // ============================================================
 
 export function construirMapaVendedores() {
@@ -464,6 +504,20 @@ export async function sbUpsertClientes(lista, filialId, vendedoresMap) {
       ultima_compra: a.ultima_compra, primeira_compra: a.primeira_compra,
       intervalo_medio: intervaloMedio, valor_medio_mensal: valorMedioMensal
     };
+  });
+
+  // AQUI ESTÁ A SACADA: Antes de deletar e recriar tudo, nós vamos PRESERVAR os CNPJs e Telefones já existentes!
+  const existentesComContato = await sbFetchAll('clientes', { eq: { filial_id: filialId } });
+  const mapContatos = {};
+  (existentesComContato.data || []).forEach(c => {
+     if (c.cnpj || c.telefone) mapContatos[c.nome] = { cnpj: c.cnpj, telefone: c.telefone };
+  });
+
+  payloadFinal.forEach(p => {
+     if (mapContatos[p.nome]) {
+        p.cnpj = mapContatos[p.nome].cnpj;
+        p.telefone = mapContatos[p.nome].telefone;
+     }
   });
 
   const delCli = await session.sb.from('clientes').delete().eq('filial_id', filialId);
@@ -719,9 +773,13 @@ export async function sbSincronizarBasesPendentes() {
 
   status('⏳ Sincronizando...');
 
+  if (arr(basesPreview.cadastroClientes).length > 0) {
+    const n = await sbUpsertCadastroClientes(basesPreview.cadastroClientes, filialId);
+    status('✓ ' + n + ' clientes atualizados com CNPJ/Tel');
+  }
   if (arr(basesPreview.clientes).length > 0) {
     const n = await sbUpsertClientes(basesPreview.clientes, filialId, vMap);
-    status('✓ ' + n + ' clientes');
+    status('✓ ' + n + ' clientes de vendas atualizados');
   }
   if (arr(basesPreview.produtos).length > 0) {
     const n = await sbUpsertProdutos(basesPreview.produtos, filialId);

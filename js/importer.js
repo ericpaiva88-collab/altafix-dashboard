@@ -1,5 +1,5 @@
 // ============================================================
-// importer.js — Leitura das planilhas 324, 740, 361, comparativo
+// importer.js — Leitura das planilhas 324, 740, 361
 // ============================================================
 
 import { state, basesPreview } from './state.js';
@@ -30,6 +30,83 @@ export function filialParaImport(escopoAtual) {
     throw new Error('Filial inválida.');
   }
   return ativas[idx].id;
+}
+
+// ============================================================
+// CADASTRO DE CLIENTES (NOVO)
+// ============================================================
+export function importarCadastroClientes(entrada, escopoAtual) {
+  return new Promise((resolve) => {
+    const fid = filialParaImport(escopoAtual);
+    if (!fid) return resolve();
+
+    const file = Array.isArray(entrada) ? entrada[0] : entrada;
+    const st = document.getElementById('erp-status');
+    if (st) { st.style.color = '#64748b'; st.textContent = 'Lendo Cadastro de Clientes...'; }
+
+    const r = new FileReader();
+    r.onload = function (evt) {
+      try {
+        const wb = XLSX.read(new Uint8Array(evt.target.result), { type: 'array' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
+
+        const clientesBase = [];
+        let startRow = -1;
+
+        // Acha a linha onde os dados realmente começam (pula o cabeçalho do ERP)
+        for (let i = 0; i < rows.length; i++) {
+          if (!rows[i]) continue;
+          if (/^\d+$/.test(String(rows[i][0]).trim())) {
+            startRow = i;
+            break;
+          }
+        }
+
+        if (startRow < 0) {
+          if (st) st.textContent = '⚠ Formato de cadastro não reconhecido.';
+          return resolve();
+        }
+
+        for (let i = startRow; i < rows.length; i++) {
+          const r = rows[i];
+          if (!r || !r[0]) continue;
+
+          const codigo = String(r[0]).trim();
+          let nome = String(r[1] || '').trim();
+          const cnpj = String(r[3] || '').trim();
+          const cidade = String(r[4] || '').trim();
+          const telefone = String(r[5] || '').trim();
+
+          // Limpa o "1 - " do início do nome se existir
+          nome = nome.replace(/^\d+\s*-\s*/, '').trim();
+
+          if (codigo && nome) {
+            clientesBase.push({
+              codigo, nome, cnpj, cidade, telefone, filialId: fid
+            });
+          }
+        }
+
+        basesPreview.cadastroClientes = clientesBase;
+        basesPreview.filialImport = fid;
+
+        if (st) {
+          st.style.color = '#16a34a';
+          st.textContent = `✓ ${clientesBase.length} clientes lidos no cadastro.`;
+        }
+        toast(`✓ ${clientesBase.length} clientes lidos!`, 3000);
+        renderBasesStatus();
+        resolve();
+
+      } catch (e) {
+        if (st) { st.style.color = '#dc2626'; st.textContent = 'Erro: ' + e.message; }
+        toast('❌ Erro ao ler cadastro: ' + e.message, 4000);
+        resolve();
+      }
+    };
+    r.readAsArrayBuffer(file);
+  });
 }
 
 // ============================================================
@@ -336,8 +413,19 @@ export function processar324(wb, filialId) {
     const cliId = 'cli_' + ncStr.toLowerCase().replace(/[^a-z0-9]+/g, '_').slice(0, 40);
 
     if (!clientes[ncStr]) {
+      let codigoCli = null;
+      let nomeCli = ncStr;
+      
+      const mCli = ncStr.match(/^(\d+)\s+(.*)$/);
+      if (mCli) {
+        codigoCli = mCli[1];
+        nomeCli = mCli[2].trim();
+      }
+
       clientes[ncStr] = {
-        id: cliId, nome: ncStr, codigo: cs,
+        id: cliId, 
+        nome: nomeCli, 
+        codigo: codigoCli, 
         vendedor: vend ? vend.id : null,
         filialId: filialId,
         periodoIni, periodoFim,
@@ -350,7 +438,6 @@ export function processar324(wb, filialId) {
     }
 
     const cl = clientes[ncStr];
-    if (!cl.codigo && cs) cl.codigo = cs;
     cl.valorTotal += tcd;
     cl.linhas += 1;
 
@@ -1126,7 +1213,7 @@ export function renderBasesStatus() {
 
   const tem = basesPreview.clientes || basesPreview.produtos ||
               basesPreview.comparativo || basesPreview.cidades ||
-              basesPreview.estoqueABC ||
+              basesPreview.estoqueABC || basesPreview.cadastroClientes ||
               (basesPreview.vendasItens && basesPreview.vendasItens.length > 0);
 
   if (!tem) {
@@ -1135,7 +1222,8 @@ export function renderBasesStatus() {
   }
 
   let h = '';
-  if (basesPreview.clientes) h += '<p><strong>' + basesPreview.clientes.length + '</strong> clientes</p>';
+  if (basesPreview.cadastroClientes) h += '<p>👥 <strong>' + basesPreview.cadastroClientes.length + '</strong> clientes (Cadastro)</p>';
+  if (basesPreview.clientes) h += '<p><strong>' + basesPreview.clientes.length + '</strong> clientes (Vendas)</p>';
   if (basesPreview.produtos) h += '<p><strong>' + basesPreview.produtos.length + '</strong> produtos</p>';
   if (basesPreview.vendasItens && basesPreview.vendasItens.length > 0) {
     h += '<p>🧩 <strong>' + basesPreview.vendasItens.length + '</strong> pares cliente × produto</p>';

@@ -5,10 +5,11 @@
 import { state, ui, session, basesPreview, salvar } from '../state.js';
 import { toast, escapeHtml, parseValorBR } from '../utils.js';
 import { derivarHistorico } from '../calc.js';
-import { importar324, importar740, importar361, renderBasesStatus } from '../importer.js';
+import { importar324, importar740, importar361, importarCadastroClientes, renderBasesStatus } from '../importer.js';
 import { sbSincronizarBasesPendentes, sbCarregarTudo, aplicarDadosDoBanco } from '../supabase.js';
 
 export function setupConfig() {
+  setupDrop('drop-cadastro', 'cadastro-input', (files) => importarCadastroClientes(files, ui.escopoAtual), true, 'erp-status');
   setupDrop('drop-erp', 'erp-input', (files) => importar324(files, ui.escopoAtual), true, 'erp-status');
   setupDrop('drop-740', 'input-740', (files) => importar740(files, ui.escopoAtual), true, 'status-740');
   setupDrop('drop-abc', 'abc-input', (files) => importar361(files, ui.escopoAtual), true, 'abc-status-import');
@@ -186,7 +187,7 @@ function renderTabelaMetas() {
 }
 
 export async function salvarBases() {
-  const temPendencia = basesPreview.clientes || basesPreview.produtos || basesPreview.vendasItens || basesPreview.lancamentosMulti || basesPreview.cidades;
+  const temPendencia = basesPreview.clientes || basesPreview.produtos || basesPreview.vendasItens || basesPreview.lancamentosMulti || basesPreview.cidades || basesPreview.cadastroClientes;
   if (!temPendencia) {
     toast('Nenhuma base nova para salvar.');
     return;
