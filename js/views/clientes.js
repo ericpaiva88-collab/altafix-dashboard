@@ -7,8 +7,8 @@ import { fmtBRL, escapeHtml, diffDias, normalizarNomeCliente, abrirWhatsApp, iso
 import { clientesNoEscopo } from '../calc.js';
 
 let filtroAtivo = 'todos';
-let sortCol = 'variacao'; // Coluna padrão inicial
-let sortDir = 'asc';      // 'asc' (menor para maior) ou 'desc' (maior para menor)
+let sortCol = 'variacao'; 
+let sortDir = 'asc';      
 
 export function renderClientes() {
   const kpisEl = document.getElementById('clientes-kpis');
@@ -16,17 +16,16 @@ export function renderClientes() {
   const countEl = document.getElementById('clientes-count');
   if (!tbody) return;
 
-  // Popula o select de vendedor
   const selVend = document.getElementById('filtro-cliente-vend');
+  // CORREÇÃO: Incluir Diretor
   if (selVend && selVend.options.length <= 1) {
     let opts = '<option value="">Todos vendedores</option>';
-    state.vendedores.filter(v => v.ativo && v.papel === 'vendedor').forEach(v => {
+    state.vendedores.filter(v => v.ativo && (v.papel === 'vendedor' || v.papel === 'diretor')).forEach(v => {
       opts += `<option value="${v.id}">${escapeHtml(v.nome)}</option>`;
     });
     selVend.innerHTML = opts;
   }
 
-  // Configura os botões de filtro (Chips)
   document.querySelectorAll('[data-filtro]').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.filtro === filtroAtivo);
     btn.onclick = () => {
@@ -36,7 +35,6 @@ export function renderClientes() {
     };
   });
 
-  // Configura os cliques no cabeçalho da tabela (Ordenação)
   document.querySelectorAll('th[data-sort]').forEach(th => {
     th.onclick = () => {
       const col = th.dataset.sort;
@@ -44,7 +42,6 @@ export function renderClientes() {
         sortDir = sortDir === 'asc' ? 'desc' : 'asc';
       } else {
         sortCol = col;
-        // Padrão: textos ordenam A-Z, números ordenam do maior pro menor
         sortDir = ['nome', 'vendedor'].includes(col) ? 'asc' : 'desc'; 
       }
       renderClientes();
@@ -55,7 +52,6 @@ export function renderClientes() {
   const fVend = selVend?.value || ui.modoVendedor || '';
   const hj = isoDate(new Date());
 
-  // Pega os dados do Mês Atual e Mês Anterior para cruzar
   const mesAtual = hj.slice(0, 7);
   const dAnt = new Date(); dAnt.setMonth(dAnt.getMonth() - 1);
   const mesAnt = dAnt.getFullYear() + '-' + String(dAnt.getMonth() + 1).padStart(2, '0');
@@ -72,10 +68,8 @@ export function renderClientes() {
     if (mes === mesAnt) mapaAnt[norm] = (mapaAnt[norm] || 0) + (ci.valor || 0);
   });
 
-  // Base de clientes
   let clientes = clientesNoEscopo(ui.escopoAtual);
   
-  // Enriquecer clientes com dados de variação e nome do vendedor
   const clientesComVar = clientes.map(c => {
     const norm = normalizarNomeCliente(c.nome);
     const vAt = mapaAtual[norm] || 0;
@@ -86,7 +80,6 @@ export function renderClientes() {
     const vendedorObj = state.vendedores.find(x => x.id === c.vendedor);
     const nomeVendedor = vendedorObj ? vendedorObj.nome : '—';
 
-    // Define o status MoM
     let statusMom = 'neutro';
     if (vAt > 0 && vAnt === 0) statusMom = 'novo';
     else if (vAt === 0 && vAnt > 0) statusMom = 'perdido';
@@ -96,7 +89,6 @@ export function renderClientes() {
     return { ...c, vAt, vAnt, delta, diasSemComprar, statusMom, nomeVendedor };
   });
 
-  // --- KPIs ---
   const ativos = clientesComVar.filter(c => c.diasSemComprar < 30);
   const emQueda = clientesComVar.filter(c => c.statusMom === 'queda' || c.statusMom === 'perdido');
   const emRisco = clientesComVar.filter(c => c.diasSemComprar >= 30 && c.diasSemComprar < 180);
@@ -122,7 +114,6 @@ export function renderClientes() {
     </div>
   `;
 
-  // --- FILTROS ---
   const filtrados = clientesComVar.filter(c => {
     if (fVend && c.vendedor !== fVend) return false;
     if (fBusca) {
@@ -130,29 +121,24 @@ export function renderClientes() {
       if (!alvo.includes(fBusca)) return false;
     }
 
-    // Aplica o chip selecionado
     if (filtroAtivo === 'queda') return c.statusMom === 'queda' || c.statusMom === 'perdido';
     if (filtroAtivo === 'crescimento') return c.statusMom === 'crescimento' || c.statusMom === 'novo';
     if (filtroAtivo === 'risco') return c.diasSemComprar >= 30 && c.diasSemComprar < 180;
 
-    return true; // 'todos'
+    return true; 
   });
 
-  // --- ORDENAÇÃO ---
   filtrados.sort((a, b) => {
     let valA = a[sortCol];
     let valB = b[sortCol];
 
-    // Tratamento para colunas que não existem diretamente no objeto
     if (sortCol === 'vendedor') { valA = a.nomeVendedor; valB = b.nomeVendedor; }
     if (sortCol === 'faturamento') { valA = a.vAt; valB = b.vAt; }
     if (sortCol === 'variacao') { valA = a.delta; valB = b.delta; }
 
-    // Fallback para valores nulos
     if (valA == null) valA = '';
     if (valB == null) valB = '';
 
-    // Comparação de Strings vs Números
     if (typeof valA === 'string' && typeof valB === 'string') {
       return sortDir === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
     } else {
@@ -160,7 +146,6 @@ export function renderClientes() {
     }
   });
 
-  // Atualiza os ícones visuais de ordenação no topo da tabela
   document.querySelectorAll('.sort-icon').forEach(el => el.textContent = '');
   const iconEl = document.getElementById('icon-' + sortCol);
   if (iconEl) iconEl.textContent = sortDir === 'asc' ? ' ▲' : ' ▼';
@@ -172,21 +157,17 @@ export function renderClientes() {
     return;
   }
 
-  // --- RENDERIZA TABELA ---
   tbody.innerHTML = filtrados.slice(0, 200).map(c => {
     const v = state.vendedores.find(x => x.id === c.vendedor);
     
-    // Coluna de Faturamento
     const fatTxt = c.vAt > 0 ? `<strong>${fmtBRL(c.vAt)}</strong>` : `<span style="color:#888;">R$ 0,00</span>`;
 
-    // Coluna de Variação
     let varBadge = '<span class="badge neutral">—</span>';
     if (c.statusMom === 'novo') varBadge = '<span class="badge" style="background:#E0E7FF; color:#3730A3;">✨ NOVO</span>';
     else if (c.statusMom === 'perdido') varBadge = `<span style="color:var(--af-vermelho); font-weight:600; font-size:12px;">▼ Saiu (-${fmtBRL(c.vAnt)})</span>`;
     else if (c.statusMom === 'crescimento') varBadge = `<span style="color:var(--af-verde); font-weight:600; font-size:12px;">▲ +${fmtBRL(c.delta)}</span>`;
     else if (c.statusMom === 'queda') varBadge = `<span style="color:var(--af-vermelho); font-weight:600; font-size:12px;">▼ -${fmtBRL(Math.abs(c.delta))}</span>`;
 
-    // Coluna de Ação (WhatsApp)
     let tel = obterTelefoneCliente(c.nome);
     let btnAcao = '';
     if (tel) {
@@ -198,8 +179,6 @@ export function renderClientes() {
 
     const ultimaTxt = c.ultimaCompra ? c.ultimaCompra.split('-').reverse().join('/') : '—';
     const diasTxt = c.diasSemComprar < 9999 ? `(${c.diasSemComprar}d)` : '';
-
-    // Corrigindo o "_" fantasma
     const cidadeTxt = c.cidade && c.cidade !== '_' ? `<br><span style="font-size:11px; color:#888;">${escapeHtml(c.cidade)}</span>` : '';
 
     return `
@@ -215,7 +194,6 @@ export function renderClientes() {
   }).join('');
 }
 
-// Helpers locais
 function obterTelefoneCliente(nomeCliente) {
   const norm = normalizarNomeCliente(nomeCliente);
   const ligs = state.ligacoes.filter(l => normalizarNomeCliente(l.empresa) === norm && l.telefone);

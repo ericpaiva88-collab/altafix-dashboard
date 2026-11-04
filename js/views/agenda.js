@@ -19,9 +19,10 @@ export function renderAgenda() {
   if (!containerLista || !containerFoco) return;
 
   const selVend = document.getElementById('agenda-filtro-vendedor');
+  // CORREÇÃO: Incluir Diretor
   if (selVend && selVend.options.length <= 1) {
     let opts = '<option value="">Todos vendedores</option>';
-    state.vendedores.filter(v => v.ativo && v.papel === 'vendedor').forEach(v => {
+    state.vendedores.filter(v => v.ativo && (v.papel === 'vendedor' || v.papel === 'diretor')).forEach(v => {
       opts += `<option value="${v.id}">${escapeHtml(v.nome)}</option>`;
     });
     selVend.innerHTML = opts;
@@ -124,7 +125,6 @@ function renderModoListaView() {
       const item = focoFila.find(x => x.id === itemId);
       if (!item || !window._abrirModalLigacao) return;
       
-      // A MÁGICA ACONTECE AQUI: Monta o prefill e força nova ligação (null)
       const prefill = {
         empresa: item.clienteObj ? item.clienteObj.nome : item.cliente,
         codigo: item.clienteObj ? (item.clienteObj.codigo || '') : '',
@@ -134,7 +134,7 @@ function renderModoListaView() {
         telefone: obterTelefoneCliente(item) || ''
       };
 
-      window._abrirModalLigacao(null, prefill); // O 'null' diz para o sistema: "Abra um formulário em branco"
+      window._abrirModalLigacao(null, prefill); 
     };
   });
 }
@@ -210,7 +210,7 @@ function renderModoFocoView() {
       renderModoFocoView();
     };
 
-    window._abrirModalLigacao(null, prefill, callbackAvancar); // Força nova ligação aqui também
+    window._abrirModalLigacao(null, prefill, callbackAvancar); 
   };
 
   if (btnWhats) {
@@ -276,7 +276,7 @@ function gerarFila(fBusca, fTipo, fVend) {
         vendedorId: l.vendedor,
         valor: cli ? (cli.valorMedioMensal || 0) : (l.valor || 0),
         clienteObj: cli,
-        ligacaoId: l.id, // Mantemos o ID para histórico, mas não para edição
+        ligacaoId: l.id, 
         prioridade: atrasado ? 1 : 2
       });
     }

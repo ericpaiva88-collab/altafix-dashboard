@@ -1,143 +1,95 @@
-# Alta Fix — Copiloto Comercial
+# Alta Fix — Copiloto Comercial B2B
 
-O Alta Fix deixou de ser um dashboard genérico e se tornou um **Copiloto de Gestão Comercial** para distribuidoras B2B. O sistema foi desenhado para responder a três perguntas fundamentais em menos de 5 segundos: **Como estamos? Onde está o problema? O que fazer agora?**
+O Alta Fix é uma plataforma de gestão comercial desenhada sob medida para distribuidoras. O sistema foi construído para responder a três perguntas em segundos: **Como estamos? Onde está o problema? O que fazer agora?**
 
-Esta versão foi totalmente redesenhada para ser **"Reunião Ready"**. Gráficos complexos (como Waterfall) foram substituídos por resumos de impacto executivos, e as telas agora entregam o diagnóstico e a ação no mesmo clique.
-
----
+Esta versão abandona métricas acadêmicas e foca na **ação prática**. Através de diagnósticos inteligentes de perda e ganho de carteira (MoM), integração direta com WhatsApp e reuniões 1:1 com zero scroll, o gestor consegue cobrar resultados com precisão cirúrgica.
 
 ## 🏗️ Arquitetura e Tecnologias
 
-- **Frontend:** HTML5, CSS3 (Design System próprio com variáveis), JavaScript (ES Modules - Vanilla JS).
-- **Backend/Auth:** Supabase (PostgreSQL + Auth).
-- **Gráficos:** Chart.js (Linha para YoY e Barras Horizontais para Diagnóstico MoM).
-- **Importação de Dados:** SheetJS (XLSX) com leitura assíncrona (Promises) para evitar falhas de processamento.
-- **Integração de Comunicação:** WhatsApp API (via `wa.me` com geração inteligente de texto B2B).
-- **Hospedagem:** Cloudflare Pages (Deploy automático via GitHub).
-- **Performance:** Carregamento em duas etapas (*Lazy Loading*). O app carrega primeiro as tabelas vitais (clientes, lançamentos) e depois baixa o histórico pesado em background.
-
----
+- **Frontend:** HTML5, CSS3 (Design System próprio), JavaScript (Vanilla ES6 Modules).
+- **Backend/Auth:** Supabase (PostgreSQL + Auth + RLS).
+- **Gráficos:** Chart.js.
+- **Importação:** SheetJS (XLSX) com leitura assíncrona.
+- **Integração:** WhatsApp API (via `wa.me`).
+- **Performance:** Lazy Loading (carrega o essencial e depois o histórico pesado).
 
 ## 📁 Estrutura de Pastas
 
 ```text
-├── index.html               # Estrutura principal (Sidebar + Views)
+├── index.html               # Estrutura principal (Views)
 ├── css/
-│   └── style.css            # Design System, tokens, layout e responsividade
+│   └── style.css            # Design System e responsividade
 └── js/
-    ├── main.js              # Bootstrap, autenticação, navegação e listeners
-    ├── state.js             # Estado global (state, ui, session) e localStorage
-    ├── utils.js             # Helpers (formatadores, WhatsApp inteligente, etc)
-    ├── calc.js              # Regras de negócio otimizadas (RFM, metas, projeções)
-    ├── calc_diagnostico.js  # Cálculo do MoM (Diagnóstico de Perdas, Transferências e Novos)
-    ├── supabase.js          # Comunicação com o banco (modo Lite e Full)
-    ├── importer.js          # Parsing assíncrono das planilhas (324, 740, 361)
+    ├── main.js              # Bootstrap, Auth e Navegação
+    ├── state.js             # Estado global
+    ├── utils.js             # Helpers (formatadores, WhatsApp, etc)
+    ├── calc.js              # Regras de negócio base (metas, projeções, RFM)
+    ├── calc_diagnostico.js  # Motor do MoM (Diagnóstico, Transferências)
+    ├── supabase.js          # Comunicação com o banco
+    ├── importer.js          # Parsing das planilhas
     └── views/
-        ├── painel.js        # Cockpit (KPIs, Gráfico Meta, Ritmo Semanal, Relatório)
-        ├── agenda.js        # Fila inteligente (Modo Lista e Modo Foco)
-        ├── equipe.js        # Cards de vendedores e Modal Ficha 1:1 (Zero Scroll)
-        ├── clientes.js      # CRM Visual (Variação MoM, Ordenação e Ações Rápidas)
-        ├── produtos.js      # Curva ABC e análise de estoque
-        ├── ligacoes.js      # Auditoria de ligações e conversão
-        ├── analise.js       # Sazonalidade (YoY) e Diagnóstico de Queda (MoM)
-        └── config.js        # Importações, metas e vendedores
-        🖥️ Principais Telas (Features)
-1. Cockpit (Painel Inicial)
-A central de comando do diretor.
+        ├── painel.js        # Cockpit (Macro)
+        ├── agenda.js        # Fila de trabalho operacional (Retornos)
+        ├── equipe.js        # Ficha 1:1 do vendedor (Micro)
+        ├── clientes.js      # CRM tático (Variação MoM, ordenação)
+        ├── analise.js       # Diagnóstico da Empresa (YoY e MoM com Drill-down)
+        └── config.js        # Importação e Metas
+        🖥️ Principais Funcionalidades
+1. Cockpit (Macro)
+KPIs de ritmo (Faturado, Falta, Projeção, Precisa/Dia).
 
-KPIs Vitais: Faturado, Falta, Projeção e Precisa/Dia.
+Radar de "Atenção Agora" com os vendedores e clientes críticos.
 
-Acumulado vs Meta: Gráfico de linha mostrando a velocidade de venda vs a linha ideal.
+Relatório Matinal gerado em texto para o WhatsApp.
 
-Atenção Agora: Lista de top 5 problemas com botões de ação rápida (Ver Ficha, WhatsApp, Ligar).
+Mês atual sempre selecionado por padrão, mesmo zerado.
 
-Relatório Matinal: Botão que gera um texto formatado pronto para o WhatsApp do time.
+2. Análise (Diagnóstico de Variação)
+YoY: Comparação histórica.
 
-2. Análise & Performance (Macro)
-Dividida em duas subtabs:
+MoM (Mês vs Mês): KPIs de comparação justa (truncando dias).
 
-📈 Ano contra Ano (YoY): Visão histórica comparando 2025 com 2026 mês a mês, com ranking e leitura de desempenho do time.
+Resumo de Impacto: Substituiu o gráfico de cascata por cards intuitivos (O que puxou para baixo vs O que segurou).
 
-🔍 Por que caiu? (MoM): Diagnóstico focado em reuniões.
+Drill-down: Clique em "Clientes Perdidos" e veja a lista em um modal.
 
-KPIs comparativos (Mês Fechado vs Projeção vs Variação Realizada).
-
-Resumo de Impacto: Substituiu o gráfico de cascata. Mostra em cards lado a lado o que puxou o faturamento para baixo (Perdidos/Queda) e o que segurou (Novos/Aumento).
-
-Drill-down: Ao clicar em um card (ex: "14 Clientes Perdidos"), um modal abre instantaneamente mostrando quem são os clientes e o valor de cada um.
+Detecção de Migração: Identifica se o cliente sumiu ou se foi passado para outro vendedor.
 
 3. Equipe (Ficha 1:1)
-Foco no desenvolvimento humano e feedback ágil.
+Layout de 3 colunas (Zero scroll) para reuniões frente a frente.
 
-Cards: Visão rápida de carteira, ativos, em risco e ligações.
+Diagnóstico MoM individual.
 
-Ficha do Vendedor (Zero Scroll): Layout em 3 colunas desenhado para caber na tela da TV/Notebook sem rolar.
+Prioridades de ligação com botão de WhatsApp.
 
-Esquerda: Resumo do Mês (Barras de impacto).
+Diário de Bordo sincronizado na nuvem (Salvo na tabela notas_1a1).
 
-Meio: Prioridade de Ligação (Top 5 clientes em queda, com botão de WhatsApp).
+Botão "Gerar Resumo" para enviar o combinado da reunião no WhatsApp.
 
-Direita: Diário de Bordo (salva as anotações da reunião no navegador).
+4. CRM de Clientes e Agenda
+Clientes: Filtros rápidos por variação de mês (Em Queda, Em Crescimento), ordenação clicável e ação direta.
 
-4. Clientes (CRM Visual)
-Deixou de ser um diretório e se tornou a tela tática de ação.
+Agenda: Fila de trabalho baseada na última ligação do cliente (elimina retornos fantasmas). Modo Foco para produtividade.
 
-Variação MoM: Mostra claramente quem aumentou (▲) ou diminuiu (▼) o faturamento em relação ao mês anterior.
+Registro de Ligações: Formulário limpo para novos registros, preservando o histórico antigo intacto.
 
-Filtros Rápidos (Chips): Botões para ver "Em Queda (Mês)", "Em Crescimento", "Em Risco (Inativos)" com um clique.
+🧠 Regras de Negócio Principais
+Truncagem Justa: Se o mês atual está em andamento (ex: dia 15), o MoM compara do dia 01 ao 15 em ambos os meses. Se o mês fechou, compara os meses inteiros.
 
-Ordenação Clicável: Clique no cabeçalho da tabela para ordenar por Nome, Vendedor, Última Compra, Faturamento ou Variação.
+Transferência de Carteira: Se o cliente comprou no mês passado com o Vendedor A, mas neste mês com o B, o diagnóstico do A aponta "Migrou p/ Vendedor B" em vez de "Churn".
 
-Ação Direta: Botão de WhatsApp em cada linha.
+Ciclo de Recompra: Usa a mediana de dias entre as compras do cliente para prever o próximo contato.
 
-5. Agenda e Ligações
-Agenda: Fila de trabalho (Modo Lista e Modo Foco) baseada no ciclo de recompra (mediana) e retornos agendados.
+🚀 Como rodar e fazer Deploy
+Local: VS Code + Live Server (http://127.0.0.1:5500).
 
-Ligações: Auditoria de conversão e histórico de contato com os clientes.
+Deploy: Push para o GitHub (Cloudflare Pages atualiza automaticamente).
 
-🤖 Integração Inteligente com WhatsApp
-O botão de WhatsApp (💬) gera uma mensagem personalizada B2B:
+🗺️ Próximos Passos (Roadmap de Evolução)
+O sistema está robusto para o gestor. Para escalar, sugerimos três frentes:
 
-Limpa sufixos (LTDA, ME, EIRELI) e extrai o nome fantasia.
+Modo Vendedor (Mobile-First): O vendedor logado vê apenas o "Meu Dia" (sua meta, seus clientes na agenda). Isso faz o vendedor querer usar o sistema na rua.
 
-Personaliza a apresentação com o nome do vendedor responsável.
+Cobrança de Ações (Follow-up): Transformar as anotações do Diário de Bordo em tarefas com data de vencimento. O sistema avisa o gestor se o vendedor não executou o que foi combinado na reunião.
 
-Lembra o cliente do último pedido e oferece novidades.
-
-🧠 Regras de Negócio (O "Cérebro" do App)
-Transferência de Carteira (Vendedor vs Vendedor): Se um cliente comprou no mês anterior com o Vendedor A, mas neste mês comprou com o Vendedor B, o sistema classifica como "Transferido" no diagnóstico do Vendedor A (evitando falsos "Churns").
-
-Cálculo MoM Truncado: A comparação de meses (ex: Setembro vs Outubro) trunca os dias de forma justa (compara dia 01 ao 30 em ambos) para não distorcer a análise quando o mês atual ainda está em andamento.
-
-Vale/Mês: Faturamento dos últimos 90 dias antes da última compra, dividido por 3.
-
-Cálculo de Recompra (Mediana): O ciclo de compra é calculado usando a mediana das diferenças entre as compras recentes, evitando que clientes com compras diárias sejam marcados como "sumidos" por causa de um feriado.
-
-📱 Responsividade Mobile
-O menu lateral vira um botão hambúrguer.
-
-As tabelas de dados complexos se transformam em Cards no celular (com data-label).
-
-O Ritmo Semanal foca em um dia por vez no mobile.
-
-🚀 Como rodar localmente
-Abra a pasta do projeto no VS Code.
-
-Instale a extensão Live Server.
-
-Clique com o botão direito no index.html e escolha "Open with Live Server".
-
-O app abrirá em http://127.0.0.1:5500.
-
-Faça login com as credenciais cadastradas no Supabase Auth.
-(Dica: Sempre use Ctrl + F5 ao alterar arquivos JS/CSS para evitar conflitos de cache).
-
-⚠️ Limitações Conhecidas / Próximos Passos
-Integração via API (ERP): Hoje a entrada depende de importação manual (324, 740, 361). O próximo passo é integrar com o ERP (Maxdata) para leitura em tempo real.
-
-Envio Automático de WhatsApp: A integração atual abre o WhatsApp Web com a mensagem pronta. Para envio 100% automatizado, seria necessária uma API oficial (Twilio, Z-API, etc).
-
-Sincronização do Diário de Bordo 1:1: Atualmente as anotações da ficha do vendedor ficam no localStorage do navegador. O ideal é salvar no Supabase (tabela notas_1a1) para sincronizar entre dispositivos.
-
-Última atualização: 30/10/2026
-Status: Operacional — Reunião Ready, Diagnóstico MoM e CRM de Variação.
+Integração via API (Fim do Excel): Conectar o sistema ao ERP (Maxdata) via API para que os dados de vendas e clientes caiam em tempo real, eliminando a importação manual diária do 324.

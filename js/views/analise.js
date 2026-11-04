@@ -42,9 +42,6 @@ function setupSubtabs() {
   elMom.style.display = subtabAtiva === 'mom' ? 'block' : 'none';
 }
 
-// ============================================================
-// SUBTAB 1 — YoY (Mantido igual)
-// ============================================================
 function renderAnaliseYoY() {
   const kpiEl = document.getElementById('analise-kpis');
   const tbody = document.getElementById('tbody-ranking-leitura');
@@ -52,9 +49,10 @@ function renderAnaliseYoY() {
   const selPeriodo = document.getElementById('analise-periodo');
   if (!tbody) return;
 
+  // CORREÇÃO: Incluir Diretor
   if (selVend && selVend.options.length <= 1) {
     let opts = '<option value="">Todo o time</option>';
-    state.vendedores.filter(v => v.ativo && v.papel === 'vendedor').forEach(v => {
+    state.vendedores.filter(v => v.ativo && (v.papel === 'vendedor' || v.papel === 'diretor')).forEach(v => {
       opts += `<option value="${escapeHtml(v.nome.toUpperCase())}">${escapeHtml(v.nome)}</option>`;
     });
     selVend.innerHTML = opts;
@@ -159,7 +157,8 @@ function renderRankingComLeitura(dadosPorMes) {
   if (!tbody) return;
 
   const vendedoresMap = {};
-  state.vendedores.filter(v => v.ativo && v.papel === 'vendedor').forEach(v => {
+  // CORREÇÃO: Incluir Diretor
+  state.vendedores.filter(v => v.ativo && (v.papel === 'vendedor' || v.papel === 'diretor')).forEach(v => {
     vendedoresMap[v.nome.toUpperCase()] = { nome: v.nome, f25: 0, f26: 0, p25: 0, p26: 0 };
   });
 
@@ -227,17 +226,15 @@ function renderRankingComLeitura(dadosPorMes) {
   }).join('');
 }
 
-// ============================================================
-// SUBTAB 2 — MoM (Novo Redesign de Reunião)
-// ============================================================
 function renderAnaliseMoM() {
   const selVend = document.getElementById('mom-vendedor');
   const selMes = document.getElementById('mom-mes');
   if (!selVend || !selMes) return;
 
+  // CORREÇÃO: Incluir Diretor
   if (selVend.options.length === 0) {
     let opts = '';
-    state.vendedores.filter(v => v.ativo && v.papel === 'vendedor').forEach(v => {
+    state.vendedores.filter(v => v.ativo && (v.papel === 'vendedor' || v.papel === 'diretor')).forEach(v => {
       opts += `<option value="${v.id}">${escapeHtml(v.nome)}</option>`;
     });
     selVend.innerHTML = opts;
@@ -303,7 +300,6 @@ function renderPainelMoM(vendedorId, mesRef) {
   const pctTxt = varSinal + d.variacaoPct.toFixed(1) + '%';
   const fatAtualExibir = d.ehMesCorrente ? d.fatProjetado : d.totalAt;
   
-  // 1. KPIs
   kpiEl.innerHTML = `
     <div class="kpi-card">
       <div class="kpi-header">MÊS ANTERIOR (fechado)</div>
@@ -327,11 +323,9 @@ function renderPainelMoM(vendedorId, mesRef) {
     </div>
   `;
 
-  // 2. Resumo Executivo (Agora com Contagem e Clique)
   const sumCairam = d.cairam.reduce((s, c) => s + c.delta, 0);
   const sumCresceram = d.cresceram.reduce((s, c) => s + c.delta, 0);
 
-  // Salva os dados no escopo global para o modal poder ler
   window._dadosMoMAtual = d;
   window._somaCairamAtual = sumCairam;
   window._somaCresceramAtual = sumCresceram;
@@ -375,14 +369,12 @@ function renderPainelMoM(vendedorId, mesRef) {
     </div>
   `;
 
-  // 3. Listas inferiores (Mantidas para quem preferir rolar a tela)
   perdasEl.innerHTML = renderListaClientes([...d.perdidos, ...d.cairam], 'Nenhum cliente perdido ou em queda.', 'neg');
   novosEl.innerHTML = renderListaClientes([...d.novos, ...d.cresceram], 'Nenhum cliente novo ou em crescimento.', 'pos');
 
   renderImpactoChart(d, sumCairam, sumCresceram);
 }
 
-// Substitua a função renderListaClientes por esta:
 function renderListaClientes(lista, vazio, tipo) {
   if (!lista || lista.length === 0) {
     return `<div style="padding:16px; text-align:center; color:#888; font-size:12px;">${vazio}</div>`;
@@ -409,7 +401,6 @@ function renderListaClientes(lista, vazio, tipo) {
       else detalhe = `Aumentou de ${fmtBRL(c.valorAnterior)} para ${fmtBRL(c.valorAtual)}`;
     }
 
-    // Limpa o nome da tag "(Migrou p/ X)" para não quebrar o layout, mas coloca no detalhe
     const nomeExibicao = c.nome.replace(/\s*\(Migrou p\/.*\)$/, '');
 
     return `<div class="ficha-lista-item">
@@ -422,7 +413,54 @@ function renderListaClientes(lista, vazio, tipo) {
   }).join('')}</div>`;
 }
 
-// Substitua a função _abrirDetalheMoM por esta:
+function renderImpactoChart(d, sumCairam, sumCresceram) {
+  const ctx = document.getElementById('chart-impacto-mom');
+  if (!ctx || typeof Chart === 'undefined') return;
+
+  const labels = ['Perdidos', 'Queda', 'Novos', 'Aumento'];
+  const data = [d.impPerdidos, sumCairam, d.impNovos, sumCresceram];
+  const cores = ['#dc2626', '#ef4444', '#16a34a', '#22c55e'];
+
+  chartImpactoInstance = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        data,
+        backgroundColor: cores,
+        borderRadius: 4,
+        barThickness: 24
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: (c) => {
+              const val = c.raw;
+              return 'Impacto: ' + (val > 0 ? '+' : '') + fmtBRL(val);
+            }
+          }
+        }
+      },
+      scales: {
+        x: { 
+          grid: { color: '#f0f0f0' }, 
+          ticks: { callback: v => 'R$ ' + (v / 1000).toFixed(0) + 'k' } 
+        },
+        y: { 
+          grid: { display: false }, 
+          ticks: { font: { weight: '600' }, color: '#475569' } 
+        }
+      }
+    }
+  });
+}
+
 window._abrirDetalheMoM = function(tipo) {
   const d = window._dadosMoMAtual;
   if (!d) return;
@@ -454,7 +492,6 @@ window._abrirDetalheMoM = function(tipo) {
     return;
   }
 
-  // Cria a lista HTML com as tags visuais
   const listaHtml = lista.map(c => {
     const delta = c.delta;
     const sinal = delta >= 0 ? '+' : '';
@@ -503,128 +540,6 @@ window._abrirDetalheMoM = function(tipo) {
       <h3 style="font-size:16px; color:${corTitulo}; display:flex; align-items:center; gap:8px;">
         ${titulo} <span class="badge neutral" style="font-size:12px;">${lista.length}</span>
       </h3>
-      <button class="btn btn-sm" onclick="document.getElementById('modal-detalhe-mom').classList.remove('show')">Fechar</button>
-    </div>
-    <div class="ficha-lista" style="flex:1; overflow-y:auto; border:none; border-radius:0;">
-      ${listaHtml}
-    </div>
-  `;
-
-  modal.classList.add('show');
-  modal.onclick = e => { if (e.target.id === 'modal-detalhe-mom') modal.classList.remove('show'); };
-};
-
-function renderImpactoChart(d, sumCairam, sumCresceram) {
-  const ctx = document.getElementById('chart-impacto-mom');
-  if (!ctx || typeof Chart === 'undefined') return;
-
-  const labels = ['Perdidos', 'Queda', 'Novos', 'Aumento'];
-  const data = [d.impPerdidos, sumCairam, d.impNovos, sumCresceram];
-  const cores = ['#dc2626', '#ef4444', '#16a34a', '#22c55e'];
-
-  chartImpactoInstance = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels,
-      datasets: [{
-        data,
-        backgroundColor: cores,
-        borderRadius: 4,
-        barThickness: 24
-      }]
-    },
-    options: {
-      indexAxis: 'y', // Barras horizontais
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          callbacks: {
-            label: (c) => {
-              const val = c.raw;
-              return 'Impacto: ' + (val > 0 ? '+' : '') + fmtBRL(val);
-            }
-          }
-        }
-      },
-      scales: {
-        x: { 
-          grid: { color: '#f0f0f0' }, 
-          ticks: { callback: v => 'R$ ' + (v / 1000).toFixed(0) + 'k' } 
-        },
-        y: { 
-          grid: { display: false }, 
-          ticks: { font: { weight: '600' }, color: '#475569' } 
-        }
-      }
-    }
-  });
-}
-window._abrirDetalheMoM = function(tipo) {
-  const d = window._dadosMoMAtual;
-  if (!d) return;
-
-  let lista = [];
-  let titulo = '';
-  let corTitulo = '';
-
-  if (tipo === 'perdidos') {
-    lista = d.perdidos;
-    titulo = 'Clientes Perdidos (Zeraram)';
-    corTitulo = 'var(--af-vermelho)';
-  } else if (tipo === 'cairam') {
-    lista = d.cairam;
-    titulo = 'Clientes em Queda';
-    corTitulo = 'var(--af-vermelho)';
-  } else if (tipo === 'novos') {
-    lista = d.novos;
-    titulo = 'Novos Clientes';
-    corTitulo = 'var(--af-verde)';
-  } else if (tipo === 'cresceram') {
-    lista = d.cresceram;
-    titulo = 'Clientes em Aumento';
-    corTitulo = 'var(--af-verde)';
-  }
-
-  if (!lista || lista.length === 0) {
-    toast('Nenhum cliente nesta categoria.');
-    return;
-  }
-
-  // Cria a lista HTML
-  const listaHtml = lista.map(c => {
-    const delta = c.delta;
-    const sinal = delta >= 0 ? '+' : '';
-    const cor = delta >= 0 ? 'var(--af-verde)' : 'var(--af-vermelho)';
-    
-    let detalhe = '';
-    if (c.nome === 'Outros / Sem Cadastro') detalhe = 'Ajustes de ERP';
-    else if (c.valorAtual === 0) detalhe = `Não comprou. (Era ${fmtBRL(c.valorAnterior)})`;
-    else if (c.valorAnterior === 0) detalhe = `Novo cliente.`;
-    else detalhe = `Mudou de ${fmtBRL(c.valorAnterior)} para ${fmtBRL(c.valorAtual)}`;
-
-    return `<div class="ficha-lista-item">
-      <div>
-        <div class="nome">${escapeHtml(c.nome)}</div>
-        <div class="detalhe">${detalhe}</div>
-      </div>
-      <div class="valor" style="color:${cor};">${sinal}${fmtBRL(delta)}</div>
-    </div>`;
-  }).join('');
-
-  let modal = document.getElementById('modal-detalhe-mom');
-  if (!modal) {
-    modal = document.createElement('div');
-    modal.id = 'modal-detalhe-mom';
-    modal.className = 'modal';
-    modal.innerHTML = '<div class="modal-content" style="max-width:600px; padding:0; display:flex; flex-direction:column; max-height:85vh;"></div>';
-    document.body.appendChild(modal);
-  }
-
-  modal.querySelector('.modal-content').innerHTML = `
-    <div style="padding:20px 24px; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center; background:#FAFAFA;">
-      <h3 style="font-size:16px; color:${corTitulo};">${titulo} (${lista.length})</h3>
       <button class="btn btn-sm" onclick="document.getElementById('modal-detalhe-mom').classList.remove('show')">Fechar</button>
     </div>
     <div class="ficha-lista" style="flex:1; overflow-y:auto; border:none; border-radius:0;">

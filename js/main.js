@@ -58,7 +58,8 @@ function popularModoVendedor() {
   if (!sel) return;
   let opts = '<option value="">👁️ Modo: Filial</option>';
   if (state.vendedores) {
-    state.vendedores.filter(v => v.ativo && v.papel === 'vendedor').forEach(v => {
+    // CORREÇÃO AQUI: Adicionado || v.papel === 'diretor'
+    state.vendedores.filter(v => v.ativo && (v.papel === 'vendedor' || v.papel === 'diretor')).forEach(v => {
       opts += '<option value="' + v.id + '">👤 ' + v.nome + '</option>';
     });
   }
