@@ -158,7 +158,7 @@
       </div>
     </section>
 
-    <!-- ABA AGENDA -->
+        <!-- ABA AGENDA -->
     <section id="tab-agenda" class="tab-content">
       <div class="page-header" style="display:flex; justify-content:space-between; align-items:flex-end;">
         <div>
@@ -168,6 +168,7 @@
         <div style="display:flex; gap:8px;">
           <button class="btn btn-sm active" id="btn-agenda-lista">📋 Lista</button>
           <button class="btn btn-sm" id="btn-agenda-foco">🎯 Modo Foco</button>
+          <button class="btn btn-sm" id="btn-imprimir-agenda" style="background:#FAFAFA;">🖨️ Imprimir</button>
           <button class="btn btn-primary" id="btn-nova-ligacao-agenda">+ Nova Ligação</button>
         </div>
       </div>
@@ -175,7 +176,10 @@
       <div id="agenda-modo-lista">
         <div class="grid-kpis" id="agenda-kpis"></div>
         <div class="card-painel">
-          <div class="card-title-row" style="padding:16px 20px; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center;"><h3>Todas as tarefas</h3><span class="text-xs text-muted" id="agenda-count">0 itens</span></div>
+          <div class="card-title-row" style="padding:16px 20px; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center;">
+            <h3>Todas as tarefas</h3>
+            <span class="text-xs text-muted" id="agenda-count">0 itens</span>
+          </div>
           <div class="filtros-bar" style="padding: 16px 20px; border-bottom: 1px solid #eee; background: #FAFAFA;">
             <input type="text" id="agenda-busca" placeholder="Buscar empresa..." style="flex:1; min-width:200px;">
             <select id="agenda-filtro-tipo">
@@ -189,7 +193,21 @@
             </select>
             <select id="agenda-filtro-vendedor"><option value="">Todos vendedores</option></select>
           </div>
-          <div style="overflow-x:auto;"><table class="tabela-cockpit"><thead><tr><th>TIPO</th><th>CLIENTE</th><th>CONTEXTO</th><th>VENDEDOR</th><th class="num">VALE/MÊS</th><th style="width: 100px; text-align:center;">AÇÃO</th></tr></thead><tbody id="agenda-tbody"></tbody></table></div>
+          <div style="overflow-x:auto;">
+            <table class="tabela-cockpit">
+              <thead>
+                <tr>
+                  <th>TIPO</th>
+                  <th>CLIENTE</th>
+                  <th>CONTEXTO</th>
+                  <th>VENDEDOR</th>
+                  <th class="num">VALE/MÊS</th>
+                  <th style="width: 100px; text-align:center;">AÇÃO</th>
+                </tr>
+              </thead>
+              <tbody id="agenda-tbody"></tbody>
+            </table>
+          </div>
         </div>
       </div>
 

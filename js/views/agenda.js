@@ -5,6 +5,7 @@
 import { state, ui } from '../state.js';
 import { fmtBRL, escapeHtml, isoDate, diffDias, normalizarNomeCliente, abrirWhatsApp, toast } from '../utils.js';
 import { filialNoEscopo } from '../calc.js';
+import { imprimirHTML } from './painel.js'; // Importa a função de impressão
 
 let focoFila = [];
 let focoIndex = 0;
@@ -15,6 +16,7 @@ export function renderAgenda() {
   const btnFoco = document.getElementById('btn-agenda-foco');
   const containerLista = document.getElementById('agenda-modo-lista');
   const containerFoco = document.getElementById('agenda-modo-foco');
+  const btnImprimir = document.getElementById('btn-imprimir-agenda');
 
   if (!containerLista || !containerFoco) return;
 
@@ -33,6 +35,17 @@ export function renderAgenda() {
 
   focoFila = gerarFila(fBusca, fTipo, fVend);
   focoIndex = 0;
+
+  // Configura o botão de imprimir
+  if (btnImprimir) {
+    btnImprimir.onclick = () => {
+      if (focoFila.length === 0) {
+        toast('⚠ Nenhuma tarefa para imprimir com esses filtros.');
+        return;
+      }
+      gerarImpressaoAgenda(focoFila, fTipo, fVend);
+    };
+  }
 
   btnLista.onclick = () => {
     modoFoco = false;
@@ -65,6 +78,42 @@ export function renderAgenda() {
     containerFoco.style.display = 'none';
     renderModoListaView();
   }
+}
+
+// NOVA FUNÇÃO DE IMPRESSÃO
+function gerarImpressaoAgenda(fila, fTipo, fVend) {
+  let titulo = 'Lista de Trabalho';
+  if (fTipo === 'recompra') titulo = 'Lista de Recompra Esperada';
+  else if (fTipo === 'atrasados') titulo = 'Lista de Retornos Atrasados';
+  else if (fTipo === 'hoje') titulo = 'Lista de Retornos para Hoje';
+  else if (fTipo === 'reativar' || fTipo === 'sumido' || fTipo === 'lento') titulo = 'Lista de Reativação';
+
+  let subVend = 'Todos os vendedores';
+  if (fVend) {
+    const v = state.vendedores.find(x => x.id === fVend);
+    if (v) subVend = v.nome;
+  }
+
+  let html = '<table><thead><tr>';
+  html += '<th>CLIENTE</th><th>CONTEXTO</th><th>VENDEDOR</th><th class="num">VALE/MÊS</th>';
+  html += '</tr></thead><tbody>';
+
+  fila.forEach(f => {
+    const codTxt = f.codigo ? `[${f.codigo}] ` : '';
+    const cidTxt = f.cidade ? `<br><small style="color:#666;">${f.cidade}</small>` : '';
+    
+    html += '<tr>';
+    html += `<td><strong>${codTxt}${escapeHtml(f.cliente)}</strong>${cidTxt}</td>`;
+    html += `<td>${escapeHtml(f.contexto)}</td>`;
+    html += `<td>${escapeHtml(f.vendedor)}</td>`;
+    html += `<td class="num">${fmtBRL(f.valor)}</td>`;
+    html += '</tr>';
+  });
+
+  html += '</tbody></table>';
+
+  // Chama a função de impressão lá do painel.js
+  imprimirHTML(titulo, `Filtro: ${subVend}`, html);
 }
 
 function renderModoListaView() {
