@@ -1,5 +1,5 @@
 // ============================================================
-// importer.js — Leitura das planilhas 324, 740, 361
+// importer.js — Leitura das planilhas 324, 740, 361 e Cadastro
 // ============================================================
 
 import { state, basesPreview } from './state.js';
@@ -33,7 +33,7 @@ export function filialParaImport(escopoAtual) {
 }
 
 // ============================================================
-// CADASTRO DE CLIENTES (NOVO)
+// CADASTRO DE CLIENTES
 // ============================================================
 export function importarCadastroClientes(entrada, escopoAtual) {
   return new Promise((resolve) => {
@@ -52,40 +52,54 @@ export function importarCadastroClientes(entrada, escopoAtual) {
         const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
 
         const clientesBase = [];
-        let startRow = -1;
-
-        // Acha a linha onde os dados realmente começam (pula o cabeçalho do ERP)
-        for (let i = 0; i < rows.length; i++) {
+        
+        // Acha a linha de cabeçalho
+        let headerIdx = -1;
+        for (let i = 0; i < Math.min(rows.length, 20); i++) {
           if (!rows[i]) continue;
-          if (/^\d+$/.test(String(rows[i][0]).trim())) {
-            startRow = i;
+          const rowStr = rows[i].join(' ').toUpperCase();
+          if (rowStr.includes('CÓDIGO') || rowStr.includes('CODIGO')) {
+            headerIdx = i;
             break;
           }
         }
+        
+        if (headerIdx < 0) headerIdx = 8; // Fallback caso não ache o cabeçalho
 
-        if (startRow < 0) {
-          if (st) st.textContent = '⚠ Formato de cadastro não reconhecido.';
-          return resolve();
-        }
+        const header = rows[headerIdx] || [];
+        
+        // Encontra o índice exato de cada coluna baseado no nome
+        const getIdx = (terms) => {
+          for (let i = 0; i < header.length; i++) {
+            const val = String(header[i] || '').toUpperCase();
+            if (terms.some(t => val.includes(t))) return i;
+          }
+          return -1;
+        };
 
-        for (let i = startRow; i < rows.length; i++) {
+        const idxCod = getIdx(['CÓDIGO', 'CODIGO']) !== -1 ? getIdx(['CÓDIGO', 'CODIGO']) : 0;
+        const idxNome = getIdx(['NOME', 'RAZÃO']) !== -1 ? getIdx(['NOME', 'RAZÃO']) : 1;
+        const idxCnpj = getIdx(['CNPJ', 'CPF']) !== -1 ? getIdx(['CNPJ', 'CPF']) : 3;
+        const idxCid = getIdx(['CIDADE']) !== -1 ? getIdx(['CIDADE']) : 4;
+        const idxFone = getIdx(['FONE', 'TELEFONE']) !== -1 ? getIdx(['FONE', 'TELEFONE']) : 5;
+
+        for (let i = headerIdx + 1; i < rows.length; i++) {
           const r = rows[i];
-          if (!r || !r[0]) continue;
+          if (!r || !r[idxCod]) continue;
+          
+          const codigo = String(r[idxCod] || '').trim();
+          let nome = String(r[idxNome] || '').trim();
+          const cnpj = String(r[idxCnpj] || '').trim();
+          const cidade = String(r[idxCid] || '').trim();
+          const telefone = String(r[idxFone] || '').trim();
 
-          const codigo = String(r[0]).trim();
-          let nome = String(r[1] || '').trim();
-          const cnpj = String(r[3] || '').trim();
-          const cidade = String(r[4] || '').trim();
-          const telefone = String(r[5] || '').trim();
+          if (!codigo || !nome) continue;
 
-          // Limpa o "1 - " do início do nome se existir
           nome = nome.replace(/^\d+\s*-\s*/, '').trim();
 
-          if (codigo && nome) {
-            clientesBase.push({
-              codigo, nome, cnpj, cidade, telefone, filialId: fid
-            });
-          }
+          clientesBase.push({
+            codigo, nome, cnpj, cidade, telefone, filialId: fid
+          });
         }
 
         basesPreview.cadastroClientes = clientesBase;

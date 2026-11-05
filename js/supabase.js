@@ -327,22 +327,35 @@ export async function sbUpsertCadastroClientes(lista, filialId) {
   if (!lista || lista.length === 0) return 0;
   
   const existentes = await sbFetchAll('clientes', { eq: { filial_id: filialId } });
-  const mapNome = {};
+  const mapNomeExato = {};
+  
   (existentes.data || []).forEach(c => {
-     mapNome[c.nome] = c; 
+     if (c.nome) mapNomeExato[c.nome.trim()] = c;
   });
 
   let atualizados = 0;
   const paraInserir = [];
 
   for (const c of lista) {
-     const target = mapNome[c.nome];
+     const nomeLimpo = String(c.nome || '').trim();
+     let target = mapNomeExato[nomeLimpo];
+     
+     // Se não achou pelo nome exato, varre a lista normalizando para ver se acha
+     if (!target) {
+        const normPlanilha = normalizarNomeCliente(nomeLimpo);
+        for (const ex of existentes.data) {
+           if (normalizarNomeCliente(ex.nome) === normPlanilha) {
+               target = ex;
+               break;
+           }
+        }
+     }
 
      if (target) {
         await session.sb.from('clientes').update({
-           codigo: c.codigo,
-           cnpj: c.cnpj,
-           telefone: c.telefone,
+           codigo: c.codigo || target.codigo,
+           cnpj: c.cnpj || target.cnpj,
+           telefone: c.telefone || target.telefone,
            cidade: c.cidade || target.cidade
         }).eq('id', target.id);
         atualizados++;
@@ -350,7 +363,7 @@ export async function sbUpsertCadastroClientes(lista, filialId) {
         paraInserir.push({
            filial_id: filialId,
            codigo: c.codigo,
-           nome: c.nome,
+           nome: nomeLimpo,
            cnpj: c.cnpj,
            telefone: c.telefone,
            cidade: c.cidade,
@@ -368,8 +381,9 @@ export async function sbUpsertCadastroClientes(lista, filialId) {
   if (paraInserir.length > 0) {
      for (let i = 0; i < paraInserir.length; i += 500) {
         const chunk = paraInserir.slice(i, i + 500);
-        const r = await session.sb.from('clientes').insert(chunk);
-        if (r.error) throw new Error('clientes base insert: ' + r.error.message);
+        // Upsert com ignoreDuplicates para evitar o erro fatal de constraint única
+        const r = await session.sb.from('clientes').upsert(chunk, { onConflict: 'filial_id,nome', ignoreDuplicates: true });
+        if (r.error) throw new Error('clientes base upsert: ' + r.error.message);
      }
   }
 
