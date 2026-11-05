@@ -4,19 +4,23 @@
 
 import { state, ui } from './state.js';
 import { normalizarNomeCliente } from './utils.js';
-import { calcDiasUteisNoMes, calcDiasUteisDecorridos, calcDiasComLancamento, filialNoEscopo } from './calc.js';
+import { calcDiasUteisNoMes, calcDiasUteisDecorridos, calcDiasComLancamento, calcFilial, calcVendedor, filialNoEscopo } from './calc.js';
 
 const PISO_RUIDO = 500;
 
-export function listarMesesComDados(vendedorId) {
+export function listarMesesComDados(vendedorId, cidadeFiltro) {
   const set = new Set();
+  const normCidade = normalizarNomeCliente(cidadeFiltro);
+  
   (state.clientesImportacoes || []).forEach(ci => {
-    if (vendedorId && ci.vendedor !== vendedorId) return;
+    if (vendedorId && vendedorId !== 'all' && ci.vendedor !== vendedorId) return;
+    if (cidadeFiltro && normalizarNomeCliente(ci.cidade) !== normCidade) return;
     if (ci.periodoIni) set.add(ci.periodoIni.slice(0, 7));
   });
-  if (set.size === 0) {
+  
+  if (set.size === 0 && !cidadeFiltro) {
     (state.lancamentos || []).forEach(l => {
-      if (vendedorId && l.vendedor !== vendedorId) return;
+      if (vendedorId && vendedorId !== 'all' && l.vendedor !== vendedorId) return;
       if (l.data) set.add(l.data.slice(0, 7));
     });
   }
@@ -40,17 +44,23 @@ function rangeDoMes(mesStr, diaMax) {
   };
 }
 
-function agregarPorCliente(vendedorId, mesStr, diaMax) {
+function agregarPorCliente(vendedorId, mesStr, diaMax, cidadeFiltro) {
   const map = {};
   const range = rangeDoMes(mesStr, diaMax);
   const rangeIni = new Date(range.ini + 'T12:00:00');
   const rangeFim = new Date(range.fim + 'T12:00:00');
+  const normCidade = normalizarNomeCliente(cidadeFiltro);
 
   const ci = state.clientesImportacoes || [];
   if (ci.length > 0) {
     ci.forEach(r => {
-      if (vendedorId && r.vendedor !== vendedorId) return;
+      if (vendedorId && vendedorId !== 'all' && r.vendedor !== vendedorId) return;
       if (!r.periodoIni) return;
+      
+      if (cidadeFiltro) {
+          const cid = r.cidade || (state.clientes.find(c => c.nome === r.nome)?.cidade);
+          if (normalizarNomeCliente(cid) !== normCidade) return;
+      }
 
       const pIni = r.periodoIni.slice(0, 10);
       const pFim = (r.periodoFim || r.periodoIni).slice(0, 10);
@@ -73,21 +83,12 @@ function agregarPorCliente(vendedorId, mesStr, diaMax) {
     if (Object.keys(map).length > 0) return { map, fonte: 'clientesImportacoes' };
   }
 
-  (state.vendasItens || []).forEach(vi => {
-    if (vendedorId && vi.vendedor !== vendedorId) return;
-    if (!vi.periodoIni) return;
-    const p = vi.periodoIni.slice(0, 10);
-    if (p < range.ini || p > range.fim) return;
-    const k = vi.clienteNorm || '';
-    if (!k) return;
-    map[k] = (map[k] || 0) + (vi.valor || 0);
-  });
-
   return { map, fonte: 'vendasItens' };
 }
 
-export function calcularDiagnosticoMoM(vendedorId, mesRefStr) {
-  if (!vendedorId || !mesRefStr) return null;
+export function calcularDiagnosticoMoM(vendedorId, mesRefStr, cidadeFiltro) {
+  if (!mesRefStr) return null;
+  if (!vendedorId) vendedorId = 'all';
 
   const [ano, mes] = mesRefStr.split('-').map(Number);
   const dAnt = new Date(ano, mes - 2, 1);
@@ -104,49 +105,62 @@ export function calcularDiagnosticoMoM(vendedorId, mesRefStr) {
     diaRef = hoje.getDate();
   }
 
-  const at = agregarPorCliente(vendedorId, mesRefStr, diaRef);
-  const ant = agregarPorCliente(vendedorId, mesAntStr, diaRef);
+  const at = agregarPorCliente(vendedorId, mesRefStr, diaRef, cidadeFiltro);
+  const ant = agregarPorCliente(vendedorId, mesAntStr, diaRef, cidadeFiltro);
 
-  const globalAt = agregarPorCliente(null, mesRefStr, diaRef).map;
+  const globalAt = agregarPorCliente(null, mesRefStr, diaRef, null).map;
 
   const mapaAt = at.map;
   const mapaAnt = ant.map;
 
   let fatAt = 0, pedidosAt = 0;
   let fatAnt = 0, pedidosAnt = 0;
-  const preAt = mesRefStr + '-';
-  const preAnt = mesAntStr + '-';
-  const limAt = mesRefStr + '-' + String(diaRef).padStart(2, '0');
-  const limAnt = mesAntStr + '-' + String(diaRef).padStart(2, '0');
-
-  (state.lancamentos || []).forEach(l => {
-    if (l.vendedor !== vendedorId) return;
-    if (!filialNoEscopo(l.filialId, ui.escopoAtual)) return;
-    
-    if (l.data >= preAt + '01' && l.data <= limAt) { fatAt += (l.valor || 0); pedidosAt += (l.pedidos || 0); }
-    if (l.data >= preAnt + '01' && l.data <= limAnt) { fatAnt += (l.valor || 0); pedidosAnt += (l.pedidos || 0); }
-  });
-
   let fatAntCompleto = 0;
-  (state.lancamentos || []).forEach(l => {
-    if (l.vendedor !== vendedorId) return;
-    if (!filialNoEscopo(l.filialId, ui.escopoAtual)) return;
-    if (l.data >= preAnt + '01' && l.data <= mesAntStr + '-31') fatAntCompleto += (l.valor || 0);
-  });
 
-  const somaCliAt = Object.values(mapaAt).reduce((s, v) => s + v, 0);
-  const somaCliAnt = Object.values(mapaAnt).reduce((s, v) => s + v, 0);
-  const ajusteAt = fatAt - somaCliAt;
-  const ajusteAnt = fatAnt - somaCliAnt;
+  // SINCRONIZAÇÃO MATEMÁTICA COM O COCKPIT
+  if (cidadeFiltro) {
+    fatAt = Object.values(mapaAt).reduce((s, v) => s + v, 0);
+    fatAnt = Object.values(mapaAnt).reduce((s, v) => s + v, 0);
+    pedidosAt = 0; pedidosAnt = 0; 
+    fatAntCompleto = fatAnt;
+  } else {
+    if (vendedorId === 'all') {
+      const fAt = calcFilial(ano, mes - 1, ui.escopoAtual);
+      fatAt = fAt.faturadoTotal;
+      pedidosAt = fAt.pedidosTotal;
+      
+      const fAnt = calcFilial(dAnt.getFullYear(), dAnt.getMonth(), ui.escopoAtual);
+      fatAnt = fAnt.faturadoTotal;
+      pedidosAnt = fAnt.pedidosTotal;
+      fatAntCompleto = fAnt.faturadoTotal;
+    } else {
+      const vendedorObj = state.vendedores.find(x => x.id === vendedorId);
+      if (vendedorObj) {
+        const vAt = calcVendedor(vendedorObj, ano, mes - 1);
+        fatAt = vAt.faturado; pedidosAt = vAt.pedidos;
+        
+        const vAnt = calcVendedor(vendedorObj, dAnt.getFullYear(), dAnt.getMonth());
+        fatAnt = vAnt.faturado; pedidosAnt = vAnt.pedidos;
+        fatAntCompleto = vAnt.faturado;
+      }
+    }
+  }
 
-  if (Math.abs(ajusteAt) > 1) mapaAt['__ajuste_erp__'] = ajusteAt;
-  if (Math.abs(ajusteAnt) > 1) mapaAnt['__ajuste_erp__'] = ajusteAnt;
+  if (!cidadeFiltro) {
+    const somaCliAt = Object.values(mapaAt).reduce((s, v) => s + v, 0);
+    const somaCliAnt = Object.values(mapaAnt).reduce((s, v) => s + v, 0);
+    const ajusteAt = fatAt - somaCliAt;
+    const ajusteAnt = fatAnt - somaCliAnt;
+
+    if (Math.abs(ajusteAt) > 1) mapaAt['__ajuste_erp__'] = ajusteAt;
+    if (Math.abs(ajusteAnt) > 1) mapaAnt['__ajuste_erp__'] = ajusteAnt;
+  }
 
   let fatProjetado = fatAt;
   let duTotal = 0, duDec = 0, duFaltam = 0;
   if (ehMesCorrente) {
     duTotal = calcDiasUteisNoMes(ano, mes - 1);
-    const dt = calcDiasComLancamento(ano, mes - 1, vendedorId, state.lancamentos);
+    const dt = calcDiasComLancamento(ano, mes - 1, vendedorId === 'all' ? null : vendedorId, state.lancamentos);
     duDec = calcDiasUteisDecorridos(ano, mes - 1);
     duFaltam = Math.max(0, duTotal - duDec);
     
@@ -155,8 +169,16 @@ export function calcularDiagnosticoMoM(vendedorId, mesRefStr) {
     }
   }
 
-  const metaObj = (state.metas || []).find(m => m.vendedorId === vendedorId && m.mes === mesRefStr);
-  const meta = metaObj ? (metaObj.metaFaturamento || 0) : 0;
+  let meta = 0;
+  if (vendedorId !== 'all' && !cidadeFiltro) {
+    const metaObj = (state.metas || []).find(m => m.vendedorId === vendedorId && m.mes === mesRefStr);
+    meta = metaObj ? (metaObj.metaFaturamento || 0) : 0;
+  } else {
+    if (!cidadeFiltro) {
+      meta = (state.metas || []).filter(m => m.mes === mesRefStr).reduce((s, m) => s + (m.metaFaturamento || 0), 0);
+    }
+  }
+  
   const pctMeta = meta > 0 ? (fatProjetado / meta) * 100 : 0;
 
   const clienteInfo = (norm) => {
@@ -169,6 +191,7 @@ export function calcularDiagnosticoMoM(vendedorId, mesRefStr) {
 
   const chaves = new Set([...Object.keys(mapaAt), ...Object.keys(mapaAnt)]);
   const perdidos = [], novos = [], cresceram = [], cairam = [];
+  const cidadesAt = {}, cidadesAnt = {};
   let impPerdidos = 0, impNovos = 0, impRec = 0;
 
   chaves.forEach(k => {
@@ -180,6 +203,13 @@ export function calcularDiagnosticoMoM(vendedorId, mesRefStr) {
 
     const info = clienteInfo(k);
     const reg = { nome: info.nome, codigo: info.codigo, cidade: info.cidade, valorAtual: vAt, valorAnterior: vAnt, delta };
+
+    // Agrupamento de Cidades
+    const cid = info.cidade || 'Sem Cidade';
+    if (k !== '__ajuste_erp__') {
+        cidadesAt[cid] = (cidadesAt[cid] || 0) + vAt;
+        cidadesAnt[cid] = (cidadesAnt[cid] || 0) + vAnt;
+    }
 
     if (vAnt > 0 && vAt === 0) {
       const comprouGlobal = globalAt[k] || 0;
@@ -201,6 +231,16 @@ export function calcularDiagnosticoMoM(vendedorId, mesRefStr) {
   novos.sort((a, b) => b.delta - a.delta);
   cresceram.sort((a, b) => b.delta - a.delta);
   cairam.sort((a, b) => a.delta - b.delta);
+
+  // Processa o Resumo de Cidades
+  const resumoCidades = Object.keys({...cidadesAt, ...cidadesAnt}).map(cid => {
+      const vAt = cidadesAt[cid] || 0;
+      const vAnt = cidadesAnt[cid] || 0;
+      return { nome: cid, valorAtual: vAt, valorAnterior: vAnt, delta: vAt - vAnt };
+  }).filter(c => Math.abs(c.delta) >= PISO_RUIDO);
+
+  const cidadesQueda = resumoCidades.filter(c => c.delta < 0).sort((a,b) => a.delta - b.delta);
+  const cidadesCrescimento = resumoCidades.filter(c => c.delta > 0).sort((a,b) => b.delta - a.delta);
 
   const variacaoRS = fatAt - fatAnt;
   const variacaoPct = fatAnt > 0 ? (variacaoRS / fatAnt) * 100 : 0;
@@ -245,6 +285,7 @@ export function calcularDiagnosticoMoM(vendedorId, mesRefStr) {
     duTotal, duDec, duFaltam, meta, pctMeta,
     impPerdidos, impNovos, impRec,
     perdidos, novos, cresceram, cairam,
+    cidadesQueda, cidadesCrescimento, // NOVOS DADOS AQUI
     leitura, alertas, fonte: at.fonte
   };
 }

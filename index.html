@@ -393,14 +393,22 @@
 
       <!-- SUBTAB MoM -->
       <div id="analise-painel-mom" class="subtab-content" style="display:none;">
-        <div class="periodo-bar" style="background:#fff; padding:16px; border-radius:8px; border:1px solid var(--af-borda); display:flex; align-items:center; gap:16px; margin-bottom:24px;">
+                <div class="periodo-bar" style="background:#fff; padding:16px; border-radius:8px; border:1px solid var(--af-borda); display:flex; align-items:center; gap:16px; margin-bottom:24px;">
           <div style="display:flex; align-items:center; gap:8px;">
             <label style="font-size:12px; font-weight:600; color:var(--af-t2);">VENDEDOR:</label>
-            <select id="mom-vendedor" class="select-clean" style="min-width:200px;"></select>
+            <select id="mom-vendedor" class="select-clean" style="min-width:180px;">
+              <option value="all">Todo o time</option>
+            </select>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px; border-left:1px solid #eee; padding-left:16px;">
+            <label style="font-size:12px; font-weight:600; color:var(--af-t2);">CIDADE:</label>
+            <select id="mom-cidade" class="select-clean" style="min-width:180px;">
+              <option value="">Todas as cidades</option>
+            </select>
           </div>
           <div style="display:flex; align-items:center; gap:8px; border-left:1px solid #eee; padding-left:16px;">
             <label style="font-size:12px; font-weight:600; color:var(--af-t2);">MÊS:</label>
-            <select id="mom-mes" class="select-clean" style="min-width:180px;"></select>
+            <select id="mom-mes" class="select-clean" style="min-width:150px;"></select>
           </div>
         </div>
 

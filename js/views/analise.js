@@ -3,7 +3,7 @@
 // ============================================================
 
 import { state, ui } from '../state.js';
-import { fmtBRL, fmtNum, fmtPct, escapeHtml } from '../utils.js';
+import { fmtBRL, fmtNum, fmtPct, escapeHtml, normalizarNomeCliente } from '../utils.js';
 import { comparativoNoEscopo, filialNoEscopo } from '../calc.js';
 import { calcularDiagnosticoMoM, listarMesesComDados } from '../calc_diagnostico.js';
 
@@ -13,6 +13,7 @@ const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
 let chartYoyInstance = null;
 let chartImpactoInstance = null;
 let subtabAtiva = 'yoy';
+let visaoListas = 'clientes'; // 'clientes' ou 'cidades'
 
 export function renderAnalise() {
   setupSubtabs();
@@ -42,6 +43,7 @@ function setupSubtabs() {
   elMom.style.display = subtabAtiva === 'mom' ? 'block' : 'none';
 }
 
+// (Funções renderAnaliseYoY, renderGraficoLinha e renderRankingComLeitura mantidas iguais)
 function renderAnaliseYoY() {
   const kpiEl = document.getElementById('analise-kpis');
   const tbody = document.getElementById('tbody-ranking-leitura');
@@ -224,36 +226,54 @@ function renderRankingComLeitura(dadosPorMes) {
   }).join('');
 }
 
+
+// ============================================================
+// SUBTAB MOM
+// ============================================================
+
 function renderAnaliseMoM() {
   const selVend = document.getElementById('mom-vendedor');
   const selMes = document.getElementById('mom-mes');
-  if (!selVend || !selMes) return;
+  const selCidade = document.getElementById('mom-cidade');
+  if (!selVend || !selMes || !selCidade) return;
 
-  if (selVend.options.length === 0) {
-    let opts = '';
+  if (selVend.options.length <= 1) {
+    let opts = '<option value="all">Todo o time</option>';
     state.vendedores.filter(v => v.ativo && (v.papel === 'vendedor' || v.papel === 'diretor')).forEach(v => {
       opts += `<option value="${v.id}">${escapeHtml(v.nome)}</option>`;
     });
     selVend.innerHTML = opts;
-    selVend.onchange = () => {
-      popularMesesMoM(selVend.value);
-      renderPainelMoM(selVend.value, selMes.value);
-    };
-    selMes.onchange = () => renderPainelMoM(selVend.value, selMes.value);
   }
 
-  if (selMes.options.length === 0) popularMesesMoM(selVend.value);
-  renderPainelMoM(selVend.value, selMes.value);
+  if (selCidade.options.length <= 1) {
+    let cidadesSet = new Set();
+    state.clientes.forEach(c => { if (c.cidade && c.cidade !== '_') cidadesSet.add(c.cidade.trim()); });
+    (state.clientesImportacoes || []).forEach(ci => { if (ci.cidade && ci.cidade !== '_') cidadesSet.add(ci.cidade.trim()); });
+    
+    let opts = '<option value="">Todas as cidades</option>';
+    Array.from(cidadesSet).sort().forEach(cid => {
+      opts += `<option value="${escapeHtml(cid)}">${escapeHtml(cid)}</option>`;
+    });
+    selCidade.innerHTML = opts;
+  }
+
+  selVend.onchange = () => { popularMesesMoM(selVend.value, selCidade.value); renderPainelMoM(selVend.value, selMes.value, selCidade.value); };
+  selCidade.onchange = () => { popularMesesMoM(selVend.value, selCidade.value); renderPainelMoM(selVend.value, selMes.value, selCidade.value); };
+  selMes.onchange = () => renderPainelMoM(selVend.value, selMes.value, selCidade.value);
+
+  if (selMes.options.length === 0) popularMesesMoM(selVend.value, selCidade.value);
+  renderPainelMoM(selVend.value, selMes.value, selCidade.value);
 }
 
-function popularMesesMoM(vendedorId) {
+function popularMesesMoM(vendedorId, cidadeFiltro) {
   const selMes = document.getElementById('mom-mes');
   if (!selMes) return;
-  const meses = listarMesesComDados(vendedorId);
+  const meses = listarMesesComDados(vendedorId, cidadeFiltro);
   if (meses.length === 0) {
     selMes.innerHTML = '<option value="">Sem dados</option>';
     return;
   }
+  const mesAtualSel = selMes.value;
   selMes.innerHTML = meses.map(m => {
     const [a, mm] = m.split('-');
     return `<option value="${m}">${MESES[parseInt(mm, 10) - 1]} / ${a}</option>`;
@@ -261,10 +281,15 @@ function popularMesesMoM(vendedorId) {
 
   const hoje = new Date();
   const chaveHoje = hoje.getFullYear() + '-' + String(hoje.getMonth() + 1).padStart(2, '0');
-  selMes.value = meses.indexOf(chaveHoje) >= 0 ? chaveHoje : meses[0];
+  
+  if (mesAtualSel && meses.includes(mesAtualSel)) {
+    selMes.value = mesAtualSel;
+  } else {
+    selMes.value = meses.indexOf(chaveHoje) >= 0 ? chaveHoje : meses[0];
+  }
 }
 
-function renderPainelMoM(vendedorId, mesRef) {
+function renderPainelMoM(vendedorId, mesRef, cidadeFiltro) {
   const kpiEl = document.getElementById('mom-kpis');
   const impactoEl = document.getElementById('mom-impacto-resumo');
   const perdasEl = document.getElementById('mom-perdas');
@@ -274,19 +299,19 @@ function renderPainelMoM(vendedorId, mesRef) {
 
   if (chartImpactoInstance) { chartImpactoInstance.destroy(); chartImpactoInstance = null; }
 
-  if (!vendedorId || !mesRef) {
-    kpiEl.innerHTML = '<div class="kpi-card" style="grid-column:1/-1; text-align:center; color:#888; padding:24px;">Sem dados para este vendedor.</div>';
+  if (!mesRef) {
+    kpiEl.innerHTML = '<div class="kpi-card" style="grid-column:1/-1; text-align:center; color:#888; padding:24px;">Sem dados para este filtro.</div>';
     impactoEl.innerHTML = ''; perdasEl.innerHTML = ''; novosEl.innerHTML = '';
     return;
   }
 
-  const d = calcularDiagnosticoMoM(vendedorId, mesRef);
+  const d = calcularDiagnosticoMoM(vendedorId, mesRef, cidadeFiltro);
   if (!d) return;
 
   if (d.semBase) {
     kpiEl.innerHTML = '<div class="kpi-card" style="grid-column:1/-1; text-align:center; padding:32px;">' +
       '<div style="font-size:16px; font-weight:600; margin-bottom:8px;">Sem base comparativa</div>' +
-      '<div style="color:#888; font-size:13px;">Não há dados do mês anterior importados.</div>' +
+      '<div style="color:#888; font-size:13px;">Não há dados do mês anterior importados para este filtro.</div>' +
       '</div>';
     impactoEl.innerHTML = ''; perdasEl.innerHTML = ''; novosEl.innerHTML = '';
     return;
@@ -316,7 +341,7 @@ function renderPainelMoM(vendedorId, mesRef) {
     <div class="kpi-card">
       <div class="kpi-header">META ${d.meta > 0 ? `(${d.pctMeta.toFixed(0)}%)` : ''}</div>
       <div class="kpi-value">${d.meta > 0 ? fmtBRL(d.meta) : '—'}</div>
-      <div class="kpi-hint">${d.meta > 0 ? (d.pctMeta >= 100 ? 'Meta atingida 🎉' : `Faltam ${fmtBRL(Math.max(0, d.meta - fatAtualExibir))}`) : 'Meta não cadastrada'}</div>
+      <div class="kpi-hint">${d.meta > 0 ? (d.pctMeta >= 100 ? 'Meta atingida 🎉' : `Faltam ${fmtBRL(Math.max(0, d.meta - fatAtualExibir))}`) : 'Sem meta para este filtro'}</div>
     </div>
   `;
 
@@ -324,8 +349,6 @@ function renderPainelMoM(vendedorId, mesRef) {
   const sumCresceram = d.cresceram.reduce((s, c) => s + c.delta, 0);
 
   window._dadosMoMAtual = d;
-  window._somaCairamAtual = sumCairam;
-  window._somaCresceramAtual = sumCresceram;
 
   impactoEl.innerHTML = `
     <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: center;">
@@ -333,13 +356,13 @@ function renderPainelMoM(vendedorId, mesRef) {
         <h4 style="font-size:14px; margin-bottom:16px; color:var(--af-t2);">O que nos puxou para baixo</h4>
         
         <div style="background:#FEE2E2; border-left:4px solid #dc2626; padding:12px 16px; border-radius:6px; margin-bottom:12px; cursor:pointer; transition: transform 0.1s;" onclick="window._abrirDetalheMoM('perdidos')" onmouseover="this.style.transform='scale(1.02)'" onmouseout="this.style.transform='scale(1)'">
-          <div style="font-size:12px; font-weight:600; color:#991b1b; text-transform:uppercase;">Clientes Perdidos <span style="font-size:10px; font-weight:normal; text-decoration:underline; margin-left:8px;">(clique para ver quem são)</span></div>
+          <div style="font-size:12px; font-weight:600; color:#991b1b; text-transform:uppercase;">Clientes Perdidos <span style="font-size:10px; font-weight:normal; text-decoration:underline; margin-left:8px;">(clique para ver)</span></div>
           <div style="font-size:20px; font-weight:800; color:#991b1b;">${fmtBRL(d.impPerdidos)}</div>
           <div style="font-size:11px; color:#991b1b;">${d.perdidos.length} clientes</div>
         </div>
 
         <div style="background:#FEE2E2; border-left:4px solid #ef4444; padding:12px 16px; border-radius:6px; cursor:pointer; transition: transform 0.1s;" onclick="window._abrirDetalheMoM('cairam')" onmouseover="this.style.transform='scale(1.02)'" onmouseout="this.style.transform='scale(1)'">
-          <div style="font-size:12px; font-weight:600; color:#991b1b; text-transform:uppercase;">Clientes em Queda <span style="font-size:10px; font-weight:normal; text-decoration:underline; margin-left:8px;">(clique para ver quem são)</span></div>
+          <div style="font-size:12px; font-weight:600; color:#991b1b; text-transform:uppercase;">Clientes em Queda <span style="font-size:10px; font-weight:normal; text-decoration:underline; margin-left:8px;">(clique para ver)</span></div>
           <div style="font-size:20px; font-weight:800; color:#991b1b;">${fmtBRL(sumCairam)}</div>
           <div style="font-size:11px; color:#991b1b;">${d.cairam.length} clientes</div>
         </div>
@@ -349,13 +372,13 @@ function renderPainelMoM(vendedorId, mesRef) {
         <h4 style="font-size:14px; margin-bottom:16px; color:var(--af-t2);">O que segurou o mês</h4>
         
         <div style="background:#DCFCE7; border-left:4px solid #16a34a; padding:12px 16px; border-radius:6px; margin-bottom:12px; cursor:pointer; transition: transform 0.1s;" onclick="window._abrirDetalheMoM('novos')" onmouseover="this.style.transform='scale(1.02)'" onmouseout="this.style.transform='scale(1)'">
-          <div style="font-size:12px; font-weight:600; color:#166534; text-transform:uppercase;">Novos Clientes <span style="font-size:10px; font-weight:normal; text-decoration:underline; margin-left:8px;">(clique para ver quem são)</span></div>
+          <div style="font-size:12px; font-weight:600; color:#166534; text-transform:uppercase;">Novos Clientes <span style="font-size:10px; font-weight:normal; text-decoration:underline; margin-left:8px;">(clique para ver)</span></div>
           <div style="font-size:20px; font-weight:800; color:#166534;">${fmtBRL(d.impNovos)}</div>
           <div style="font-size:11px; color:#166534;">${d.novos.length} clientes</div>
         </div>
 
         <div style="background:#DCFCE7; border-left:4px solid #22c55e; padding:12px 16px; border-radius:6px; cursor:pointer; transition: transform 0.1s;" onclick="window._abrirDetalheMoM('cresceram')" onmouseover="this.style.transform='scale(1.02)'" onmouseout="this.style.transform='scale(1)'">
-          <div style="font-size:12px; font-weight:600; color:#166534; text-transform:uppercase;">Clientes em Aumento <span style="font-size:10px; font-weight:normal; text-decoration:underline; margin-left:8px;">(clique para ver quem são)</span></div>
+          <div style="font-size:12px; font-weight:600; color:#166534; text-transform:uppercase;">Clientes em Aumento <span style="font-size:10px; font-weight:normal; text-decoration:underline; margin-left:8px;">(clique para ver)</span></div>
           <div style="font-size:20px; font-weight:800; color:#166534;">${fmtBRL(sumCresceram)}</div>
           <div style="font-size:11px; color:#166534;">${d.cresceram.length} clientes</div>
         </div>
@@ -366,10 +389,105 @@ function renderPainelMoM(vendedorId, mesRef) {
     </div>
   `;
 
-  perdasEl.innerHTML = renderListaClientes([...d.perdidos, ...d.cairam], 'Nenhum cliente perdido ou em queda.', 'neg');
-  novosEl.innerHTML = renderListaClientes([...d.novos, ...d.cresceram], 'Nenhum cliente novo ou em crescimento.', 'pos');
+  // =================================================================
+  // LÓGICA DE EXIBIÇÃO DAS LISTAS E BOTÕES (CORRIGIDA)
+  // =================================================================
+  let gridListas = document.getElementById('mom-grid-listas');
+  let toggleEl = document.getElementById('mom-toggle-visao');
+
+  // Se a estrutura não existir, cria ela no lugar certo (embaixo do gráfico)
+  if (!gridListas) {
+    const containerPai = impactoEl.parentNode; // card-painel do Resumo de Impacto
+
+    // Cria o container do botão toggle
+    toggleEl = document.createElement('div');
+    toggleEl.id = 'mom-toggle-visao';
+    toggleEl.style.cssText = 'display:flex; gap:8px; margin-bottom:16px;';
+    containerPai.appendChild(toggleEl);
+
+    // Cria a grid que vai segurar as 4 listas (clientes e cidades)
+    gridListas = document.createElement('div');
+    gridListas.id = 'mom-grid-listas';
+    gridListas.style.cssText = 'display:grid; grid-template-columns: 1fr 1fr; gap:20px;';
+    gridListas.innerHTML = `
+      <div class="card-painel" id="painel-lista-perdas">
+        <div class="card-title-row" style="padding: 16px 20px; border-bottom: 1px solid #eee;">
+          <h3 style="color:var(--af-vermelho);">⚠️ Clientes em Queda</h3>
+          <span class="text-xs text-muted">Perdidos + reduções</span>
+        </div>
+        <div id="mom-perdas"></div>
+      </div>
+      <div class="card-painel" id="painel-lista-novos">
+        <div class="card-title-row" style="padding: 16px 20px; border-bottom: 1px solid #eee;">
+          <h3 style="color:var(--af-verde);">🟢 Clientes em Crescimento</h3>
+          <span class="text-xs text-muted">Novos + aumentos</span>
+        </div>
+        <div id="mom-novos"></div>
+      </div>
+      <div class="card-painel" id="painel-lista-cidades-perdas" style="display:none;">
+        <div class="card-title-row" style="padding: 16px 20px; border-bottom: 1px solid #eee;">
+          <h3 style="color:var(--af-vermelho);">⚠️ Cidades em Queda</h3>
+          <span class="text-xs text-muted">Faturamento perdido</span>
+        </div>
+        <div id="mom-cidades-perdas"></div>
+      </div>
+      <div class="card-painel" id="painel-lista-cidades-novos" style="display:none;">
+        <div class="card-title-row" style="padding: 16px 20px; border-bottom: 1px solid #eee;">
+          <h3 style="color:var(--af-verde);">🟢 Cidades em Crescimento</h3>
+          <span class="text-xs text-muted">Faturamento ganho</span>
+        </div>
+        <div id="mom-cidades-novos"></div>
+      </div>
+    `;
+    containerPai.appendChild(gridListas);
+  }
+
+  // Atualiza os botões de alternância
+  toggleEl.innerHTML = `
+    <button class="chip ${visaoListas === 'clientes' ? 'active' : ''}" onclick="window._mudarVisaoMoM('clientes')">Por Cliente</button>
+    <button class="chip ${visaoListas === 'cidades' ? 'active' : ''}" onclick="window._mudarVisaoMoM('cidades')">Por Cidade</button>
+  `;
+
+  // Alterna a visibilidade das colunas
+  document.getElementById('painel-lista-perdas').style.display = visaoListas === 'clientes' ? 'block' : 'none';
+  document.getElementById('painel-lista-novos').style.display = visaoListas === 'clientes' ? 'block' : 'none';
+  document.getElementById('painel-lista-cidades-perdas').style.display = visaoListas === 'cidades' ? 'block' : 'none';
+  document.getElementById('painel-lista-cidades-novos').style.display = visaoListas === 'cidades' ? 'block' : 'none';
+
+  // Renderiza os conteúdos
+  document.getElementById('mom-perdas').innerHTML = renderListaClientes([...d.perdidos, ...d.cairam], 'Nenhum cliente perdido ou em queda.', 'neg');
+  document.getElementById('mom-novos').innerHTML = renderListaClientes([...d.novos, ...d.cresceram], 'Nenhum cliente novo ou em crescimento.', 'pos');
+  document.getElementById('mom-cidades-perdas').innerHTML = renderListaCidades(d.cidadesQueda, 'Nenhuma cidade em queda.', 'neg');
+  document.getElementById('mom-cidades-novos').innerHTML = renderListaCidades(d.cidadesCrescimento, 'Nenhuma cidade em crescimento.', 'pos');
 
   renderImpactoChart(d, sumCairam, sumCresceram);
+}
+
+window._mudarVisaoMoM = function(novaVisao) {
+   visaoListas = novaVisao;
+   const selVend = document.getElementById('mom-vendedor');
+   const selMes = document.getElementById('mom-mes');
+   const selCidade = document.getElementById('mom-cidade');
+   renderPainelMoM(selVend.value, selMes.value, selCidade.value);
+};
+
+function renderListaCidades(lista, vazio, tipo) {
+  if (!lista || lista.length === 0) {
+    return `<div style="padding:16px; text-align:center; color:#888; font-size:12px;">${vazio}</div>`;
+  }
+  
+  return `<div class="ficha-lista" style="max-height: 400px;">${lista.slice(0, 10).map(c => {
+    const sinal = c.delta >= 0 ? '+' : '';
+    const cor = c.delta >= 0 ? 'var(--af-verde)' : 'var(--af-vermelho)';
+    
+    return `<div class="ficha-lista-item">
+      <div>
+        <div class="nome">${escapeHtml(c.nome)}</div>
+        <div class="detalhe">De ${fmtBRL(c.valorAnterior)} para ${fmtBRL(c.valorAtual)}</div>
+      </div>
+      <div class="valor" style="color:${cor};">${sinal}${fmtBRL(c.delta)}</div>
+    </div>`;
+  }).join('')}</div>`;
 }
 
 function renderListaClientes(lista, vazio, tipo) {
@@ -486,7 +604,7 @@ window._abrirDetalheMoM = function(tipo) {
   }
 
   if (!lista || lista.length === 0) {
-    toast('Nenhum cliente nesta categoria.');
+    toast('Nenhum registro nesta categoria.');
     return;
   }
 
