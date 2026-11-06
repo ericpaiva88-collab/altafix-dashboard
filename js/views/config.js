@@ -6,7 +6,7 @@ import { state, ui, session, basesPreview, salvar } from '../state.js';
 import { toast, escapeHtml, parseValorBR } from '../utils.js';
 import { derivarHistorico } from '../calc.js';
 import { importar324, importar740, importar361, importarCadastroClientes, renderBasesStatus } from '../importer.js';
-import { sbSincronizarBasesPendentes, sbCarregarTudo, aplicarDadosDoBanco } from '../supabase.js';
+import { sbSincronizarBasesPendentes, sbCarregarTudo, aplicarDadosDoBanco, sbTransferirCarteira } from '../supabase.js';
 
 export function setupConfig() {
   setupDrop('drop-cadastro', 'cadastro-input', (files) => importarCadastroClientes(files, ui.escopoAtual), true, 'erp-status');
@@ -32,6 +32,55 @@ export function setupConfig() {
   const btnSincMetas = document.getElementById('btn-sinc-metas');
   if (btnSincMetas) btnSincMetas.onclick = salvarMetasServidor;
 
+  const btnTransferir = document.getElementById('btn-transferir-carteira');
+  if (btnTransferir) {
+    btnTransferir.onclick = async () => {
+      // MUDANÇA AQUI: Agora pega todos os vendedores, não só os ativos
+      const todos = state.vendedores.filter(v => v.papel === 'vendedor' || v.papel === 'diretor');
+      if (todos.length < 2) { toast('Precisa de pelo menos 2 vendedores cadastrados.'); return; }
+
+      // MUDANÇA AQUI: Adiciona um aviso visual "(Inativo)" para quem não está ativo
+      const lista = todos.map((v, i) => {
+        const status = v.ativo ? '' : ' (INATIVO)';
+        return (i + 1) + ' - ' + v.nome + status;
+      }).join('\n');
+      
+      const origemStr = prompt('QUEM VAI PASSAR A CARTEIRA?\n\n' + lista + '\n\nDigite o número do vendedor de ORIGEM:');
+      if (!origemStr) return;
+      const origem = todos[parseInt(origemStr, 10) - 1];
+      if (!origem) { toast('Origem inválida.'); return; }
+
+      const destinoStr = prompt('PARA QUEM VAI A CARTEIRA?\n\n' + lista + '\n\nDigite o número do vendedor de DESTINO:');
+      if (!destinoStr) return;
+      const destino = todos[parseInt(destinoStr, 10) - 1];
+      if (!destino || destino.id === origem.id) { toast('Destino inválido ou igual à origem.'); return; }
+
+      if (!confirm(`Confirmar transferência?\n\nTodos os clientes de ${origem.nome} passarão para ${destino.nome}.`)) return;
+
+      try {
+        btnTransferir.disabled = true;
+        btnTransferir.textContent = 'Transferindo...';
+        
+        const filialId = state.filiais[0] ? state.filiais[0].id : null;
+        await sbTransferirCarteira(origem.id, destino.id, filialId);
+        
+        toast(`✓ Carteira de ${origem.nome} transferida para ${destino.nome}!`);
+        
+        const dados = await sbCarregarTudo();
+        aplicarDadosDoBanco(dados);
+        
+        if (window._renderTudo) window._renderTudo();
+        renderConfig();
+        
+      } catch (e) {
+        toast('❌ ' + e.message, 4000);
+      } finally {
+        btnTransferir.disabled = false;
+        btnTransferir.textContent = '🔄 Transferir Carteira';
+      }
+    };
+  }
+  
   const selMes = document.getElementById('meta-mes-select');
   if (selMes) selMes.onchange = (e) => {
     ui.mesVendedoresSelecionado = e.target.value;

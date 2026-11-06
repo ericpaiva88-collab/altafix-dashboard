@@ -858,3 +858,27 @@ export async function sbSincronizarBasesPendentes() {
   }
   status('✅ Sincronizado!');
 }
+export async function sbTransferirCarteira(origemId, destinoId, filialId) {
+  if (!origemId || !destinoId || !filialId) throw new Error('Dados incompletos para transferência.');
+
+  // 1. Atualiza a tabela de clientes (o dono da carteira agora é o destino)
+  const { error: erroClientes } = await session.sb
+    .from('clientes')
+    .update({ vendedor_id: destinoId })
+    .eq('filial_id', filialId)
+    .eq('vendedor_id', origemId);
+
+  if (erroClientes) throw new Error('Erro ao transferir clientes: ' + erroClientes.message);
+
+  // 2. Atualiza as ligações futuras (agenda) para o novo vendedor
+  const { error: erroLigacoes } = await session.sb
+    .from('ligacoes')
+    .update({ vendedor_id: destinoId })
+    .eq('filial_id', filialId)
+    .eq('vendedor_id', origemId)
+    .in('status', ['prospeccao', 'retornar', 'aguardando']); // Só passa os contatos pendentes
+
+  if (erroLigacoes) console.warn('Aviso: Não foi possível transferir as ligações pendentes.', erroLigacoes.message);
+
+  return true;
+}
