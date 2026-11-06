@@ -6,6 +6,7 @@ import { state, ui } from '../state.js';
 import { fmtBRL, fmtNum, fmtPct, escapeHtml, normalizarNomeCliente } from '../utils.js';
 import { comparativoNoEscopo, filialNoEscopo } from '../calc.js';
 import { calcularDiagnosticoMoM, listarMesesComDados } from '../calc_diagnostico.js';
+import { imprimirHTML } from './painel.js'; // <--- IMPORT ADICIONADO AQUI
 
 const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
                'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
@@ -226,7 +227,6 @@ function renderRankingComLeitura(dadosPorMes) {
   }).join('');
 }
 
-
 // ============================================================
 // SUBTAB MOM
 // ============================================================
@@ -389,23 +389,16 @@ function renderPainelMoM(vendedorId, mesRef, cidadeFiltro) {
     </div>
   `;
 
-  // =================================================================
-  // LÓGICA DE EXIBIÇÃO DAS LISTAS E BOTÕES (CORRIGIDA)
-  // =================================================================
   let gridListas = document.getElementById('mom-grid-listas');
   let toggleEl = document.getElementById('mom-toggle-visao');
 
-  // Se a estrutura não existir, cria ela no lugar certo (embaixo do gráfico)
   if (!gridListas) {
-    const containerPai = impactoEl.parentNode; // card-painel do Resumo de Impacto
-
-    // Cria o container do botão toggle
+    const containerPai = impactoEl.parentNode; 
     toggleEl = document.createElement('div');
     toggleEl.id = 'mom-toggle-visao';
     toggleEl.style.cssText = 'display:flex; gap:8px; margin-bottom:16px;';
     containerPai.appendChild(toggleEl);
 
-    // Cria a grid que vai segurar as 4 listas (clientes e cidades)
     gridListas = document.createElement('div');
     gridListas.id = 'mom-grid-listas';
     gridListas.style.cssText = 'display:grid; grid-template-columns: 1fr 1fr; gap:20px;';
@@ -442,25 +435,111 @@ function renderPainelMoM(vendedorId, mesRef, cidadeFiltro) {
     containerPai.appendChild(gridListas);
   }
 
-  // Atualiza os botões de alternância
   toggleEl.innerHTML = `
     <button class="chip ${visaoListas === 'clientes' ? 'active' : ''}" onclick="window._mudarVisaoMoM('clientes')">Por Cliente</button>
     <button class="chip ${visaoListas === 'cidades' ? 'active' : ''}" onclick="window._mudarVisaoMoM('cidades')">Por Cidade</button>
   `;
 
-  // Alterna a visibilidade das colunas
   document.getElementById('painel-lista-perdas').style.display = visaoListas === 'clientes' ? 'block' : 'none';
   document.getElementById('painel-lista-novos').style.display = visaoListas === 'clientes' ? 'block' : 'none';
   document.getElementById('painel-lista-cidades-perdas').style.display = visaoListas === 'cidades' ? 'block' : 'none';
   document.getElementById('painel-lista-cidades-novos').style.display = visaoListas === 'cidades' ? 'block' : 'none';
 
-  // Renderiza os conteúdos
   document.getElementById('mom-perdas').innerHTML = renderListaClientes([...d.perdidos, ...d.cairam], 'Nenhum cliente perdido ou em queda.', 'neg');
   document.getElementById('mom-novos').innerHTML = renderListaClientes([...d.novos, ...d.cresceram], 'Nenhum cliente novo ou em crescimento.', 'pos');
   document.getElementById('mom-cidades-perdas').innerHTML = renderListaCidades(d.cidadesQueda, 'Nenhuma cidade em queda.', 'neg');
   document.getElementById('mom-cidades-novos').innerHTML = renderListaCidades(d.cidadesCrescimento, 'Nenhuma cidade em crescimento.', 'pos');
 
   renderImpactoChart(d, sumCairam, sumCresceram);
+
+  // =================================================================
+  // LÓGICA DO BOTÃO DE RELATÓRIO (ADICIONADA AQUI NO FINAL)
+  // =================================================================
+  const btnRelatorio = document.getElementById('btn-relatorio-mom');
+  if (btnRelatorio) {
+    btnRelatorio.onclick = () => {
+      const mesNome = MESES[parseInt(mesRef.split('-')[1], 10) - 1];
+      const nomeVendedor = vendedorId === 'all' ? 'Todo o Time' : state.vendedores.find(v => v.id === vendedorId)?.nome;
+      const nomeCidade = cidadeFiltro ? cidadeFiltro : 'Todas as Cidades';
+      
+      const subTitulo = `Mês: ${mesNome} / ${mesRef.split('-')[0]} | Vendedor: ${nomeVendedor} | Cidade: ${nomeCidade}`;
+      
+      let html = '';
+
+      // 1. Resumo em Tabela
+      html += `<table style="margin-bottom: 20px;">
+        <thead>
+          <tr>
+            <th style="background:#f1f5f9; color:#333; text-align:center;">Mês Anterior</th>
+            <th style="background:#f1f5f9; color:#333; text-align:center;">Projeção Atual</th>
+            <th style="background:#f1f5f9; color:#333; text-align:center;">Variação</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="text-align:center; font-size:14px; font-weight:bold;">${fmtBRL(d.totalAnt)}</td>
+            <td style="text-align:center; font-size:14px; font-weight:bold; color:${d.variacaoRS >= 0 ? '#16A34A' : '#DC2626'}">${fmtBRL(fatAtualExibir)}</td>
+            <td style="text-align:center; font-size:14px; font-weight:bold; color:${d.variacaoRS >= 0 ? '#16A34A' : '#DC2626'}">
+              ${d.variacaoRS >= 0 ? '▲' : '▼'} ${d.variacaoPct.toFixed(1)}%
+            </td>
+          </tr>
+        </tbody>
+      </table>`;
+
+      // 2. Resumo de Impacto
+      html += `<div style="display:flex; justify-content:space-between; margin-bottom: 20px;">
+        <div style="width:48%; border:1px solid #eee; padding:10px; border-radius:6px;">
+          <h4 style="color:#DC2626; margin-bottom:5px;">O que puxou para baixo</h4>
+          <p style="margin:2px 0; font-size:11px;">Clientes Perdidos: <b>${fmtBRL(d.impPerdidos)}</b></p>
+          <p style="margin:2px 0; font-size:11px;">Clientes em Queda: <b>${fmtBRL(sumCairam)}</b></p>
+        </div>
+        <div style="width:48%; border:1px solid #eee; padding:10px; border-radius:6px;">
+          <h4 style="color:#16A34A; margin-bottom:5px;">O que segurou o mês</h4>
+          <p style="margin:2px 0; font-size:11px;">Novos Clientes: <b>${fmtBRL(d.impNovos)}</b></p>
+          <p style="margin:2px 0; font-size:11px;">Clientes em Aumento: <b>${fmtBRL(sumCresceram)}</b></p>
+        </div>
+      </div>`;
+
+      // 3. Top 5 Clientes em Queda
+      const topQuedas = [...d.perdidos, ...d.cairam].slice(0, 5);
+      if (topQuedas.length > 0) {
+        html += `<h4 style="color:#DC2626; margin: 15px 0 5px 0;">Top 5 Clientes em Queda</h4>`;
+        html += `<table><thead><tr><th>Cliente</th><th>Cidade</th><th class="num">Valor Perdido</th></tr></thead><tbody>`;
+        topQuedas.forEach(c => {
+          html += `<tr><td>${c.nome}</td><td>${c.cidade || '—'}</td><td class="num" style="color:#DC2626; font-weight:bold;">${fmtBRL(c.delta)}</td></tr>`;
+        });
+        html += `</tbody></table>`;
+      }
+
+      // 4. Top 5 Clientes em Crescimento
+      const topCrescimento = [...d.novos, ...d.cresceram].slice(0, 5);
+      if (topCrescimento.length > 0) {
+        html += `<h4 style="color:#16A34A; margin: 15px 0 5px 0;">Top 5 Clientes em Crescimento</h4>`;
+        html += `<table><thead><tr><th>Cliente</th><th>Cidade</th><th class="num">Valor Ganho</th></tr></thead><tbody>`;
+        topCrescimento.forEach(c => {
+          html += `<tr><td>${c.nome}</td><td>${c.cidade || '—'}</td><td class="num" style="color:#16A34A; font-weight:bold;">+${fmtBRL(c.delta)}</td></tr>`;
+        });
+        html += `</tbody></table>`;
+      }
+      
+      // 5. Resumo de Cidades
+      if (d.cidadesQueda.length > 0 || d.cidadesCrescimento.length > 0) {
+        html += `<h4 style="margin: 20px 0 5px 0;">Destaques por Cidade</h4>`;
+        html += `<table><thead><tr><th>Cidade</th><th>Status</th><th class="num">Variação</th></tr></thead><tbody>`;
+        
+        d.cidadesQueda.slice(0, 3).forEach(c => {
+          html += `<tr><td>${c.nome}</td><td style="color:#DC2626;">Em Queda</td><td class="num" style="color:#DC2626; font-weight:bold;">${fmtBRL(c.delta)}</td></tr>`;
+        });
+        d.cidadesCrescimento.slice(0, 3).forEach(c => {
+          html += `<tr><td>${c.nome}</td><td style="color:#16A34A;">Crescimento</td><td class="num" style="color:#16A34A; font-weight:bold;">+${fmtBRL(c.delta)}</td></tr>`;
+        });
+        
+        html += `</tbody></table>`;
+      }
+
+      imprimirHTML(`Relatório Executivo - ${mesNome}`, subTitulo, html);
+    };
+  }
 }
 
 window._mudarVisaoMoM = function(novaVisao) {
