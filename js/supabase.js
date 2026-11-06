@@ -340,7 +340,6 @@ export async function sbUpsertCadastroClientes(lista, filialId) {
      const nomeLimpo = String(c.nome || '').trim();
      let target = mapNomeExato[nomeLimpo];
      
-     // Se não achou pelo nome exato, varre a lista normalizando para ver se acha
      if (!target) {
         const normPlanilha = normalizarNomeCliente(nomeLimpo);
         for (const ex of existentes.data) {
@@ -381,7 +380,6 @@ export async function sbUpsertCadastroClientes(lista, filialId) {
   if (paraInserir.length > 0) {
      for (let i = 0; i < paraInserir.length; i += 500) {
         const chunk = paraInserir.slice(i, i + 500);
-        // Upsert com ignoreDuplicates para evitar o erro fatal de constraint única
         const r = await session.sb.from('clientes').upsert(chunk, { onConflict: 'filial_id,nome', ignoreDuplicates: true });
         if (r.error) throw new Error('clientes base upsert: ' + r.error.message);
      }
@@ -521,13 +519,13 @@ export async function sbUpsertClientes(lista, filialId, vendedoresMap) {
   });
 
   // =================================================================
-  // AQUI ESTÁ A CORREÇÃO DEFINITIVA: SALVAR CNPJ E TELEFONE ANTES DE DELETAR
+  // PRESERVA OS DADOS DO CADASTRO (código, cnpj, telefone, cidade) ANTES DE DELETAR
   // =================================================================
   const existentesComContato = await sbFetchAll('clientes', { eq: { filial_id: filialId } });
   const mapContatos = {};
   (existentesComContato.data || []).forEach(c => {
-     if (c.cnpj || c.telefone || c.cidade) {
-        mapContatos[c.nome] = { cnpj: c.cnpj, telefone: c.telefone, cidade: c.cidade };
+     if (c.cnpj || c.telefone || c.cidade || c.codigo) {
+        mapContatos[c.nome] = { cnpj: c.cnpj, telefone: c.telefone, cidade: c.cidade, codigo: c.codigo };
      }
   });
 
@@ -535,7 +533,8 @@ export async function sbUpsertClientes(lista, filialId, vendedoresMap) {
      if (mapContatos[p.nome]) {
         p.cnpj = mapContatos[p.nome].cnpj;
         p.telefone = mapContatos[p.nome].telefone;
-        if (mapContatos[p.nome].cidade) p.cidade = mapContatos[p.nome].cidade; // Restaura a cidade apagada pelo 324
+        if (mapContatos[p.nome].cidade) p.cidade = mapContatos[p.nome].cidade;
+        if (mapContatos[p.nome].codigo) p.codigo = mapContatos[p.nome].codigo; // <--- A CORREÇÃO ESTÁ AQUI
      }
   });
   // =================================================================
@@ -553,6 +552,9 @@ export async function sbUpsertClientes(lista, filialId, vendedoresMap) {
   return total;
 }
 
+// ============================================================
+// UPSERTS DE PRODUTOS, LANÇAMENTOS, CIDADES E OUTROS (Sem alteração)
+// ============================================================
 export async function sbUpsertProdutos(lista, filialId) {
   if (!lista || lista.length === 0) return 0;
   const dedup = {};
