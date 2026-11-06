@@ -8,23 +8,24 @@ import { calcDiasUteisNoMes, calcDiasUteisDecorridos, calcDiasComLancamento, cal
 
 const PISO_RUIDO = 500;
 
-export function listarMesesComDados(vendedorId, cidadeFiltro) {
+export function listarMesesComDados(vendedorId) {
   const set = new Set();
-  const normCidade = normalizarNomeCliente(cidadeFiltro);
   
-  (state.clientesImportacoes || []).forEach(ci => {
-    if (vendedorId && vendedorId !== 'all' && ci.vendedor !== vendedorId) return;
-    if (cidadeFiltro && normalizarNomeCliente(ci.cidade) !== normCidade) return;
-    if (ci.periodoIni) set.add(ci.periodoIni.slice(0, 7));
+  // Busca os meses baseados na tabela de lançamentos (onde sempre tem os dados)
+  (state.lancamentos || []).forEach(l => {
+    if (vendedorId && vendedorId !== 'all' && l.vendedor !== vendedorId) return;
+    if (l.data) set.add(l.data.slice(0, 7));
   });
   
-  if (set.size === 0 && !cidadeFiltro) {
-    (state.lancamentos || []).forEach(l => {
-      if (vendedorId && vendedorId !== 'all' && l.vendedor !== vendedorId) return;
-      if (l.data) set.add(l.data.slice(0, 7));
+  // Se ainda não tiver nenhum, tenta buscar das importações
+  if (set.size === 0) {
+    (state.clientesImportacoes || []).forEach(ci => {
+      if (vendedorId && vendedorId !== 'all' && ci.vendedor !== vendedorId) return;
+      if (ci.periodoIni) set.add(ci.periodoIni.slice(0, 7));
     });
   }
   
+  // Adiciona o mês atual à força
   const hj = new Date();
   const mesAtualKey = hj.getFullYear() + '-' + String(hj.getMonth() + 1).padStart(2, '0');
   set.add(mesAtualKey);
@@ -46,6 +47,7 @@ function rangeDoMes(mesStr, diaMax) {
 
 function agregarPorCliente(vendedorId, mesStr, diaMax, cidadeFiltro) {
   const map = {};
+  let pedidos = 0;
   const range = rangeDoMes(mesStr, diaMax);
   const rangeIni = new Date(range.ini + 'T12:00:00');
   const rangeFim = new Date(range.fim + 'T12:00:00');
@@ -78,12 +80,16 @@ function agregarPorCliente(vendedorId, mesStr, diaMax, cidadeFiltro) {
       const k = r.clienteNorm || '';
       if (!k) return;
       map[k] = (map[k] || 0) + valorProp;
+
+      if (totalDias === overlapDias) {
+          pedidos += (r.numCompras || 1);
+      }
     });
 
-    if (Object.keys(map).length > 0) return { map, fonte: 'clientesImportacoes' };
+    if (Object.keys(map).length > 0) return { map, fonte: 'clientesImportacoes', pedidos };
   }
 
-  return { map, fonte: 'vendasItens' };
+  return { map, fonte: 'vendasItens', pedidos: 0 };
 }
 
 export function calcularDiagnosticoMoM(vendedorId, mesRefStr, cidadeFiltro) {
@@ -117,11 +123,12 @@ export function calcularDiagnosticoMoM(vendedorId, mesRefStr, cidadeFiltro) {
   let fatAnt = 0, pedidosAnt = 0;
   let fatAntCompleto = 0;
 
-  // SINCRONIZAÇÃO MATEMÁTICA COM O COCKPIT
+  // SINCRONIZAÇÃO MATEMÁTICA
   if (cidadeFiltro) {
     fatAt = Object.values(mapaAt).reduce((s, v) => s + v, 0);
     fatAnt = Object.values(mapaAnt).reduce((s, v) => s + v, 0);
-    pedidosAt = 0; pedidosAnt = 0; 
+    pedidosAt = at.pedidos;
+    pedidosAnt = ant.pedidos;
     fatAntCompleto = fatAnt;
   } else {
     if (vendedorId === 'all') {
@@ -160,6 +167,8 @@ export function calcularDiagnosticoMoM(vendedorId, mesRefStr, cidadeFiltro) {
   let duTotal = 0, duDec = 0, duFaltam = 0;
   if (ehMesCorrente) {
     duTotal = calcDiasUteisNoMes(ano, mes - 1);
+    
+    // CORREÇÃO: A projeção usa SEMPRE os dias de lançamento reais (mesma régua do Cockpit)
     const dt = calcDiasComLancamento(ano, mes - 1, vendedorId === 'all' ? null : vendedorId, state.lancamentos);
     duDec = calcDiasUteisDecorridos(ano, mes - 1);
     duFaltam = Math.max(0, duTotal - duDec);
@@ -204,7 +213,6 @@ export function calcularDiagnosticoMoM(vendedorId, mesRefStr, cidadeFiltro) {
     const info = clienteInfo(k);
     const reg = { nome: info.nome, codigo: info.codigo, cidade: info.cidade, valorAtual: vAt, valorAnterior: vAnt, delta };
 
-    // Agrupamento de Cidades
     const cid = info.cidade || 'Sem Cidade';
     if (k !== '__ajuste_erp__') {
         cidadesAt[cid] = (cidadesAt[cid] || 0) + vAt;
@@ -232,7 +240,6 @@ export function calcularDiagnosticoMoM(vendedorId, mesRefStr, cidadeFiltro) {
   cresceram.sort((a, b) => b.delta - a.delta);
   cairam.sort((a, b) => a.delta - b.delta);
 
-  // Processa o Resumo de Cidades
   const resumoCidades = Object.keys({...cidadesAt, ...cidadesAnt}).map(cid => {
       const vAt = cidadesAt[cid] || 0;
       const vAnt = cidadesAnt[cid] || 0;
@@ -285,7 +292,7 @@ export function calcularDiagnosticoMoM(vendedorId, mesRefStr, cidadeFiltro) {
     duTotal, duDec, duFaltam, meta, pctMeta,
     impPerdidos, impNovos, impRec,
     perdidos, novos, cresceram, cairam,
-    cidadesQueda, cidadesCrescimento, // NOVOS DADOS AQUI
+    cidadesQueda, cidadesCrescimento,
     leitura, alertas, fonte: at.fonte
   };
 }
