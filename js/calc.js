@@ -171,13 +171,13 @@ export function calcVendedor(v, a, m, lancsBase) {
   const re = meta > 0 ? meta * (diasDecorridos / du) : 0;
   const md = (df > 0 && meta > 0) ? (meta - fat) / df : 0;
   
+  // CORREÇÃO DA PROJEÇÃO AQUI
   let pr = fat;
-  if (df > 0 && dt > 0) {
-    pr = (fat / dt) * du;
+  if (df > 0 && diasDecorridos > 0) {
+    pr = (fat / diasDecorridos) * du;
   }
 
-  // Status agora considera se tem meta, mesmo sendo diretor
-  const st = meta > 0 ? (fat >= re ? 'ACIMA' : 'ABAIXO') : '—';
+  const st = v.supervisor ? 'SUPERVISOR' : (meta > 0 ? (fat >= re ? 'ACIMA' : 'ABAIXO') : '—');
 
   return { vendedor: v, faturado: fat, pedidos: ped, ticket: tk, meta, metaTicket: mt, pctMeta: pm, descontoMedio: dm, diasTrab: dt, diasFaltam: df, diasUteisTotal: du, ritmoEsperado: re, metaDia: md, projecao: pr, status: st };
 }
@@ -189,15 +189,11 @@ export function calcFilial(a, m, escopoAtual) {
 
   const at = vendedoresNoEscopo(escopoAtual).filter(v => {
     if (v.papel === 'administrativo') return false;
-    
-    const hasMeta = getMetaVendedor(v, a, m).meta > 0;
-    const hasVendas = lancsFiltrados.some(l => l.vendedor === v.id && l.data.indexOf(prefix) === 0);
-
     if (v.papel === 'diretor') {
-      return hasVendas || (v.ativo && hasMeta);
+      return lancsFiltrados.some(l => l.vendedor === v.id && l.data.indexOf(prefix) === 0);
     }
     if (v.ativo) return true;
-    return hasVendas;
+    return lancsFiltrados.some(l => l.vendedor === v.id && l.data.indexOf(prefix) === 0);
   });
 
   const atAdmin = vendedoresNoEscopo(escopoAtual).filter(v => v.ativo && v.papel === 'administrativo');
@@ -205,13 +201,12 @@ export function calcFilial(a, m, escopoAtual) {
   const dados = at.map(v => calcVendedor(v, a, m, lancsFiltrados));
   const dadosAdmin = atAdmin.map(v => calcVendedor(v, a, m, lancsFiltrados));
 
-  // Total da meta inclui qualquer um que tenha meta (Diretor incluso)
   const mt = at
-    .filter(v => getMetaVendedor(v, a, m).meta > 0)
+    .filter(v => !v.supervisor && getMetaVendedor(v, a, m).meta > 0)
     .reduce((s, v) => s + (getMetaVendedor(v, a, m).meta || 0), 0);
 
   const ft = dados.reduce((s, d) => s + d.faturado, 0);
-  const ftComMeta = dados.filter(d => d.meta > 0).reduce((s, d) => s + d.faturado, 0);
+  const ftComMeta = dados.filter(d => !d.vendedor.supervisor && d.meta > 0).reduce((s, d) => s + d.faturado, 0);
   const pt = dados.reduce((s, d) => s + d.pedidos, 0);
   const tk = pt > 0 ? ft / pt : 0;
   const pm = mt > 0 ? (ftComMeta / mt) * 100 : 0;
@@ -223,9 +218,10 @@ export function calcFilial(a, m, escopoAtual) {
 
   const re = mt > 0 ? mt * (diasDecorridos / du) : 0;
   
+  // CORREÇÃO DA PROJEÇÃO AQUI
   let pr = ft;
-  if (df > 0 && dt > 0) {
-    pr = (ft / dt) * du;
+  if (df > 0 && diasDecorridos > 0) {
+    pr = (ft / diasDecorridos) * du;
   }
 
   const fl = Math.max(0, mt - ftComMeta);

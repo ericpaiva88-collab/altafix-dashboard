@@ -10,22 +10,16 @@ const PISO_RUIDO = 500;
 
 export function listarMesesComDados(vendedorId) {
   const set = new Set();
-  
-  // Busca os meses baseados na tabela de lançamentos (onde sempre tem os dados)
   (state.lancamentos || []).forEach(l => {
     if (vendedorId && vendedorId !== 'all' && l.vendedor !== vendedorId) return;
     if (l.data) set.add(l.data.slice(0, 7));
   });
-  
-  // Se ainda não tiver nenhum, tenta buscar das importações
   if (set.size === 0) {
     (state.clientesImportacoes || []).forEach(ci => {
       if (vendedorId && vendedorId !== 'all' && ci.vendedor !== vendedorId) return;
       if (ci.periodoIni) set.add(ci.periodoIni.slice(0, 7));
     });
   }
-  
-  // Adiciona o mês atual à força
   const hj = new Date();
   const mesAtualKey = hj.getFullYear() + '-' + String(hj.getMonth() + 1).padStart(2, '0');
   set.add(mesAtualKey);
@@ -123,7 +117,6 @@ export function calcularDiagnosticoMoM(vendedorId, mesRefStr, cidadeFiltro) {
   let fatAnt = 0, pedidosAnt = 0;
   let fatAntCompleto = 0;
 
-  // SINCRONIZAÇÃO MATEMÁTICA
   if (cidadeFiltro) {
     fatAt = Object.values(mapaAt).reduce((s, v) => s + v, 0);
     fatAnt = Object.values(mapaAnt).reduce((s, v) => s + v, 0);
@@ -167,14 +160,12 @@ export function calcularDiagnosticoMoM(vendedorId, mesRefStr, cidadeFiltro) {
   let duTotal = 0, duDec = 0, duFaltam = 0;
   if (ehMesCorrente) {
     duTotal = calcDiasUteisNoMes(ano, mes - 1);
-    
-    // CORREÇÃO: A projeção usa SEMPRE os dias de lançamento reais (mesma régua do Cockpit)
-    const dt = calcDiasComLancamento(ano, mes - 1, vendedorId === 'all' ? null : vendedorId, state.lancamentos);
     duDec = calcDiasUteisDecorridos(ano, mes - 1);
     duFaltam = Math.max(0, duTotal - duDec);
     
-    if (duFaltam > 0 && dt > 0) {
-      fatProjetado = (fatAt / dt) * duTotal;
+    // CORREÇÃO: Projeção usa diasDecorridos
+    if (duFaltam > 0 && duDec > 0) {
+      fatProjetado = (fatAt / duDec) * duTotal;
     }
   }
 
