@@ -6,7 +6,7 @@ import { state, ui } from '../state.js';
 import { fmtBRL, fmtNum, fmtPct, escapeHtml, normalizarNomeCliente } from '../utils.js';
 import { comparativoNoEscopo, filialNoEscopo } from '../calc.js';
 import { calcularDiagnosticoMoM, listarMesesComDados } from '../calc_diagnostico.js';
-import { imprimirHTML } from './painel.js'; // <--- IMPORT ADICIONADO AQUI
+import { imprimirHTML } from './painel.js';
 
 const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
                'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
@@ -14,7 +14,7 @@ const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
 let chartYoyInstance = null;
 let chartImpactoInstance = null;
 let subtabAtiva = 'yoy';
-let visaoListas = 'clientes'; // 'clientes' ou 'cidades'
+let visaoListas = 'clientes';
 
 export function renderAnalise() {
   setupSubtabs();
@@ -44,7 +44,7 @@ function setupSubtabs() {
   elMom.style.display = subtabAtiva === 'mom' ? 'block' : 'none';
 }
 
-// (Funções renderAnaliseYoY, renderGraficoLinha e renderRankingComLeitura mantidas iguais)
+// (Funções renderAnaliseYoY, renderGraficoLinha e renderRankingComLeitura mantidas)
 function renderAnaliseYoY() {
   const kpiEl = document.getElementById('analise-kpis');
   const tbody = document.getElementById('tbody-ranking-leitura');
@@ -257,18 +257,18 @@ function renderAnaliseMoM() {
     selCidade.innerHTML = opts;
   }
 
-  selVend.onchange = () => { popularMesesMoM(selVend.value, selCidade.value); renderPainelMoM(selVend.value, selMes.value, selCidade.value); };
-  selCidade.onchange = () => { popularMesesMoM(selVend.value, selCidade.value); renderPainelMoM(selVend.value, selMes.value, selCidade.value); };
+  selVend.onchange = () => { popularMesesMoM(selVend.value); renderPainelMoM(selVend.value, selMes.value, selCidade.value); };
+  selCidade.onchange = () => { renderPainelMoM(selVend.value, selMes.value, selCidade.value); };
   selMes.onchange = () => renderPainelMoM(selVend.value, selMes.value, selCidade.value);
 
-  if (selMes.options.length === 0) popularMesesMoM(selVend.value, selCidade.value);
+  if (selMes.options.length === 0) popularMesesMoM(selVend.value);
   renderPainelMoM(selVend.value, selMes.value, selCidade.value);
 }
 
-function popularMesesMoM(vendedorId, cidadeFiltro) {
+function popularMesesMoM(vendedorId) {
   const selMes = document.getElementById('mom-mes');
   if (!selMes) return;
-  const meses = listarMesesComDados(vendedorId, cidadeFiltro);
+  const meses = listarMesesComDados(vendedorId);
   if (meses.length === 0) {
     selMes.innerHTML = '<option value="">Sem dados</option>';
     return;
@@ -452,9 +452,7 @@ function renderPainelMoM(vendedorId, mesRef, cidadeFiltro) {
 
   renderImpactoChart(d, sumCairam, sumCresceram);
 
-  // =================================================================
-  // LÓGICA DO BOTÃO DE RELATÓRIO (ADICIONADA AQUI NO FINAL)
-  // =================================================================
+  // Configura o botão de relatório geral (PDF)
   const btnRelatorio = document.getElementById('btn-relatorio-mom');
   if (btnRelatorio) {
     btnRelatorio.onclick = () => {
@@ -466,7 +464,6 @@ function renderPainelMoM(vendedorId, mesRef, cidadeFiltro) {
       
       let html = '';
 
-      // 1. Resumo em Tabela
       html += `<table style="margin-bottom: 20px;">
         <thead>
           <tr>
@@ -486,7 +483,6 @@ function renderPainelMoM(vendedorId, mesRef, cidadeFiltro) {
         </tbody>
       </table>`;
 
-      // 2. Resumo de Impacto
       html += `<div style="display:flex; justify-content:space-between; margin-bottom: 20px;">
         <div style="width:48%; border:1px solid #eee; padding:10px; border-radius:6px;">
           <h4 style="color:#DC2626; margin-bottom:5px;">O que puxou para baixo</h4>
@@ -500,7 +496,6 @@ function renderPainelMoM(vendedorId, mesRef, cidadeFiltro) {
         </div>
       </div>`;
 
-      // 3. Top 5 Clientes em Queda
       const topQuedas = [...d.perdidos, ...d.cairam].slice(0, 5);
       if (topQuedas.length > 0) {
         html += `<h4 style="color:#DC2626; margin: 15px 0 5px 0;">Top 5 Clientes em Queda</h4>`;
@@ -511,7 +506,6 @@ function renderPainelMoM(vendedorId, mesRef, cidadeFiltro) {
         html += `</tbody></table>`;
       }
 
-      // 4. Top 5 Clientes em Crescimento
       const topCrescimento = [...d.novos, ...d.cresceram].slice(0, 5);
       if (topCrescimento.length > 0) {
         html += `<h4 style="color:#16A34A; margin: 15px 0 5px 0;">Top 5 Clientes em Crescimento</h4>`;
@@ -522,7 +516,6 @@ function renderPainelMoM(vendedorId, mesRef, cidadeFiltro) {
         html += `</tbody></table>`;
       }
       
-      // 5. Resumo de Cidades
       if (d.cidadesQueda.length > 0 || d.cidadesCrescimento.length > 0) {
         html += `<h4 style="margin: 20px 0 5px 0;">Destaques por Cidade</h4>`;
         html += `<table><thead><tr><th>Cidade</th><th>Status</th><th class="num">Variação</th></tr></thead><tbody>`;
@@ -731,12 +724,16 @@ window._abrirDetalheMoM = function(tipo) {
     document.body.appendChild(modal);
   }
 
+  // ADICIONADO O BOTÃO DE IMPRIMIR AQUI NO MODAL
   modal.querySelector('.modal-content').innerHTML = `
     <div style="padding:20px 24px; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center; background:#FAFAFA;">
       <h3 style="font-size:16px; color:${corTitulo}; display:flex; align-items:center; gap:8px;">
         ${titulo} <span class="badge neutral" style="font-size:12px;">${lista.length}</span>
       </h3>
-      <button class="btn btn-sm" onclick="document.getElementById('modal-detalhe-mom').classList.remove('show')">Fechar</button>
+      <div style="display:flex; gap:8px;">
+        <button class="btn btn-sm btn-primary" onclick="window._imprimirListaMoM('${tipo}')">🖨️ Imprimir Lista</button>
+        <button class="btn btn-sm" onclick="document.getElementById('modal-detalhe-mom').classList.remove('show')">Fechar</button>
+      </div>
     </div>
     <div class="ficha-lista" style="flex:1; overflow-y:auto; border:none; border-radius:0;">
       ${listaHtml}
@@ -745,4 +742,57 @@ window._abrirDetalheMoM = function(tipo) {
 
   modal.classList.add('show');
   modal.onclick = e => { if (e.target.id === 'modal-detalhe-mom') modal.classList.remove('show'); };
+};
+
+// NOVA FUNÇÃO EXCLUSIVA PARA IMPRIMIR A LISTA DO MODAL
+window._imprimirListaMoM = function(tipo) {
+  const d = window._dadosMoMAtual;
+  if (!d) return;
+
+  let lista = [];
+  let titulo = '';
+
+  if (tipo === 'perdidos') {
+    lista = d.perdidos;
+    titulo = 'Clientes Perdidos (Zeraram)';
+  } else if (tipo === 'cairam') {
+    lista = d.cairam;
+    titulo = 'Clientes em Queda';
+  } else if (tipo === 'novos') {
+    lista = d.novos;
+    titulo = 'Novos Clientes';
+  } else if (tipo === 'cresceram') {
+    lista = d.cresceram;
+    titulo = 'Clientes em Aumento';
+  }
+
+  const selVend = document.getElementById('mom-vendedor');
+  const selMes = document.getElementById('mom-mes');
+  const selCidade = document.getElementById('mom-cidade');
+  
+  const mesNome = MESES[parseInt(selMes.value.split('-')[1], 10) - 1];
+  const nomeVendedor = selVend.value === 'all' ? 'Todo o Time' : state.vendedores.find(v => v.id === selVend.value)?.nome;
+  const nomeCidade = selCidade.value ? selCidade.value : 'Todas as Cidades';
+  const subTitulo = `Mês: ${mesNome} | Vendedor: ${nomeVendedor} | Cidade: ${nomeCidade}`;
+
+  let html = '<table><thead><tr>';
+  html += '<th>CLIENTE</th><th>CIDADE</th><th class="num">VARIAÇÃO</th>';
+  html += '</tr></thead><tbody>';
+
+  lista.forEach(c => {
+    const nomeExibicao = c.nome.replace(/\s*\(Migrou p\/.*\)$/, '');
+    const codTxt = c.codigo ? `[${c.codigo}] ` : '';
+    const isMigrou = c.nome.indexOf('(Migrou p/') >= 0;
+    const motivo = isMigrou ? ' (Transferido)' : '';
+    
+    html += '<tr>';
+    html += `<td><strong>${codTxt}${escapeHtml(nomeExibicao)}</strong>${motivo}</td>`;
+    html += `<td>${c.cidade || '—'}</td>`;
+    html += `<td class="num" style="color:${c.delta >= 0 ? '#16A34A' : '#DC2626'}; font-weight:bold;">${c.delta > 0 ? '+' : ''}${fmtBRL(c.delta)}</td>`;
+    html += '</tr>';
+  });
+
+  html += '</tbody></table>';
+
+  imprimirHTML(titulo, subTitulo, html);
 };
