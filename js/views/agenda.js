@@ -5,7 +5,7 @@
 import { state, ui } from '../state.js';
 import { fmtBRL, escapeHtml, isoDate, diffDias, normalizarNomeCliente, abrirWhatsApp, toast } from '../utils.js';
 import { filialNoEscopo } from '../calc.js';
-import { imprimirHTML } from './painel.js'; // Importa a função de impressão
+import { imprimirHTML } from './painel.js';
 
 let focoFila = [];
 let focoIndex = 0;
@@ -36,7 +36,6 @@ export function renderAgenda() {
   focoFila = gerarFila(fBusca, fTipo, fVend);
   focoIndex = 0;
 
-  // Configura o botão de imprimir
   if (btnImprimir) {
     btnImprimir.onclick = () => {
       if (focoFila.length === 0) {
@@ -80,7 +79,6 @@ export function renderAgenda() {
   }
 }
 
-// NOVA FUNÇÃO DE IMPRESSÃO
 function gerarImpressaoAgenda(fila, fTipo, fVend) {
   let titulo = 'Lista de Trabalho';
   if (fTipo === 'recompra') titulo = 'Lista de Recompra Esperada';
@@ -112,7 +110,6 @@ function gerarImpressaoAgenda(fila, fTipo, fVend) {
 
   html += '</tbody></table>';
 
-  // Chama a função de impressão lá do painel.js
   imprimirHTML(titulo, `Filtro: ${subVend}`, html);
 }
 
@@ -305,6 +302,7 @@ function gerarFila(fBusca, fTipo, fVend) {
   
   ligs.sort((a, b) => (b.data || '').localeCompare(a.data || ''));
 
+  // 1. Processa as ligações (Retornos agendados)
   ligs.forEach(l => {
     const chave = normalizarNomeCliente(l.empresa || '');
     if (vistos[chave]) return;
@@ -317,6 +315,11 @@ function gerarFila(fBusca, fTipo, fVend) {
       const v = state.vendedores.find(x => x.id === l.vendedor);
       const cli = state.clientes.find(c => normalizarNomeCliente(c.nome) === chave && filialNoEscopo(c.filialId, ui.escopoAtual));
       
+      // REGRA NOVA: Se o cliente comprou depois da data agendada, ignora esse retorno!
+      if (cli && cli.ultimaCompra && cli.ultimaCompra >= l.proximo) {
+          return; // O retorno já foi "cumprido" pela compra
+      }
+
       fila.push({
         id: 'lig_' + l.id,
         tipo: atrasado ? 'atrasados' : 'hoje',
@@ -336,22 +339,24 @@ function gerarFila(fBusca, fTipo, fVend) {
     }
   });
 
+  // 2. Processa clientes por ciclo de recompra
   let clientes = state.clientes.filter(c => filialNoEscopo(c.filialId, ui.escopoAtual));
 
   clientes.forEach(c => {
     if (!c.ultimaCompra || !c.numCompras || c.numCompras < 2) return;
     if (c.valorMedioMensal < 100) return; 
 
-    const dias = diffDias(c.ultimaCompra, hj);
-    if (dias < 30) return; 
-
     const chave = normalizarNomeCliente(c.nome);
     if (vistos[chave]) return;
     vistos[chave] = true;
 
     const ciclo = Math.max(1, c.intervaloMedio || 30); 
+    const dias = diffDias(c.ultimaCompra, hj);
     const fator = dias / ciclo; 
     const v = state.vendedores.find(x => x.id === c.vendedor);
+
+    // REGRA NOVA: Só aparece se já passou de 80% do ciclo de compra dele
+    if (fator < 0.8) return; 
 
     let tipo = 'recompra';
     let label = 'Recompra Esperada';

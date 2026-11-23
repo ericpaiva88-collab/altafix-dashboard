@@ -30,14 +30,13 @@ export function renderLigacoes() {
     selVend.innerHTML = opts;
   }
 
-  // Popula o select de cidade
   const selCidade = document.getElementById('filtro-lig-cidade');
   if (selCidade && selCidade.options.length <= 1) {
-    let cidades = new Set();
-    state.ligacoes.forEach(l => { if (l.cidade) cidades.add(l.cidade); });
+    let cidadesSet = new Set();
+    state.ligacoes.forEach(l => { if (l.cidade && l.cidade !== '_') cidadesSet.add(l.cidade.trim()); });
     
     let opts = '<option value="">Todas cidades</option>';
-    Array.from(cidades).sort().forEach(cid => {
+    Array.from(cidadesSet).sort().forEach(cid => {
       opts += `<option value="${escapeHtml(cid)}">${escapeHtml(cid)}</option>`;
     });
     selCidade.innerHTML = opts;
@@ -97,7 +96,7 @@ export function renderLigacoes() {
     const st = STATUS[l.status] || STATUS.prospeccao;
     const proxTxt = l.proximo ? fmtDataBR(l.proximo) : '—';
     
-    const cidTxt = l.cidade ? `<br><span style="font-size:11px; color:#888;">${escapeHtml(l.cidade)}</span>` : '';
+    const cidTxt = (l.cidade && l.cidade !== '_') ? `<br><span style="font-size:11px; color:#888;">${escapeHtml(l.cidade)}</span>` : '';
 
     return `
       <tr>
@@ -239,6 +238,42 @@ async function salvarLigacao(existente) {
     }
 
     if (resultado.error) throw new Error(resultado.error.message);
+
+    // =================================================================
+    // INTELIGÊNCIA DE VENDA: Atualiza o cadastro e agenda o próximo retorno
+    // =================================================================
+    if (payload.status === 'venda') {
+      const cli = state.clientes.find(c => normalizarNomeCliente(c.nome) === payload.cliente_norm);
+      if (cli) {
+        // 1. Atualiza a última compra no banco de dados
+        await session.sb.from('clientes').update({
+          ultima_compra: data,
+          num_compras: (cli.numCompras || 0) + 1
+        }).eq('id', cli.id);
+
+        // 2. Agenda o próximo retorno automaticamente (se o usuário não digitou uma data)
+        if (!payload.proximo) {
+          const ciclo = Math.max(1, cli.intervaloMedio || 30);
+          const d = new Date(data + 'T12:00:00');
+          d.setDate(d.getDate() + ciclo);
+          const proxData = isoDate(d);
+          
+          await session.sb.from('ligacoes').insert({
+            id: 'lig_auto_' + Date.now().toString(36),
+            filial_id: filialId,
+            vendedor_id: vendedor,
+            data: data,
+            codigo: payload.codigo,
+            empresa: empresa,
+            cliente_norm: payload.cliente_norm,
+            status: 'prospeccao',
+            proximo: proxData,
+            obs: 'Retorno automático (Ciclo: ' + ciclo + ' dias)'
+          });
+        }
+      }
+    }
+    // =================================================================
 
     const modal = document.getElementById('lig-modal');
     const acaoId = modal ? modal._acaoId : null;
